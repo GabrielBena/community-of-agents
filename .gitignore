@@ -8,6 +8,7 @@ __pycache__/
 
 data/
 wandb
+!/community/data
 
 # Distribution / packaging
 .Python

@@ -1,0 +1,143 @@
+import torch
+from torch.utils.data import Dataset
+from torchvision import datasets, transforms
+import numpy as np
+import numpy.random as rd
+
+
+class DoubleMNIST(Dataset) :
+    """
+    Double Digits MNIST dataset
+    Args : 
+        train : use training set
+        asym : solve parity task asymetry by removing digit_1==digit_2 cases
+    
+    """
+    
+    def __init__(self, root, train=True, fix_asym=True, permute=False, seed=None):
+        super().__init__()
+
+        self.transform=transforms.Compose([
+            transforms.ToTensor(),
+            transforms.Normalize((0.1307,), (0.3081,))
+            ])
+
+        dataset = datasets.MNIST(root, train=train, download=True,
+                   transform=self.transform)
+        self.mnist_dataset = dataset
+
+        self.fix_asym=fix_asym
+        self.secondary_index = torch.randperm(len(self.mnist_dataset))
+        if self.fix_asym : 
+            self.new_idxs = self.get_forbidden_indexs()
+        else : 
+            self.new_idxs = [i for i in range(len(dataset))]
+        
+        self.permute = permute
+        if self.permute : 
+            if seed is not None : 
+                torch.manual_seed(seed)
+            self.permutation = torch.randperm(10)
+            print(self.permutation)
+
+    def valid_idx(self, idx) : 
+        idx1, idx2 = idx, self.secondary_index[idx]
+        _, target_1 = self.mnist_dataset[idx1]
+        _, target_2 = self.mnist_dataset[idx2]
+
+        return not (target_1 == target_2 or target_1 == (target_2-1)%10)
+
+    def permute_labels(self, seed=None) : 
+        if seed is not None : 
+            torch.manual_seed(seed)
+        self.permutation = torch.randperm(10)
+
+    def get_forbidden_indexs(self) : 
+        new_idxs = []
+        for idx in range(len(self.mnist_dataset)) : 
+            if self.valid_idx(idx) :
+                new_idxs.append(idx)
+        return new_idxs
+
+    def __getitem__(self, index):
+        index_1= self.new_idxs[index]
+        index_2 = self.secondary_index[index_1]
+
+        digit_1, target_1 = self.mnist_dataset[index_1]
+        digit_2, target_2 = self.mnist_dataset[index_2]
+
+        if self.permute : 
+            target_1, target_2 = self.permutation[target_1],  self.permutation[target_2]
+
+        digits = torch.cat([digit_1, digit_2], axis = 0)
+        targets = [target_1, target_2]
+
+        return digits, torch.tensor(targets)
+
+    def __len__(self) : 
+        return len(self.mnist_dataset)
+
+    
+class MultiDataset(Dataset) : 
+    def __init__(self, datasets, shuffle=False) :
+        
+        self.datasets = datasets
+        self.small_dataset_idx = np.argmin([len(d) for d in self.datasets])
+        self.shuffle = shuffle
+
+    def __len__(self):
+        return  np.min([len(d) for d in self.datasets])
+
+    def __getitem__(self, idx):
+        #get images and labels here 
+        #returned images must be tensor
+        #labels should be int 
+        rand_idx = lambda d : rd.randint(len(d))
+        if self.shuffle : 
+            idxs = [(rand_idx(d) if n!=self.small_dataset_idx else idx) for n, d in enumerate(self.datasets)]
+        else : 
+            idxs = [idx]*len(self.datasets)
+
+        samples = [d[idx] for (d, idx) in zip(self.datasets, idxs)]
+        datas, labels = [d[0] for d in samples], [d[1] for d in samples]
+        try : 
+            return torch.stack(datas), torch.tensor(labels)
+        except : 
+            return datas, labels
+
+
+def get_datasets(root, batch_size=256, use_cuda=True, fix_asym=False, permute=False, seed=None) :
+        
+    train_kwargs = {'batch_size': batch_size}
+    test_kwargs = {'batch_size': batch_size}
+    if use_cuda:
+        cuda_kwargs = {'num_workers': 0,
+                    'pin_memory': True,
+                    'shuffle': True}
+        train_kwargs.update(cuda_kwargs)
+        test_kwargs.update(cuda_kwargs)
+    transform=transforms.Compose([
+        transforms.ToTensor(),
+        transforms.Normalize((0.1307,), (0.3081,))
+        ])
+
+    kwargs = train_kwargs, test_kwargs
+
+    single_datasets = [datasets.MNIST(root, train=t, download=False,
+                    transform=transform) for t in [True, False]]
+    double_datasets = [DoubleMNIST(root, train=t, fix_asym=False)
+                        for t in [True, False]]
+
+    single_datasets_fashion = [datasets.FashionMNIST(root, train=t,
+                                 transform=transform, download=True)
+                                  for t in [True, False]]
+
+    multi_datasets = [MultiDataset([s1, s2]) for (s1, s2) in zip(single_datasets, single_datasets_fashion)]
+
+    single_loaders = [torch.utils.data.DataLoader(d, **k) for d, k in zip(single_datasets, kwargs)]
+    double_loaders = [torch.utils.data.DataLoader(d, **k) for d, k in zip(double_datasets, kwargs)]
+    multi_loaders = [torch.utils.data.DataLoader(d, **k) for d, k in zip(multi_datasets, kwargs)]
+
+    return multi_loaders, double_loaders, single_loaders
+
+
