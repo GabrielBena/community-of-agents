@@ -123,7 +123,7 @@ def get_datasets(root, batch_size=256, use_cuda=True, fix_asym=False, permute=Fa
 
     kwargs = train_kwargs, test_kwargs
 
-    single_datasets = [datasets.MNIST(root, train=t, download=False,
+    single_datasets = [datasets.MNIST(root, train=t, download=True,
                     transform=transform) for t in [True, False]]
     double_datasets = [DoubleMNIST(root, train=t, fix_asym=False)
                         for t in [True, False]]

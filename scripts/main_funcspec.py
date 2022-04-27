@@ -21,7 +21,7 @@ if __name__ == "__main__":
     use_cuda = False
     device = torch.device("cuda" if use_cuda else "cpu")
 
-    dataset_config = {'batch_size' : 64, 
+    dataset_config = {'batch_size' : 256, 
                       'use_cuda' : use_cuda, 
                       'fix_asym' : False, 
                       'permute_dataset' : False, 
@@ -104,8 +104,9 @@ if __name__ == "__main__":
     compute_trained_communities(p_cons, loaders, config=config, device=device)
     #"""    
 
+    compute_correlation_metric(p_cons, loaders, save_name='Correlations', device=device, config=config)
     compute_bottleneck_metrics(p_cons, loaders, save_name='Bottlenecks', device=device, config=config)
     
     compute_mask_metric(p_cons, loaders, save_name='Masks', device=device, config=config)
     
-    compute_correlation_metric(p_cons, loaders, save_name='Correlations', device=device, config=config)
+    
