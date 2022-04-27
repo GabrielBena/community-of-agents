@@ -1,47 +1,33 @@
 from scipy import rand
 import torch
 import numpy as np
-import torch.nn as nn
 
-from torch.utils.data import Dataset, DataLoader
-from torchvision import datasets, transforms
 from tqdm.notebook import tqdm as tqdm_n
 from tqdm import tqdm
-import os 
+
 import matplotlib.pyplot as plt
 import wandb
-
-from data.wandb_utils import get_wandb_artifact, mkdir_or_save_torch
-from data.datasets_and_tasks import DoubleMNIST, get_digits, temporal_data, rotation_conflict_task
-
-from models.community import init_community
 from scipy.stats import pearsonr
 
-def fixed_digit(data, i=0) : 
-    # Return a modified version of data sample, where one digit is fixed
-    fixed = data[:, i, 0, :]
-    fixed = torch.repeat_interleave(fixed.unsqueeze(1), data.shape[-2], dim=1)
-    datas = [fixed, data[:, i-1, ...]]
-    if i == 1 : 
-        datas = datas[::-1]
-    new_data = torch.stack(datas, axis=1)
-    
-    return new_data
+from community.common.utils import get_wandb_artifact, mkdir_or_save_torch, is_notebook
+from community.data.tasks import get_digits, rotation_conflict_task
+from community.data.process import temporal_data
+from community.common.init import init_community
 
 def fixed_information_data(data, target, fixed_mode='label', n_categories=10, i=0) : 
     # Return a modified version of data sample, where one quality is fixed (digit label, or parity, etc)
     digits = get_digits(target, n_classes=n_categories)
-    if fixed_mode is not None : 
-        if fixed_mode == 'label':
-            d_idxs = [torch.where(digits[i] == d)[0] for d in range(10)]
-        elif fixed_mode == 'parity' : 
-            d_idxs = [torch.where(digits[i]%2 == p)[0] for p in range(2)]
-            
-        datas = [[data[:, j, idx, :] for idx in d_idxs] for j in range(2)]
-        new_data = [torch.stack([d1, d2], axis=1) for d1, d2 in zip(*datas)]
-        return new_data
+    if fixed_mode == 'label':
+        d_idxs = [torch.where(digits[i] == d)[0] for d in range(10)]
+    elif fixed_mode == 'parity' : 
+        d_idxs = [torch.where(digits[i]%2 == p)[0] for p in range(2)]
     else : 
-        return fixed_digit(data, i=i)
+        raise NotImplementedError('Fixation mode not recognized ("label" or "parity")')
+
+    datas = [[data[:, j, idx, :] for idx in d_idxs] for j in range(2)]
+    new_data = [torch.stack([d1, d2], axis=1) for d1, d2 in zip(*datas)]
+    
+    return new_data
 
 def fixed_rotation_data(data, digits, n_angles=4, reshape=None, i=0) : 
     if reshape is None : 
@@ -115,25 +101,25 @@ def randperm_no_fixed(n) :
 
 def get_pearson_metrics(community, loaders, n_tests=32, fixed_mode='label', use_tqdm=False, device=torch.device('cuda')) : 
     
-    n_samples = 128
     correlations = [[[] for _ in range(2)] for _ in range(2)]
-    double_train_loader, double_test_loader = loaders
+    double_test_loader = loaders[1]
     
     if type(use_tqdm) is int : 
         position = use_tqdm
         use_tqdm = True
-
     elif use_tqdm : 
         position = 0    
     pbar = range(n_tests)
     if use_tqdm : 
-        pbar = tqdm(pbar, position=position, desc='Metric Trials', leave=None)
+        notebook = is_notebook()
+        tqdm_f = tqdm_n if notebook else tqdm
+        pbar = tqdm_f(pbar, position=position, desc='Metric Trials', leave=None)
+
     for test in pbar :
         data, target = next(iter(double_test_loader))
         if type(data) is list : 
             data = torch.stack(data)
         data, target = temporal_data(data, 5).to(device), target.to(device)
-        batch_size = target.shape[0]
         for n in range(2) : 
             for k in range(2) : 
                 if not 'rotation' in fixed_mode : 
@@ -159,54 +145,19 @@ def get_pearson_metrics(community, loaders, n_tests=32, fixed_mode='label', use_
                     corrs.append(cor)
                 correlations[n][k].append(np.concatenate(corrs))
                 
-                #perm = torch.randperm(batch_size)
-                #idxs1, idxs2 = perm[:n_samples], perm[n_samples:2*n_samples]
-                
-                #corrs = torch.tensor([[pearsonr(s1, s2) for s1 in agent_states[idxs1]]
-                                      #for s2 in agent_states[idxs2]]).cpu().data.numpy()
     return np.array(correlations)   
 
-def get_cka_metrics(community, loaders, n_tests=128, use_tqdm=False, device=torch.device('cuda')) : 
-    
-    n_samples = 10
-    correlations = [[[] for _ in range(2)] for _ in range(2)]
-    double_train_loader, double_test_loader = loaders
-    
-    if type(use_tqdm) is int : 
-        position = use_tqdm
-        use_tqdm = True
+def compute_correlation_metric(p_cons, loaders, save_name, device=torch.device('cuda'), config=None) : 
 
-    elif use_tqdm : 
-        position = 0
+    notebook = is_notebook()
     
-    pbar = range(n_tests)
-    if use_tqdm : 
-        pbar = tqdm(pbar, position=position, desc='Metric Trials', leave=None)
-    for test in pbar :
-        data, target = next(iter(double_test_loader))
-        data = temporal_data(data, 5).to(device)
-        batch_size = target.shape[0]
-        for n in range(2) : 
-            for k in range(2) : 
-                outputs, states = community(fixed_digit(data, k))
-                agent_states = states[-1][n][0]
-                
-                perm = torch.randperm(batch_size)
-                idxs1, idxs2 = perm[:n_samples], perm[n_samples:2*n_samples]
-                
-                corrs = linear_cka_distance(agent_states[idxs1], agent_states[idxs2], reduce_bias=False).cpu().data.numpy()
-                correlations[n][k].append(1-corrs)
-
-    return np.array(correlations)  
-
-def compute_correlation_metric(p_cons, loaders, save_name, use_maxs=False, device=torch.device('cuda'), notebook=False, config=None) : 
-    
-    cka_distances = {}
     pearson_corrs_parity, pearson_corrs_label, pearson_corrs_rotation = {}, {}, {}
     l=0
     
     tqdm_f = tqdm_n if notebook else tqdm
-    if wandb.run is not None :
+
+    use_wandb = wandb.run is not None
+    if use_wandb :
         config = wandb.config
     else : 
         assert config is not None, 'Provide configuration dict or run using WandB'
@@ -227,22 +178,6 @@ def compute_correlation_metric(p_cons, loaders, save_name, use_maxs=False, devic
 
     task = wandb.config['task']
     print(task)
-    wandb.config.update({'correlation_use_maxs' : use_maxs})
-
-    try :
-        community_metrics = torch.load(community_state_path + '_metrics')
-    except FileNotFoundError : 
-        use_maxs = False
-    
-    if use_maxs : 
-        community_metrics = torch.load(community_state_path + '_metrics')
-        sorted_idx = lambda metric : [np.argsort(key(metric[p])) for p in p_cons]
-        
-        #key = lambda metric : metric
-        #sorted_indices = sorted_idx(community_metrics['Acc'])
-
-        key = lambda metric : -(metric- 0.5)**2
-        sorted_indices = sorted_idx(community_metrics['Deciding_ags'])
 
     for i, p_con in enumerate(tqdm_f(p_cons[l:], position=0, desc='Model Sparsity', leave=None)) : 
         
@@ -250,11 +185,7 @@ def compute_correlation_metric(p_cons, loaders, save_name, use_maxs=False, devic
         pearson_corrs_label[p_con] = []
         pearson_corrs_rotation[p_con] = []
 
-        if use_maxs : 
-            idxs = sorted_indices[i][5:]
-            states = np.array(community_states[p_con])[idxs]
-        else : 
-            states = community_states[p_con]
+        states = community_states[p_con]
             
         for i, state in enumerate(tqdm_f(states, position=1, desc='Model Trials', leave=None)) : 
             community.load_state_dict(state)
@@ -279,11 +210,14 @@ def compute_correlation_metric(p_cons, loaders, save_name, use_maxs=False, devic
         final_correlations = {'Pearson_Parity' : pearson_corrs_parity, 'Pearson_Label' : pearson_corrs_label, 'Pearson_Rotation' : pearson_corrs_rotation}
         mkdir_or_save_torch(final_correlations, save_name, save_path)
 
-    wandb.log_artifact(save_path + save_name, name='correlations', type='metric')
-    fig1, fig2 = plot_and_log_correlations(final_correlations)
-    wandb.log({'Correlation Metric' : wandb.Image(fig1), 'Correlation Difference Metric' : wandb.Image(fig2)})
+    figures = fig1, fig2 = plot_correlations(final_correlations)
+    if use_wandb : 
+        wandb.log_artifact(save_path + save_name, name='correlations', type='metric')
+        wandb.log({'Correlation Metric' : wandb.Image(fig1), 'Correlation Difference Metric' : wandb.Image(fig2)})
 
-def plot_and_log_correlations(correlations) : 
+    return final_correlations, figures
+
+def plot_correlations(correlations) : 
     
     pearsons_parity = correlations['Pearson_Parity']
     pearsons_labels = correlations['Pearson_Label']
@@ -359,7 +293,6 @@ def plot_and_log_correlations(correlations) :
 
     return fig1, fig2
 
-    
 
 
 

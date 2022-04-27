@@ -53,12 +53,13 @@ def init_optimizers(community, params_dict, deepR_params_dict) :
     optimizer_agents = optim.Adam(agents_params, lr=params_dict['lr'])
     try : 
         optimizer_connections = optim.Adam(connect_params, lr=deepR_params_dict['lr'])
-    except ValueError : #no connections
+        scheduler_connections = StepLR(optimizer_connections, step_size=1, gamma=deepR_params_dict['gamma'])
+    except (ValueError, KeyError) : #no connections
         optimizer_connections = optim.Adam([torch.tensor(0)])
-    optimizers = [optimizer_agents, optimizer_connections]
+        scheduler_connections = StepLR(optimizer_connections, step_size=1)
 
+    optimizers = [optimizer_agents, optimizer_connections]
     scheduler_agents = StepLR(optimizer_agents, step_size=1, gamma=params_dict['gamma'])
-    scheduler_connections = StepLR(optimizer_connections, step_size=1, gamma=deepR_params_dict['gamma'])
     schedulers = [scheduler_agents, scheduler_connections]
     
     return optimizers, schedulers

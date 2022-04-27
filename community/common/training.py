@@ -5,11 +5,11 @@ import torch.nn as nn
 import torch.nn.functional as F
 import copy
 from tqdm.notebook import tqdm as tqdm_n
-import tqdm
+from tqdm import tqdm
 import wandb
 
 from .init import init_community, init_optimizers
-from .utils import mkdir_or_save_torch, check_grad, is_notebook
+from .utils import mkdir_or_save_torch, check_grad, is_notebook, get_training_dict
 from .models.ensembles import ConvCommunity
 from .decision import get_decision
 from ..data.process import process_data
@@ -182,19 +182,18 @@ def train_community(model, train_loader, test_loader, optimizers, schedulers=Non
         if schedulers is not None : 
             for sch in schedulers : sch.step()
 
+        results = {
+            'train_losses' : train_losses,
+            'train_accs' : train_accs,
+            'test_losses' : test_losses,
+            'test_accs' : test_accs,
+            'deciding_agents' : np.array(deciding_agents),
+            'best_state' : best_state
+        }
+
         if early_stop and best_acc>=0.9 and epoch>=2:
-            return (train_losses, train_accs), (test_losses, test_accs), np.array(deciding_agents), best_state
+            return results
 
-
-    results = {
-        'train_losses' : train_losses,
-        'train_accs' : train_accs,
-        'test_losses' : test_losses,
-        'test_accs' : test_accs,
-        'deciding_agents' : np.array(deciding_agents),
-        'best_state' : best_state
-    }
-    
     return results
                    
 def test_community(model, device, test_loader, decision_params=('last', 'max'), task='parity_digits', verbose=False, seed=None):
@@ -285,7 +284,6 @@ def compute_trained_communities(p_cons, loaders, device=torch.device('cuda'), no
 
     inverse_task = 'digits' in task and config['training']['inverse_task']
 
-    double_train_loader, double_test_loader = loaders
     l = 0
     save_path =  config['saves']['models_save_path']
     save_name = config['saves']['models_save_name'] 
@@ -317,27 +315,28 @@ def compute_trained_communities(p_cons, loaders, device=torch.device('cuda'), no
         community_states[p_con] = []
         desc = 'Model Trials'
         pbar2 = tqdm_f(range(config['training']['n_tests']), position=1, desc=desc, leave=None)
+
         for test in pbar2 : 
+            
             deepR_params_dict['gdnoise'], params_dict['lr'], deepR_params_dict['lr'] = gdnoises[i], lrs_ag[i], lrs_con[i]  
             
             test_task = task + 'inv'*((test >= config['training']['n_tests']//2) and inverse_task)
-            community = init_community(agent_params_dict, p_con, device, use_deepR=config['model_params']['use_deepR'])
+            community = init_community(agent_params_dict, p_con, use_deepR=config['model_params']['use_deepR'], device=device)
             optimizers, schedulers = init_optimizers(community, params_dict, deepR_params_dict)
-            
-            *train_out, best_state = train_community(community, device, double_train_loader, double_test_loader, optimizers, schedulers=schedulers,                          
-                                    early_stop=config['training']['early_stop'], n_epochs=config['training']['n_epochs'],
-                                    task=test_task, global_rewire=config['model_params']['global_rewire'],
-                                    deepR_params_dict=deepR_params_dict, decision_params=config['training']['decision_params'],
-                                    use_tqdm=2)
-            
-            (train_losses, train_accs), (test_losses, test_accs), deciding_agents = train_out
 
-            best_test_acc = np.max(test_accs)
-            mean_d_ags = deciding_agents.mean()
-            community_states[p_con].append(best_state)
+            training_dict = get_training_dict(config)
+            
+            train_out = train_community(community, *loaders, optimizers, schedulers,                          
+                                                     config=training_dict, device=device, use_tqdm=2)
+            
+            best_test_acc = np.max(train_out['test_accs'])
+            mean_d_ags = train_out['deciding_agents'].mean()
+            community_states[p_con].append(train_out['best_state'])
+            
             pbar2.set_description(desc + f' Best Accuracy : {best_test_acc}, Mean Decision : {mean_d_ags}')
             
             wandb.log({metric_name : metric for metric, metric_name in zip([best_test_acc, mean_d_ags], ['Best Test Acc', 'Mean Decision'])})
 
         mkdir_or_save_torch(community_states, save_name, save_path)
+        
     wandb.log_artifact(total_path, name='state_dicts', type='model_saves') 
