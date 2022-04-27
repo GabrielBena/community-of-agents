@@ -183,7 +183,7 @@ def mkdir_or_save_torch(to_save, save_name, save_path) :
         torch.save(to_save, save_path + save_name)
     except FileNotFoundError : 
         path = Path(save_path)
-        path.mkdir(save_path, parents=True)
+        path.mkdir(parents=True)
         torch.save(to_save, save_path + save_name)
 
 
