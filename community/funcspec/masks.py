@@ -13,6 +13,7 @@ warnings.filterwarnings('ignore')
 
 from community.common.training import train_community
 from community.common.init import init_community
+from community.common.utils import is_notebook
 
 # ------ Weight Masks Models ------
 
