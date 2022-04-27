@@ -7,13 +7,15 @@ import math
 import torch.autograd as autograd
 from tqdm import tqdm
 from tqdm.notebook import tqdm as tqdm_n
+import wandb
+import matplotlib.pyplot as plt
 
 import warnings
 warnings.filterwarnings('ignore')
 
 from community.common.training import train_community
 from community.common.init import init_community
-from community.common.utils import is_notebook
+from community.common.utils import is_notebook, get_wandb_artifact, mkdir_or_save_torch
 
 # ------ Weight Masks Models ------
 
@@ -294,7 +296,7 @@ def get_proportions_per_agent(masked_community) :
     prop = np.array((prop_ag_0, prop_ag_1))
     return prop, prop*numel*sparsity    
 
-def compute_mask_metric(p_cons, community_state_path, model_params, loaders, p_masks, lr, save_name, use_maxs=True, device=torch.device('cuda')) : 
+def compute_mask_metric(p_cons, loaders, save_name, p_masks=[0.1],  device=torch.device('cuda')) : 
     """
     Compute complete mask metric, for every trained community and sparsity of interconnections
     """
@@ -303,17 +305,33 @@ def compute_mask_metric(p_cons, community_state_path, model_params, loaders, p_m
     test_losses_supermasks = {}
     trained_masks = {}
     l = 0
+
+    notebook = is_notebook()
+
+    tqdm_f = tqdm_n if notebook else tqdm
+
+    use_wandb = wandb.run is not None
+    if use_wandb :
+        config = wandb.config
+    else : 
+        assert config is not None, 'Provide configuration dict or run using WandB'
+
+    save_path = config['saves']['metrics_save_path']
+    community_state_path = config['saves']['models_save_path'] + config['saves']['models_save_name']
+    agent_params_dict = config['model_params']['agents_params']
+
+    try :  #Load states from file
+        community_states = torch.load(community_state_path)
+        print('Loading models from file')
+        print(community_state_path)
+    except FileNotFoundError: #Load from WandB artifacts
+        community_states, *_ = get_wandb_artifact(config, name='state_dicts', process_config=True)
+        print('Loading models from artifact')
+
+    community = init_community(agent_params_dict, 0.1, device, use_deepR=config['model_params']['use_deepR'])
+
+    task = wandb.config['task']
     
-    agents_params, community_params = model_params
-    community_states = torch.load(community_state_path)
-    community = init_community(agents_params, community_params, device)
-    n_tests = len(community_states)
-
-    if use_maxs : 
-        community_metrics = torch.load(community_state_path + '_metrics')
-        sorted_idx = lambda metric : [np.argsort(metric[p]) for p in p_cons]
-        sorted_indices = sorted_idx(community_metrics['Acc'])
-
     for i, p_con in enumerate(tqdm(p_cons[l:], position=0, desc='Community Sparsity : ', leave=None)) : 
 
         prop_per_agent = {}    
@@ -322,12 +340,6 @@ def compute_mask_metric(p_cons, community_state_path, model_params, loaders, p_m
         best_states = {}
         for p_mask in tqdm(p_masks, position=1, desc='Mask Sparsity', leave=None) :
             prop_per_agent[p_mask], test_accs[p_mask], test_losses[p_mask], best_states[p_mask] = [], [], [], []
-            
-            if use_maxs : 
-                idxs = sorted_indices[i][5:]
-                states = np.array(community_states[p_con])[idxs]
-            else : 
-                states = community_states[p_con]
 
             for i, state in enumerate(tqdm(states, position=2, desc='Model Trials : ', leave=None)) :                     
                 community.load_state_dict(state)
@@ -344,10 +356,17 @@ def compute_mask_metric(p_cons, community_state_path, model_params, loaders, p_m
         test_accuracies_supermasks[p_con] = test_accs
         test_losses_supermasks[p_con] = test_losses
         trained_masks[p_con] = best_states
+
+        metric = {'Proportions' : proportions_per_agent, 'Accs' : test_accuracies_supermasks,
+                    'Losses' : test_losses_supermasks, 'Trained_masks' : trained_masks}
         
-        community_states = torch.load(community_state_path)
-        torch.save({'Proportions' : proportions_per_agent, 'Accs' : test_accuracies_supermasks,
-                    'Losses' : test_losses_supermasks, 'Trained_masks' : trained_masks}, save_name)
+        mkdir_or_save_torch(metric, save_name, save_path)
+
+    figures = fig1, fig2 = plot_mask_metric(metric)
+    if use_wandb : 
+        wandb.log_artifact(save_path + save_name, name='correlations', type='metric')
+        wandb.log({'Correlation Metric' : wandb.Image(fig1), 'Correlation Difference Metric' : wandb.Image(fig2)})
+
         
 def get_metrics_from_saved_masks(mask_file, masked_community, sparsities) : 
     """
@@ -377,6 +396,108 @@ def get_metrics_from_saved_masks(mask_file, masked_community, sparsities) :
 
     return proportions, thresholds
 
+
+
+def plot_mask_metric(mask_metric) : 
+
+    p_cons = np.array(list(mask_metric.keys()))
+    l = len(p_cons)
+
+    linestyles = ['--', '-', ':']
+    sparsities = [1e-1]
+    proportions = mask_metric['Proportions']
+    fig1, axs = plt.subplots(1, 2, figsize=(20, 5), sharey=False)
+    sorted_idxs = [[[np.argsort(mask_metric['Accs'][p][0.1][c, :, k, 0])[:1] for c in range(5)] for k in range(2)] for p in p_cons]
+
+    ax = axs[0]
+    for n in range(2) : 
+        for i, k in enumerate(sparsities) : 
+            
+            linestyle = linestyles[i]
+            idx_retrival  = lambda prop, idxs : np.stack([prop[i, idx, 0, n] for i, idx in enumerate(idxs)])
+            
+            mean = np.array([idx_retrival(proportions[p_con][k], idxs[n]).mean() for p_con, idxs in zip(p_cons[:l], sorted_idxs)])
+            std = np.array([idx_retrival(proportions[p_con][k], idxs[n]).std() for p_con, idxs in zip(p_cons[:l], sorted_idxs)])
+            plot = ax.plot(p_cons[:l], mean, 
+                    label=f'Subnetwork {n}, Subtask {0}, {k*100}% weights', linestyle=linestyle)
+            col = plot[-1].get_color()
+            ax.fill_between(p_cons[:l], mean-std, mean+std, color=col, alpha=0.2)
+            for p_con, idx in zip(p_cons[:l], sorted_idxs) : 
+                data_points = proportions[p_con][k][:, idx, 0, n].mean(1).flatten()
+
+                #ax.plot([p_con]*len(data_points), data_points, '.', color=col, alpha=0.4)
+
+    ax.legend()
+    ax.set_ylabel('Functional Specialization :\n Proportion of selected weights present', fontsize=13)
+    ax.set_title(f'Weight Mask Metric, Proportions', fontsize=15)
+    ax.set_xscale('log')  
+
+    for m, metric in enumerate(['Accs']) : 
+        ax = axs[1+m]
+        for n in range(2) : 
+            for i, k in enumerate([0.1]) : 
+                linestyle = linestyles[n]
+                mean = [mask_metric[metric][p_con][k][..., n, -1].mean() for p_con in p_cons[:l]]
+                plot = ax.plot(p_cons[:l], mean, 
+                        label=f'Subtask {n}, {k*100}% weights', linestyle=linestyle)
+                std = np.array([mask_metric[metric][p_con][k][..., n, -1].std() for p_con in p_cons[:l]])
+                col = plot[-1].get_color()
+                ax.fill_between(p_cons[:l], mean-std, mean+std, color=col, alpha=0.2)
+                for p_con in p_cons[:l] : 
+                    data_points = mask_metric[metric][p_con][k][..., n, -1].flatten()
+
+                    ax.plot([p_con]*len(data_points), data_points, '.', color=col, alpha=0.4)
+
+        ax.legend()
+        
+        ax.set_ylabel('Functional Specialization :\n Performance of masked model', fontsize=13)
+        ax.set_title(f'Masked Models Accuracies', fontsize=15)
+        ax.set_xscale('log')
+        ax.set_xlabel('Proportion of active connections', fontsize=15)
+
+    fig1.suptitle('Weight Mask Metric')
+
+
+    metrics = lambda p_con : (proportions[p_con][k][n, :, n], proportions[p_con][k][n, :, n-1])
+    norm_diff = lambda p_con : ((metrics(p_con)[0]-metrics(p_con)[1])/(metrics(p_con)[0]+metrics(p_con)[1]))
+
+    fig2, axs = plt.subplots(1, 2, figsize=(15, 5))
+    x_axis = [p_cons, (1-p_cons)/(2*(1+p_cons))]
+    x_labels = ['Proportion of active connections', 'Q Modularity Measure']
+    sparsities = [1e-1]
+
+    for j, p_cons_Q in enumerate(x_axis) : 
+        ax = axs[j]
+        for n in range(2) : 
+            for i, k in enumerate(sparsities[:]) : 
+                linestyle = linestyles[n]
+                mean = np.array([norm_diff(p_con).mean() for p_con in p_cons[:l]])
+                std = np.array([norm_diff(p_con).std() for p_con in p_cons[:l]])
+                plot = ax.plot(p_cons_Q[:l], mean, 
+                        label=f'Subnetwork {n}', linestyle=linestyle)
+                col = plot[-1].get_color()
+                ax.fill_between(p_cons_Q[:l], mean-std, mean+std, color=col, alpha=0.2)
+                for p_con in p_cons[:l] : 
+                    data_points = np.array(norm_diff(p_con)).flatten()
+
+                    #ax.plot([p_con]*len(data_points), data_points, '.', color=col)
+
+        #ax.hlines(xmin=p_cons_Q[0], xmax=p_cons_Q[-1], y=0, color='black', linestyle='-', alpha=0.3)
+
+        ax.set_xlabel(x_labels[j], fontsize=15)
+        
+        axs[2].yaxis.tick_right()
+        #axs[2].yaxis.set_label_position("right")
+        if j == 0 : ax.set_ylabel('Functional Specialization :\n Atribution Difference', fontsize=13)
+        if j == 0 : ax.set_title(f'Weight Mask Metric', fontsize=15)
+        ax.legend()
+        
+        ax.set_xscale('log'*(p_cons_Q is p_cons) + 'linear'*(p_cons_Q is not p_cons))
+    
+    fig2.suptitle(f'Weight Mask Metric Diff', fontsize=15)
+    fig2.tight_layout()
+
+    return fig1, fig2
 
 
         
