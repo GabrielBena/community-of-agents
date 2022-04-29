@@ -3,8 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
 
-from deepR.models import Sparse_Connect
-from .connections import MaskedLinear
+from .connections import MaskedLinear, Sparse_Connect
 from .agents import Agent
 from ..utils import get_output_shape
 

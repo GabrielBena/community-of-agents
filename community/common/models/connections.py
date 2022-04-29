@@ -2,6 +2,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
+from deepR.models import weight_sampler_strict_number
+
 
 class MaskedLinear(nn.Linear):
 
@@ -52,3 +54,44 @@ class MaskedLinear(nn.Linear):
             bound = self.weight_scale*np.sqrt(1. / (self.nb_neurons))#*self.sparsity))
             nn.init.kaiming_uniform_(self.weight)
             self.weight.data *= bound
+
+
+class Sparse_Connect(nn.Module):
+    """
+    Sparse network to be trained with DeepR, used as connections in a global model
+    Args : 
+        dims : dimensions of the network
+        sparsity_list : sparsities of the different layers
+    """
+    def __init__(self, dims, sparsity_list):
+        super().__init__()
+        self.thetas = torch.nn.ParameterList()
+        self.weight = torch.nn.ParameterList()
+        self.signs = torch.nn.ParameterList()
+        self.sparsity_list = sparsity_list
+        self.out_features = dims[-1]
+        self.bias = None
+        self.nb_non_zero_list = [int(d1*d2*p) for (d1, d2, p) in zip(dims[:-1], dims[1:], sparsity_list)]
+        for d1, d2, nb_non_zero in zip(dims[:-1], dims[1:], self.nb_non_zero_list) :
+            w, w_sign, th, _ = weight_sampler_strict_number(d1, d2, nb_non_zero)
+            self.thetas.append(th)
+            self.weight.append(w)
+            self.signs.append(w_sign)
+            assert (w == w_sign*th*(th>0)).all()
+
+        self.is_deepR_connect = True
+            
+    def forward(self, x, relu=False) : 
+        if type(x) is tuple : 
+            x = x[0]
+        if len(x.shape)>3 : 
+            print(x.shape)
+            #x = x.transpose(1, 2).flatten(start_dim=2)
+        for i, (th, sign) in enumerate(zip(self.thetas, self.signs)) : 
+        
+            w = th*sign*(th>0)
+            #x = F.linear(x, w)
+            x = torch.matmul(x, w)
+            if relu : 
+                x = F.relu(x)
+        return x
