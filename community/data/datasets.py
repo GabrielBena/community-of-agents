@@ -1,8 +1,48 @@
 import torch
 from torch.utils.data import Dataset
 from torchvision import datasets, transforms
+from torchvision.datasets import EMNIST
 import numpy as np
 import numpy.random as rd
+from typing import Any, Callable, Dict, List, Optional
+
+
+class Custom_EMNIST(datasets.EMNIST) : 
+    def __init__(self, root: str, train: bool = True,data_type: str = 'digits',
+                 transform: Optional[Callable] = None, target_transform: Optional[Callable] = None,
+                 download: bool = False, truncate : list = None) -> None:
+        
+        self.truncate = truncate        
+        super().__init__(root, train=train,
+                               transform=transform,
+                               target_transform=target_transform,
+                               download=download, 
+                               split=data_type) 
+
+
+    def _load_data(self):
+        data, targets = super()._load_data()
+        if self.split == 'letters' : 
+            targets -= 1
+        if self.truncate is not None: 
+            try : 
+                truncate_mask = np.array(targets)<self.truncate
+                mul = 10//self.truncate   
+                truncate_values = np.arange(self.truncate)
+            except ValueError : 
+                truncate_mask = np.stack([np.array(targets) == t for t in self.truncate]).sum(0).clip(0, 1) == 1
+                mul = 10//len(self.truncate)
+                truncate_values = self.truncate
+
+            data,  targets = torch.cat([data[truncate_mask]]*mul, 0), torch.cat([targets[truncate_mask]]*mul, 0)
+
+            for i, t in enumerate(truncate_values) : 
+                print(i, t)
+                targets[targets == t] = i
+            
+            self.truncate_values = truncate_values
+            
+        return data, targets
 
 
 class DoubleMNIST(Dataset) :
@@ -121,6 +161,7 @@ def get_datasets(root, batch_size=256, use_cuda=True, fix_asym=False, permute=Fa
         transforms.Normalize((0.1307,), (0.3081,))
         ])
 
+
     kwargs = train_kwargs, test_kwargs
 
     single_datasets = [datasets.MNIST(root, train=t, download=True,
@@ -132,7 +173,20 @@ def get_datasets(root, batch_size=256, use_cuda=True, fix_asym=False, permute=Fa
                                  transform=transform, download=True)
                                   for t in [True, False]]
 
-    multi_datasets = [MultiDataset([s1, s2]) for (s1, s2) in zip(single_datasets, single_datasets_fashion)]
+    transform=transforms.Compose([
+        lambda img : transforms.functional.rotate(img, -90),
+        lambda img : transforms.functional.hflip(img),
+        transforms.ToTensor(),
+        transforms.Normalize((0.1307,), (0.3081,))
+        ])
+
+
+    truncate = truncate=np.arange(10, 21)
+    truncate = truncate[truncate != 18]
+    single_datasets_letters = [Custom_EMNIST(root, train=t, data_type='byclass',
+                                 truncate=truncate, transform=transform) for t in [True, False]]
+
+    multi_datasets = [MultiDataset([s1, s2]) for (s1, s2) in zip(single_datasets, single_datasets_letters)]
 
     single_loaders = [torch.utils.data.DataLoader(d, **k) for d, k in zip(single_datasets, kwargs)]
     double_loaders = [torch.utils.data.DataLoader(d, **k) for d, k in zip(double_datasets, kwargs)]
