@@ -171,10 +171,13 @@ def compute_correlation_metric(p_cons, loaders, save_name, device=torch.device('
         print('Loading models from file')
         print(community_state_path)
     except FileNotFoundError: #Load from WandB artifacts
-        community_states, *_ = get_wandb_artifact(config, name='state_dicts', process_config=True)
+        try : 
+            community_states, *_ = get_wandb_artifact(None, project='funcspec', name='state_dicts', run_id=config['resume_run_id'])
+        except KeyError : 
+            community_states, *_ = get_wandb_artifact(config, project='funcspec', name='state_dicts', process_config=True)
         print('Loading models from artifact')
 
-    community = init_community(agent_params_dict, 0.1, device, use_deepR=config['model_params']['use_deepR'])
+    community = init_community(agent_params_dict, 0.1, device=device, use_deepR=config['model_params']['use_deepR'])
 
     task = wandb.config['task']
     print(task)
