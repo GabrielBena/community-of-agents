@@ -17,7 +17,7 @@ from community.common.utils import get_wandb_artifact, mkdir_or_save_torch, is_n
 ### ------ Bottleneck Metric ------ : 
 
 def readout_retrain(community, loaders, n_classes=10, lrs=[1e-3, 1e-3], deepR_params_dict={},
-                    n_epochs=5, n_tests=3, train_all_param=False,
+                    n_epochs=2, n_tests=3, train_all_param=False,
                     use_tqdm=False, device=torch.device('cuda')) : 
     """
     Retrains the bottleneck-readout connections of each sub-network for each sub-task and stores performance.
@@ -30,11 +30,11 @@ def readout_retrain(community, loaders, n_classes=10, lrs=[1e-3, 1e-3], deepR_pa
         lrs : learning rate of training : [subnets, connections]
         train_all_params : train all sub-networks parameters as well as interconnections. If False, train only one bottleneck-readout at a time
     """
+
+    notebook = is_notebook()
     tqdm_f = tqdm_n if notebook else tqdm
     pbar = range(n_tests)
     if use_tqdm : 
-        notebook = is_notebook()
-        tqdm_f = tqdm_n if notebook else tqdm
         pbar = tqdm_f(pbar, position=2, desc='Metric Trials : ', leave=None)
 
     #single_losses_total, single_accs_total = [], []
@@ -44,7 +44,7 @@ def readout_retrain(community, loaders, n_classes=10, lrs=[1e-3, 1e-3], deepR_pa
         
         for target_digit in range(2) :
             single_losses_ag, single_accs_ag = [[] for _ in range(2)], [[] for _ in range(2)]
-            for n in range(2) : 
+            for n, agent in enumerate(community.agents) : 
                 f_community = copy.deepcopy(community)
                 for f_agent in community.agents : 
                     if f_agent.use_bottleneck : 
@@ -79,7 +79,7 @@ def readout_retrain(community, loaders, n_classes=10, lrs=[1e-3, 1e-3], deepR_pa
                 
                 train_out = train_community(f_community, *loaders, optimizers,
                             schedulers=schedulers, config=training_dict,
-                            trials = (True, True), use_tqdm=False, device=device)
+                            trials = (True, True), use_tqdm=3, device=device)
 
                 test_losses, test_accs= train_out['test_losses'], train_out['test_accs']
 
@@ -119,11 +119,15 @@ def compute_bottleneck_metrics(p_cons, loaders, save_name, device=torch.device('
         community_states = torch.load(community_state_path)
         print('Loading models from file')
         print(community_state_path)
+
     except FileNotFoundError: #Load from WandB artifacts
-        community_states, *_ = get_wandb_artifact(config, name='state_dicts', process_config=True)
+        try : 
+            community_states, *_ = get_wandb_artifact(None, project='funcspec', name='state_dicts', run_id=config['resume_run_id'])
+        except KeyError : 
+            community_states, *_ = get_wandb_artifact(config, project='funcspec', name='state_dicts', process_config=True)
         print('Loading models from artifact')
 
-    community = init_community(agent_params_dict, 0.1, device)
+    community = init_community(agent_params_dict, 0.1, device=device, use_deepR=config['model_params']['use_deepR'])
 
     for i, p_con in enumerate(tqdm_f(p_cons[l:], position=0, desc='Model Sparsity : ', leave=None)) : 
 

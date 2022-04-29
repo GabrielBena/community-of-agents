@@ -19,10 +19,22 @@ def init_community(agents_params_dict, p_connect, use_deepR=True, device=torch.d
         p_connect : sparsity of interconnections
     """
     if type(agents_params_dict) is dict : 
-        n_agents, n_in, n_ins, n_hidden, n_layers, n_out, train_in_out, use_readout, cell_type, use_bottleneck, dropout = list(agents_params_dict.values())
+        n_agents = agents_params_dict['n_agents']
+        n_in = agents_params_dict['n_in']
+        n_ins = agents_params_dict['n_ins']
+        n_hidden = agents_params_dict['n_hid']
+        n_layers = agents_params_dict['n_layer']
+        n_out = agents_params_dict['n_out']
+        train_in_out = agents_params_dict['train_in_out']
+        use_readout = agents_params_dict['use_readout']
+        cell_type = agents_params_dict['cell_type']
+        use_bottleneck = agents_params_dict['use_bottleneck']
+        dropout = agents_params_dict['dropout'] 
     else : 
         n_agents, n_in, n_ins, n_hidden, n_layers, n_out, train_in_out, use_readout, cell_type, use_bottleneck, dropout = agents_params_dict
 
+    if type(cell_type) is tuple : 
+        cell_type = cell_type[0]
     if type(cell_type) is str : 
         cell_type = cell_types_dict[cell_type]
 

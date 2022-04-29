@@ -1,7 +1,7 @@
 import torch
 import numpy as np
 import torch.nn as nn
-
+import pyaml
 from torchvision import *
 
 from community.funcspec.masks import compute_mask_metric
@@ -11,8 +11,8 @@ from community.data.datasets import get_datasets
 from community.common.training import compute_trained_communities
 
 import warnings
-
 import wandb
+
 
 #warnings.filterwarnings('ignore')
 
@@ -65,7 +65,7 @@ if __name__ == "__main__":
     config = {
         'model_params' : {
             'agents_params' : agents_params_dict, 
-            'use_deepR' : True, 
+            'use_deepR' : False, 
             'global_rewire' : False
             }, 
         'datasets' : dataset_config,
@@ -76,7 +76,7 @@ if __name__ == "__main__":
         'training' : {
             'decision_params' : ('last', 'max'),
             'n_epochs' : 15, 
-            'n_tests' : 1, 
+            'n_tests' : 5, 
             'inverse_task' : False, 
             'early_stop' : True
         },       
@@ -97,7 +97,12 @@ if __name__ == "__main__":
                       'metrics_save_path' : metrics_path, 
                       'models_save_name' : community_save_name
     }
+    
+    #config['resume_run_id'] = '195cgoaq' #Use trained states from previous run
     wandb.config.update(config)
+
+    with open('config.yml', 'w') as outfile : 
+        pyaml.dump(config, outfile)
 
     #wandb.config.update({ 'model_save_path' : community_state_path, 'metric_save_path' : metrics_pat
     #"""
@@ -106,7 +111,5 @@ if __name__ == "__main__":
 
     compute_correlation_metric(p_cons, loaders, save_name='Correlations', device=device, config=config)
     compute_bottleneck_metrics(p_cons, loaders, save_name='Bottlenecks', device=device, config=config)
-    
     compute_mask_metric(p_cons, loaders, save_name='Masks', device=device, config=config)
-    
     

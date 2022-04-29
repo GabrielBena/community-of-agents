@@ -121,29 +121,35 @@ def plot_grid(imgs, labels=None, row_title=None, figsize=None, save_loc=None, **
 
 
 #------ WandB Utils ------
-def get_wandb_artifact(config=None, project='Spec_vs_Sparsity', name='correlations', type='metric', process_config=False, run_id=None, ensure_latest=False) : 
-    entity = 'gbena'
-    
-    api = wandb.Api()
 
+def get_wandb_runs(run_id=None, config=None, entity='gbena', project='funcspec', process_config=False) :
+
+    api = wandb.Api()    
     if process_config and config is not None: 
         config = get_new_config(config, 'config')
     elif config is not None : 
         config['state'] = 'finished'
 
-    print(config)
-
     runs = api.runs(f'{entity}/{project}', filters=config) # Filtered
 
-    #print(config)
+    if run_id is not None : 
+        runs = [r for r in runs if r.id == run_id]
+
     assert len(runs) > 0, f'No runs found for current filters'
 
-    if run_id is not None : 
-        artifacts = [r.logged_artifacts() for r in runs if r.id == run_id]
-    else : 
-        if len(runs) != 1 : 
-            print(f'Warning : {len(runs)} runs found for current filters')#, taking last one by default as no run id is specified')
-        artifacts = [r.logged_artifacts() for r in runs]
+    print(f'Found {len(runs)} runs, returning...')
+
+    return runs
+
+
+def get_wandb_artifact(config=None, project='Spec_vs_Sparsity', name='correlations', type='metric', process_config=False, run_id=None, ensure_latest=False) : 
+    entity = 'gbena'
+    
+    runs = get_wandb_runs(run_id, config, entity, project, process_config)
+
+    if len(runs) != 1 : 
+        print(f'Warning : {len(runs)} runs found for current filters')#, taking last one by default as no run id is specified')
+    artifacts = [r.logged_artifacts() for r in runs]
     
     wanted_artifacts =[[art for art in artifact if name in art.name] for artifact in artifacts]
     wanted_artifacts = [art for art in wanted_artifacts if len(art) > 0]

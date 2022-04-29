@@ -249,7 +249,7 @@ def train_and_get_mask_metric(community, sparsity, loaders, n_tests=10, n_epochs
 
             train_out = train_community(masked_community, *loaders, optimizers, 
                                         config=training_dict, device=device,
-                                        trials = (True, True), use_tqdm=True)
+                                        trials = (True, True), use_tqdm=3)
                                     
             test_loss, test_accs, best_state = train_out['test_losses'], train_out['test_accs'], train_out['best_state']
 
@@ -296,7 +296,7 @@ def get_proportions_per_agent(masked_community) :
     prop = np.array((prop_ag_0, prop_ag_1))
     return prop, prop*numel*sparsity    
 
-def compute_mask_metric(p_cons, loaders, save_name, p_masks=[0.1],  device=torch.device('cuda')) : 
+def compute_mask_metric(p_cons, loaders, save_name, p_masks=[0.1], lr=1e-1, device=torch.device('cuda'), config=None) : 
     """
     Compute complete mask metric, for every trained community and sparsity of interconnections
     """
@@ -325,23 +325,29 @@ def compute_mask_metric(p_cons, loaders, save_name, p_masks=[0.1],  device=torch
         print('Loading models from file')
         print(community_state_path)
     except FileNotFoundError: #Load from WandB artifacts
-        community_states, *_ = get_wandb_artifact(config, name='state_dicts', process_config=True)
+        try : 
+            community_states, *_ = get_wandb_artifact(None, project='funcspec', name='state_dicts', run_id=config['resume_run_id'])
+        except KeyError : 
+            community_states, *_ = get_wandb_artifact(config, project='funcspec', name='state_dicts', process_config=True)
         print('Loading models from artifact')
-
-    community = init_community(agent_params_dict, 0.1, device, use_deepR=config['model_params']['use_deepR'])
+    community = init_community(agent_params_dict, 0.1, device=device, use_deepR=config['model_params']['use_deepR'])
 
     task = wandb.config['task']
     
-    for i, p_con in enumerate(tqdm(p_cons[l:], position=0, desc='Community Sparsity : ', leave=None)) : 
+    for i, p_con in enumerate(tqdm_f(p_cons[l:], position=0, desc='Community Sparsity : ', leave=None)) : 
 
         prop_per_agent = {}    
         test_accs = {}
         test_losses = {}
         best_states = {}
-        for p_mask in tqdm(p_masks, position=1, desc='Mask Sparsity', leave=None) :
+
+        states = community_states[p_con]
+
+        for p_mask in tqdm_f(p_masks, position=1, desc='Mask Sparsity', leave=None) :
+            
             prop_per_agent[p_mask], test_accs[p_mask], test_losses[p_mask], best_states[p_mask] = [], [], [], []
 
-            for i, state in enumerate(tqdm(states, position=2, desc='Model Trials : ', leave=None)) :                     
+            for i, state in enumerate(tqdm_f(states, position=2, desc='Model Trials : ', leave=None)) :                     
                 community.load_state_dict(state)
                 prop, acc, loss, states = train_and_get_mask_metric(community, p_mask, loaders, lr=lr, device=device)
                 prop_per_agent[p_mask].append(prop)
@@ -364,73 +370,86 @@ def compute_mask_metric(p_cons, loaders, save_name, p_masks=[0.1],  device=torch
 
     figures = fig1, fig2 = plot_mask_metric(metric)
     if use_wandb : 
-        wandb.log_artifact(save_path + save_name, name='correlations', type='metric')
-        wandb.log({'Correlation Metric' : wandb.Image(fig1), 'Correlation Difference Metric' : wandb.Image(fig2)})
+        wandb.log_artifact(save_path + save_name, name='masks', type='metric')
+        wandb.log({'Mask Metric' : wandb.Image(fig1), 'Mask Difference Metric' : wandb.Image(fig2)})
 
-        
-def get_metrics_from_saved_masks(mask_file, masked_community, sparsities) : 
+    return metric, figures
+
+    
+def get_metrics_from_saved_masks(mask_file, masked_community=None, sparsities=[0.1, 0.05, 0.01]) : 
+
     """
     Computes the weight mask metrics for different k% of selected weights from saved masks states
     """
+    if masked_community is None : 
+        try : 
+            config = wandb.run.config
+            agent_params_dict = config['model_params']['agents_params']
+            device = torch.device('cpu')
+            community = init_community(agent_params_dict, 0.1, device=device, use_deepR=config['model_params']['use_deepR'])
+            masked_community = Mask_Community(community, sparsities[0]).to(device)
+
+        except AttributeError : 
+            print('Provide masked community model or run using wandb')
+            return 
+
     p_cons = list(mask_file['Trained_masks'].keys())
     l = len(p_cons)
     sparsity = list(mask_file['Trained_masks'][p_cons[0]].keys())[0]
     states = {p : np.array(mask_file['Trained_masks'][p][sparsity]) for p in p_cons[:l]}
     proportions = {}
-    thresholds = {}
     for p_con in tqdm(p_cons[:]) : 
         proportions[p_con] = {s : [[] for _ in range(2)] for s in sparsities}
-        thresholds[p_con] = [[] for _ in range(2)]
         for t in range(2) :
             for state in states[p_con][..., t].flatten() : 
                 masked_community.load_state_dict(state)
-                #thresholds[p_con][t].append(get_appartenance_treshold(masked_community, t)[1])
                 for sparsity in sparsities : 
                     masked_community.sparsity = sparsity
                     prop = get_proportions_per_agent(masked_community)[0]
                     proportions[p_con][sparsity][t].append(prop)
 
-        thresholds[p_con] = np.array(thresholds[p_con])
         for sparsity in sparsities :
-            proportions[p_con][sparsity] = np.array(proportions[p_con][sparsity])
+            proportions[p_con][sparsity] = np.transpose(np.array(proportions[p_con][sparsity]), (1, 0, 2))[None, ...]
 
-    return proportions, thresholds
+    mask_file['Proportions'] = proportions
 
+    return mask_file
 
 
 def plot_mask_metric(mask_metric) : 
 
-    p_cons = np.array(list(mask_metric.keys()))
+    p_cons = np.array(list(mask_metric['Accs'].keys()))
     l = len(p_cons)
 
     linestyles = ['--', '-', ':']
-    sparsities = [1e-1]
+    
     proportions = mask_metric['Proportions']
+    sparsities = list(proportions[p_cons[0]].keys())
     fig1, axs = plt.subplots(1, 2, figsize=(20, 5), sharey=False)
-    sorted_idxs = [[[np.argsort(mask_metric['Accs'][p][0.1][c, :, k, 0])[:1] for c in range(5)] for k in range(2)] for p in p_cons]
+    sorted_idxs = [[[np.argsort(mask_metric['Accs'][p][0.1][c, :, k, 0])[:1] for c in range(1)] for k in range(2)] for p in p_cons]
 
     ax = axs[0]
     for n in range(2) : 
-        for i, k in enumerate(sparsities) : 
-            
-            linestyle = linestyles[i]
-            idx_retrival  = lambda prop, idxs : np.stack([prop[i, idx, 0, n] for i, idx in enumerate(idxs)])
-            
-            mean = np.array([idx_retrival(proportions[p_con][k], idxs[n]).mean() for p_con, idxs in zip(p_cons[:l], sorted_idxs)])
-            std = np.array([idx_retrival(proportions[p_con][k], idxs[n]).std() for p_con, idxs in zip(p_cons[:l], sorted_idxs)])
-            plot = ax.plot(p_cons[:l], mean, 
-                    label=f'Subnetwork {n}, Subtask {0}, {k*100}% weights', linestyle=linestyle)
-            col = plot[-1].get_color()
-            ax.fill_between(p_cons[:l], mean-std, mean+std, color=col, alpha=0.2)
-            for p_con, idx in zip(p_cons[:l], sorted_idxs) : 
-                data_points = proportions[p_con][k][:, idx, 0, n].mean(1).flatten()
+        for t in range(1) : 
+            for i, k in enumerate(sparsities) : 
+                
+                linestyle = linestyles[i]
 
-                #ax.plot([p_con]*len(data_points), data_points, '.', color=col, alpha=0.4)
+                mean = np.array([proportions[p_con][k][..., t, n].mean() for p_con in p_cons[:l]])
+                std = np.array([proportions[p_con][k][..., t, n].std() for p_con in p_cons[:l]])
+                plot = ax.plot(p_cons[:l], mean, 
+                        label=f'Subnetwork {n}, Subtask {t}, {k*100}% weights', linestyle=linestyle)
+                col = plot[-1].get_color()
+                ax.fill_between(p_cons[:l], mean-std, mean+std, color=col, alpha=0.2)
+                for p_con in p_cons[:l] : 
+                    data_points = proportions[p_con][k][..., t, n].mean(1).flatten()
+                    #ax.plot([p_con]*len(data_points), data_points, '.', color=col, alpha=0.4)
 
     ax.legend()
     ax.set_ylabel('Functional Specialization :\n Proportion of selected weights present', fontsize=13)
     ax.set_title(f'Weight Mask Metric, Proportions', fontsize=15)
     ax.set_xscale('log')  
+
 
     for m, metric in enumerate(['Accs']) : 
         ax = axs[1+m]
@@ -458,7 +477,7 @@ def plot_mask_metric(mask_metric) :
     fig1.suptitle('Weight Mask Metric')
 
 
-    metrics = lambda p_con : (proportions[p_con][k][n, :, n], proportions[p_con][k][n, :, n-1])
+    metrics = lambda p_con : (proportions[p_con][k][..., n, n], proportions[p_con][k][..., n, n-1])
     norm_diff = lambda p_con : ((metrics(p_con)[0]-metrics(p_con)[1])/(metrics(p_con)[0]+metrics(p_con)[1]))
 
     fig2, axs = plt.subplots(1, 2, figsize=(15, 5))
@@ -486,16 +505,17 @@ def plot_mask_metric(mask_metric) :
 
         ax.set_xlabel(x_labels[j], fontsize=15)
         
-        axs[2].yaxis.tick_right()
+        axs[1].yaxis.tick_right()
         #axs[2].yaxis.set_label_position("right")
         if j == 0 : ax.set_ylabel('Functional Specialization :\n Atribution Difference', fontsize=13)
         if j == 0 : ax.set_title(f'Weight Mask Metric', fontsize=15)
         ax.legend()
         
         ax.set_xscale('log'*(p_cons_Q is p_cons) + 'linear'*(p_cons_Q is not p_cons))
-    
+
     fig2.suptitle(f'Weight Mask Metric Diff', fontsize=15)
     fig2.tight_layout()
+
 
     return fig1, fig2
 
