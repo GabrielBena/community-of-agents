@@ -9,7 +9,9 @@ from tqdm import tqdm
 import wandb
 
 from .init import init_community, init_optimizers
-from .utils import mkdir_or_save_torch, check_grad, is_notebook, get_training_dict
+from .utils import check_grad, is_notebook
+from .wandb_utils import get_training_dict, mkdir_or_save_torch
+
 from .models.ensembles import ConvCommunity
 from .decision import get_decision
 from ..data.process import process_data

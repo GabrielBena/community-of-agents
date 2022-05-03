@@ -15,7 +15,8 @@ warnings.filterwarnings('ignore')
 
 from community.common.training import train_community
 from community.common.init import init_community
-from community.common.utils import is_notebook, get_wandb_artifact, mkdir_or_save_torch
+from community.common.utils import is_notebook
+from community.common.wandb_utils import get_wandb_artifact, mkdir_or_save_torch
 
 # ------ Weight Masks Models ------
 
@@ -189,7 +190,7 @@ def get_repartitions(masked_model) :
 
 ### ------Weight mask Metrics -------
 
-def train_and_get_mask_metric(community, sparsity, loaders, n_tests=10, n_epochs=1, lr=0.1, device=torch.device('cuda')) : 
+def train_and_get_mask_metric(community, sparsity, loaders, n_tests=5, n_epochs=1, lr=0.1, device=torch.device('cuda'), use_tqdm=False) : 
     """
     Initializes and trains masks on community model.
     Args : 
@@ -211,10 +212,20 @@ def train_and_get_mask_metric(community, sparsity, loaders, n_tests=10, n_epochs
     test_losses_total = []
     best_states_total = []
 
+    if type(use_tqdm) is int : 
+        position = use_tqdm
+        use_tqdm = True
+    elif use_tqdm : 
+        position = 0 
+
     notebook = is_notebook()
     tqdm_f = tqdm_n if notebook else tqdm
+
+    pbar = range(n_tests)
+    if use_tqdm : 
+        pbar = tqdm_f(pbar, position=position, desc='Mask Metric Trials : ', leave=None)
     
-    for test in tqdm_f(range(n_tests), position=2, desc='Metric Trials : ', leave=None) : 
+    for test in pbar: 
         prop_per_agent = []
         test_accuracies = []
         test_losses = []
@@ -249,7 +260,8 @@ def train_and_get_mask_metric(community, sparsity, loaders, n_tests=10, n_epochs
 
             train_out = train_community(masked_community, *loaders, optimizers, 
                                         config=training_dict, device=device,
-                                        trials = (True, True), use_tqdm=3)
+                                        trials = (True, True),
+                                        use_tqdm=position+1 if use_tqdm else False)
                                     
             test_loss, test_accs, best_state = train_out['test_losses'], train_out['test_accs'], train_out['best_state']
 
@@ -483,7 +495,7 @@ def plot_mask_metric(mask_metric) :
     fig2, axs = plt.subplots(1, 2, figsize=(15, 5))
     x_axis = [p_cons, (1-p_cons)/(2*(1+p_cons))]
     x_labels = ['Proportion of active connections', 'Q Modularity Measure']
-    sparsities = [1e-1]
+    sparsities = list(proportions[p_cons[0]].keys())
 
     for j, p_cons_Q in enumerate(x_axis) : 
         ax = axs[j]

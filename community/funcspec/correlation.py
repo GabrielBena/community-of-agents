@@ -9,7 +9,8 @@ import matplotlib.pyplot as plt
 import wandb
 from scipy.stats import pearsonr
 
-from community.common.utils import get_wandb_artifact, mkdir_or_save_torch, is_notebook
+from community.common.utils import is_notebook
+from community.common.wandb_utils import get_wandb_artifact, mkdir_or_save_torch
 from community.data.tasks import get_digits, rotation_conflict_task
 from community.data.process import temporal_data
 from community.common.init import init_community
@@ -99,6 +100,16 @@ def randperm_no_fixed(n) :
     else : 
         return perm
 
+
+def get_correlation(community, data, n) : 
+    _, states = community(data)
+    agent_states = states[-1][n][0]
+    perm = randperm_no_fixed(agent_states.shape[0])
+    agent_states = agent_states.detach().cpu().numpy()
+    cor = v_pearsonr(agent_states, agent_states[perm])[0]
+
+    return cor
+
 def get_pearson_metrics(community, loaders, n_tests=32, fixed_mode='label', use_tqdm=False, device=torch.device('cuda')) : 
     
     correlations = [[[] for _ in range(2)] for _ in range(2)]
@@ -109,18 +120,23 @@ def get_pearson_metrics(community, loaders, n_tests=32, fixed_mode='label', use_
         use_tqdm = True
     elif use_tqdm : 
         position = 0    
+    
     pbar = range(n_tests)
     if use_tqdm : 
         notebook = is_notebook()
         tqdm_f = tqdm_n if notebook else tqdm
-        pbar = tqdm_f(pbar, position=position, desc='Metric Trials', leave=None)
+        pbar = tqdm_f(pbar, position=position, desc='Correlation Metric Trials', leave=None)
 
     for test in pbar :
         data, target = next(iter(double_test_loader))
         if type(data) is list : 
             data = torch.stack(data)
         data, target = temporal_data(data, 5).to(device), target.to(device)
+
+
         for n in range(2) : 
+            global_cor = get_correlation(community, data, n)
+            mean_cor = global_cor.mean()
             for k in range(2) : 
                 if not 'rotation' in fixed_mode : 
                     datas = fixed_information_data(data, target, fixed_mode, 10, k)
@@ -136,12 +152,7 @@ def get_pearson_metrics(community, loaders, n_tests=32, fixed_mode='label', use_
                 
                 corrs = []
                 for d in datas : 
-                    _, states = community(d)
-                    agent_states = states[-1][n][0]
-                    perm = randperm_no_fixed(agent_states.shape[0])
-                    agent_states = agent_states.detach().cpu().numpy()
-                    cor = v_pearsonr(agent_states, agent_states[perm])[0]
-                    #corrs.append(cor.cpu().data.numpy())
+                    cor = get_correlation(community, d, n)#/mean_cor
                     corrs.append(cor)
                 correlations[n][k].append(np.concatenate(corrs))
                 
@@ -222,22 +233,28 @@ def compute_correlation_metric(p_cons, loaders, save_name, device=torch.device('
 
 def plot_correlations(correlations) : 
     
-    pearsons_parity = correlations['Pearson_Parity']
     pearsons_labels = correlations['Pearson_Label']
-    pearsons_rotation = correlations['Pearson_Rotation']
+    try : 
+        pearsons_parity = correlations['Pearson_Parity']
+        pearsons_rotation = correlations['Pearson_Rotation']
+
+        if not list(pearsons_rotation.values())[0].mean() == 0 : 
+            metrics, metric_names = [pearsons_labels, pearsons_parity, pearsons_rotation], ['Label Fixed', 'Parity Fixed', 'Rotation Fixed']
+        else : 
+            metrics, metric_names = [pearsons_labels, pearsons_parity], ['Label Fixed', 'Parity Fixed']
+    except KeyError : 
+        metrics, metric_names = [pearsons_labels], ['Label Fixed']
 
     p_cons = np.array(list(pearsons_labels.keys()))
     l = len(p_cons)
     linestyles = ['dashed', 'solid']
 
-    if not list(pearsons_rotation.values())[0].mean() == 0 : 
-        metrics, metric_names = [pearsons_labels, pearsons_parity, pearsons_rotation], ['Label Fixed', 'Parity Fixed', 'Rotation Fixed']
-    else : 
-        metrics, metric_names = [pearsons_labels, pearsons_parity], ['Label Fixed', 'Parity Fixed']
-
+    
     mean_metric = lambda metric : torch.tensor(metric).flatten(start_dim=3).mean(-1).data.numpy()
 
     fig1, axs = plt.subplots(1, len(metrics), figsize=(20, 5))
+    if len(metrics) == 1 : 
+        axs = [axs]
     for m, (metric, metric_name) in enumerate(zip(metrics, metric_names)) : 
         ax = axs[m]
         means = [mean_metric(p) for p in metric.values()]

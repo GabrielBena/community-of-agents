@@ -1,3 +1,4 @@
+from turtle import pos
 import torch
 import numpy as np
 import torch.nn as nn
@@ -12,7 +13,8 @@ warnings.filterwarnings('ignore')
 
 from community.common.training import train_community
 from community.common.init import init_community, init_optimizers
-from community.common.utils import get_wandb_artifact, mkdir_or_save_torch, is_notebook
+from community.common.utils import is_notebook
+from community.common.wandb_utils import get_wandb_artifact, mkdir_or_save_torch
 
 ### ------ Bottleneck Metric ------ : 
 
@@ -32,10 +34,16 @@ def readout_retrain(community, loaders, n_classes=10, lrs=[1e-3, 1e-3], deepR_pa
     """
 
     notebook = is_notebook()
+    if type(use_tqdm) is int : 
+        position = use_tqdm
+        use_tqdm = True
+    elif use_tqdm : 
+        position = 0 
+
     tqdm_f = tqdm_n if notebook else tqdm
     pbar = range(n_tests)
     if use_tqdm : 
-        pbar = tqdm_f(pbar, position=2, desc='Metric Trials : ', leave=None)
+        pbar = tqdm_f(pbar, position=position, desc='Bottleneck Metric Trials : ', leave=None)
 
     #single_losses_total, single_accs_total = [], []
     single_losses_total, single_accs_total = [], []
@@ -79,7 +87,9 @@ def readout_retrain(community, loaders, n_classes=10, lrs=[1e-3, 1e-3], deepR_pa
                 
                 train_out = train_community(f_community, *loaders, optimizers,
                             schedulers=schedulers, config=training_dict,
-                            trials = (True, True), use_tqdm=3, device=device)
+                            trials = (True, True),
+                            use_tqdm=position+1 if use_tqdm else False,
+                            device=device)
 
                 test_losses, test_accs= train_out['test_losses'], train_out['test_accs']
 
