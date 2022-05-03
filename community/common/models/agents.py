@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import torch.nn.init as init
 
 class LeakyRNN(nn.RNNCell) : 
     
@@ -56,8 +57,11 @@ class Agent(nn.Module):
         self.dims = [n_in, n_hidden, n_out]
         self.tag = tag
         
-        self.cell = cell_type(n_in, n_hidden, n_layers,  batch_first=False)
+        self.cell = cell_type(n_in, n_hidden, n_layers,  batch_first=False, nonlinearity='relu')
         self.cell_type = cell_type
+        for n, p in self.cell.named_parameters() : 
+            if 'weight' in n : 
+                init.kaiming_normal_(p, nonlinearity='relu')
         
         self.use_bottleneck = use_bottleneck
         self.dropout = nn.Dropout(dropout) if dropout>0 else None
