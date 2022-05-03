@@ -10,7 +10,7 @@ model_params:
     cell_type: '<class ''torch.nn.modules.rnn.RNN''>'
     dropout: 0
     n_agents: 2
-    n_hid: 100
+    n_hid: 50
     n_in: 784
     n_ins:
     n_layer: 1
@@ -33,13 +33,13 @@ optimization:
     l1: 0.0001
     lr: 0.1
 p_cons_params:
-  - 0.0001
+  - 0.0004
   - 0.999
   - 10
 saves:
-  metrics_save_path: /home/gb21/Code/ANNs/community-of-agents/wandb/run-20220428_224604-3016w7uh/files/metrics/
+  metrics_save_path: /home/gb21/Code/ANNs/community-of-agents/wandb/run-20220503_114935-1vc8zt09/files/metrics/
   models_save_name: Community_State_Dicts_10
-  models_save_path: /home/gb21/Code/ANNs/community-of-agents/wandb/run-20220428_224604-3016w7uh/files/state_dicts/
+  models_save_path: /home/gb21/Code/ANNs/community-of-agents/wandb/run-20220503_114935-1vc8zt09/files/state_dicts/
 task: parity_digits
 training:
   decision_params:
@@ -47,5 +47,5 @@ training:
     - max
   early_stop: true
   inverse_task: false
-  n_epochs: 15
-  n_tests: 5
+  n_epochs: 30
+  n_tests: 1
