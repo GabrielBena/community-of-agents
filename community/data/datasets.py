@@ -19,7 +19,6 @@ class Custom_EMNIST(datasets.EMNIST) :
                                download=download, 
                                split=data_type) 
 
-
     def _load_data(self):
         data, targets = super()._load_data()
         if self.split == 'letters' : 
@@ -37,7 +36,6 @@ class Custom_EMNIST(datasets.EMNIST) :
             data,  targets = torch.cat([data[truncate_mask]]*mul, 0), torch.cat([targets[truncate_mask]]*mul, 0)
 
             for i, t in enumerate(truncate_values) : 
-                print(i, t)
                 targets[targets == t] = i
             
             self.truncate_values = truncate_values
@@ -119,14 +117,34 @@ class DoubleMNIST(Dataset) :
 
     
 class MultiDataset(Dataset) : 
-    def __init__(self, datasets, shuffle=False) :
+    def __init__(self, datasets, shuffle=False, fix_asym=False) :
         
         self.datasets = datasets
         self.small_dataset_idx = np.argmin([len(d) for d in self.datasets])
+        self.small_dataset = datasets[self.small_dataset_idx]
         self.shuffle = shuffle
 
+        self.fix_asym=fix_asym
+        self.secondary_index = torch.randperm(len(self.small_dataset))
+        
+        if self.fix_asym : 
+            self.new_idxs = self.get_forbidden_indexs()
+        else : 
+            self.new_idxs = [i for i in range(len(self.small_dataset))]
+        
+    def valid_idx(self, idx) : 
+            idx1, idx2 = idx, self.secondary_index[idx]
+            _, target_1 = self.mnist_dataset[idx1]
+            _, target_2 = self.mnist_dataset[idx2]
+    def get_forbidden_indexs(self) : 
+            new_idxs = []
+            for idx in range(len(self.mnist_dataset)) : 
+                if self.valid_idx(idx) :
+                    new_idxs.append(idx)
+            return new_idxs
+
     def __len__(self):
-        return  np.min([len(d) for d in self.datasets])
+        return  len(self.small_dataset)
 
     def __getitem__(self, idx):
         #get images and labels here 
@@ -136,6 +154,7 @@ class MultiDataset(Dataset) :
         if self.shuffle : 
             idxs = [(rand_idx(d) if n!=self.small_dataset_idx else idx) for n, d in enumerate(self.datasets)]
         else : 
+            #if self.fix_asym : 
             idxs = [idx]*len(self.datasets)
 
         samples = [d[idx] for (d, idx) in zip(self.datasets, idxs)]
@@ -148,12 +167,12 @@ class MultiDataset(Dataset) :
 
 def get_datasets(root, batch_size=256, use_cuda=True, fix_asym=False, permute=False, seed=None) :
         
-    train_kwargs = {'batch_size': batch_size}
-    test_kwargs = {'batch_size': batch_size}
+    train_kwargs = {'batch_size': batch_size, 'shuffle' : True}
+    test_kwargs = {'batch_size': batch_size, 'shuffle' : True}
     if use_cuda:
         cuda_kwargs = {'num_workers': 0,
-                    'pin_memory': True,
-                    'shuffle': True}
+                    'pin_memory': True}
+                    
         train_kwargs.update(cuda_kwargs)
         test_kwargs.update(cuda_kwargs)
     transform=transforms.Compose([
