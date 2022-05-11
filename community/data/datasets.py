@@ -32,7 +32,9 @@ class Custom_EMNIST(datasets.EMNIST) :
                 truncate_mask = np.stack([np.array(targets) == t for t in self.truncate]).sum(0).clip(0, 1) == 1
                 mul = 10//len(self.truncate)
                 truncate_values = self.truncate
+                truncate_values.sort()
 
+            mul = 1
             data,  targets = torch.cat([data[truncate_mask]]*mul, 0), torch.cat([targets[truncate_mask]]*mul, 0)
 
             for i, t in enumerate(truncate_values) : 
@@ -41,7 +43,6 @@ class Custom_EMNIST(datasets.EMNIST) :
             self.truncate_values = truncate_values
             
         return data, targets
-
 
 class DoubleMNIST(Dataset) :
     """
@@ -113,9 +114,9 @@ class DoubleMNIST(Dataset) :
         return digits, torch.tensor(targets)
 
     def __len__(self) : 
-        return len(self.mnist_dataset)
+        #return len(self.mnist_dataset)
+        return len(self.new_idxs)
 
-    
 class MultiDataset(Dataset) : 
     def __init__(self, datasets, shuffle=False, fix_asym=False) :
         
@@ -125,37 +126,40 @@ class MultiDataset(Dataset) :
         self.shuffle = shuffle
 
         self.fix_asym=fix_asym
-        self.secondary_index = torch.randperm(len(self.small_dataset))
+        self.secondary_idxs = [torch.randperm(len(self.small_dataset))
+                                 if i != self.small_dataset_idx and shuffle
+                                 else torch.arange(len(self.small_dataset))
+                                 for i, d in enumerate(self.datasets)]
         
         if self.fix_asym : 
             self.new_idxs = self.get_forbidden_indexs()
         else : 
-            self.new_idxs = [i for i in range(len(self.small_dataset))]
+            self.new_idxs = torch.arange(len(self.small_dataset))
         
     def valid_idx(self, idx) : 
-            idx1, idx2 = idx, self.secondary_index[idx]
-            _, target_1 = self.mnist_dataset[idx1]
-            _, target_2 = self.mnist_dataset[idx2]
+            idx1, idx2 = self.secondary_idxs[0][idx], self.secondary_idxs[1][idx]
+            _, target_1 = self.datasets[0][idx1]
+            _, target_2 = self.datasets[1][idx2]
+
+            return not (target_1 == target_2 or target_1 == (target_2-1)%10) 
+
     def get_forbidden_indexs(self) : 
-            new_idxs = []
-            for idx in range(len(self.mnist_dataset)) : 
-                if self.valid_idx(idx) :
-                    new_idxs.append(idx)
-            return new_idxs
+        new_idxs = []
+        for idx in range(len(self.small_dataset)) : 
+            if self.valid_idx(idx) :
+                new_idxs.append(idx)
+        return new_idxs
 
     def __len__(self):
-        return  len(self.small_dataset)
+        #return  len(self.small_dataset)
+        return len(self.new_idxs)
 
     def __getitem__(self, idx):
         #get images and labels here 
         #returned images must be tensor
         #labels should be int 
-        rand_idx = lambda d : rd.randint(len(d))
-        if self.shuffle : 
-            idxs = [(rand_idx(d) if n!=self.small_dataset_idx else idx) for n, d in enumerate(self.datasets)]
-        else : 
-            #if self.fix_asym : 
-            idxs = [idx]*len(self.datasets)
+        idx = self.new_idxs[idx]
+        idxs = [s_idx[idx] for s_idx in self.secondary_idxs]
 
         samples = [d[idx] for (d, idx) in zip(self.datasets, idxs)]
         datas, labels = [d[0] for d in samples], [d[1] for d in samples]
@@ -164,11 +168,10 @@ class MultiDataset(Dataset) :
         except : 
             return datas, labels
 
-
 def get_datasets(root, batch_size=256, use_cuda=True, fix_asym=False, permute=False, seed=None) :
         
     train_kwargs = {'batch_size': batch_size, 'shuffle' : True}
-    test_kwargs = {'batch_size': batch_size, 'shuffle' : True}
+    test_kwargs = {'batch_size': batch_size, 'shuffle' : True, 'drop_last' : True}
     if use_cuda:
         cuda_kwargs = {'num_workers': 0,
                     'pin_memory': True}
@@ -180,15 +183,14 @@ def get_datasets(root, batch_size=256, use_cuda=True, fix_asym=False, permute=Fa
         transforms.Normalize((0.1307,), (0.3081,))
         ])
 
-
     kwargs = train_kwargs, test_kwargs
 
-    single_datasets = [datasets.MNIST(root, train=t, download=True,
+    single_digits = [datasets.MNIST(root, train=t, download=True,
                     transform=transform) for t in [True, False]]
-    double_datasets = [DoubleMNIST(root, train=t, fix_asym=False)
+    double_digits = [DoubleMNIST(root, train=t, fix_asym=fix_asym)
                         for t in [True, False]]
 
-    single_datasets_fashion = [datasets.FashionMNIST(root, train=t,
+    single_fashion = [datasets.FashionMNIST(root, train=t,
                                  transform=transform, download=True)
                                   for t in [True, False]]
 
@@ -199,18 +201,26 @@ def get_datasets(root, batch_size=256, use_cuda=True, fix_asym=False, permute=Fa
         transforms.Normalize((0.1307,), (0.3081,))
         ])
 
+    truncates = np.arange(10, 47)
+    excludes = [18, 19, 21]
+    for e in excludes : 
+        truncates = truncates[truncates != e]
+    truncates = truncates[:20]
+    print(truncates)
+    np.random.shuffle(truncates)
+    truncates = np.split(truncates, 2)
+    #truncates = None, None
 
-    truncate = truncate=np.arange(10, 21)
-    truncate = truncate[truncate != 18]
-    single_datasets_letters = [Custom_EMNIST(root, train=t, data_type='byclass',
-                                 truncate=truncate, transform=transform) for t in [True, False]]
+    single_letters = [[Custom_EMNIST(root, train=t, data_type='balanced',
+                                 truncate=trunc, transform=transform) for t in [True, False]]
+                                 for trunc in truncates]
 
-    multi_datasets = [MultiDataset([s1, s2]) for (s1, s2) in zip(single_datasets, single_datasets_letters)]
+    multi_datasets = [MultiDataset([s1, s2]) for (s1, s2) in zip(single_digits, single_letters[0])]
+    double_letters = [MultiDataset([s1, s2], fix_asym=fix_asym, shuffle=True) for (s1, s2) in zip(single_letters[0], single_letters[1])]
 
-    single_loaders = [torch.utils.data.DataLoader(d, **k) for d, k in zip(single_datasets, kwargs)]
-    double_loaders = [torch.utils.data.DataLoader(d, **k) for d, k in zip(double_datasets, kwargs)]
+    single_loaders_dig = [torch.utils.data.DataLoader(d, **k) for d, k in zip(single_digits, kwargs)]
+    double_loaders_dig = [torch.utils.data.DataLoader(d, **k) for d, k in zip(double_digits, kwargs)]
+    double_loaders_letters = [torch.utils.data.DataLoader(d, **k) for d, k in zip(double_letters, kwargs)]
     multi_loaders = [torch.utils.data.DataLoader(d, **k) for d, k in zip(multi_datasets, kwargs)]
 
-    return multi_loaders, double_loaders, single_loaders
-
-
+    return multi_loaders, double_loaders_dig, double_loaders_letters, single_loaders_dig, single_letters
