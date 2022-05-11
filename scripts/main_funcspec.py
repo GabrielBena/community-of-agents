@@ -51,7 +51,7 @@ if __name__ == "__main__":
                          'use_bottleneck': False,
                          'dropout': 0}
 
-    p_cons_params = (1/agents_params_dict['n_hid']**2, 0.999, 10)
+    p_cons_params = (1/agents_params_dict['n_hid']**2, 0.999, 5)
     p_cons = np.geomspace(p_cons_params[0], p_cons_params[1], p_cons_params[2]).round(4)
 
     p_masks = [0.1]
@@ -112,16 +112,16 @@ if __name__ == "__main__":
     compute_correlation_metric(p_cons, loaders, save_name='Correlations', device=device, config=config)
     compute_mask_metric(p_cons, loaders, save_name='Masks', device=device, config=config)
 
-    """
-    config['model_params']['agents_params'] = True
+    
+    config['model_params']['agents_params']['use_bottleneck'] = True
     community_save_name = f'Community_State_Dicts_{agents_params_dict["n_out"]}' + '_Bottleneck'*agents_params_dict['use_bottleneck']
     config['saves'] = {'models_save_path' : community_save_path, 
                       'metrics_save_path' : metrics_path, 
                       'models_save_name' : community_save_name
     }
-    wandb.config.update(config)
+    wandb.config.update(config, allow_val_change=True)
     compute_trained_communities(p_cons, loaders, config=config, device=device)
-    """
+    
     compute_bottleneck_metrics(p_cons, loaders, save_name='Bottlenecks', device=device, config=config)
 
     

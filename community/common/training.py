@@ -38,7 +38,7 @@ def train_community(model, train_loader, test_loader, optimizers, schedulers=Non
     training, testing = trials
 
     notebook = is_notebook()  
-
+    
     #----Config----
     n_epochs = config['n_epochs']
     task = config['task']

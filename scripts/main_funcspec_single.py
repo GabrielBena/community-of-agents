@@ -1,3 +1,5 @@
+from os import mkdir
+from community.common.wandb_utils import mkdir_or_save_torch
 import torch
 import numpy as np
 import torch.nn as nn
@@ -44,7 +46,7 @@ if __name__ == "__main__":
                          'cell_type': str(nn.RNN),
                          'use_bottleneck': False,
                          'dropout': 0}
-
+    
     p_masks = [0.1]
     
     lr, gamma = 1e-3, 0.9
@@ -79,25 +81,36 @@ if __name__ == "__main__":
     }
 
     p_cons = np.geomspace(p_cons_params[0], p_cons_params[1], p_cons_params[2]).round(4)
+    #p_cons = [0.1]
 
     # WAndB tracking : 
     wandb.init(project='funcspec', entity='gbena', config=config)
-    run_dir = wandb.run.dir 
+    run_dir = wandb.run.dir + '/'
 
-    community_save_path = run_dir + '/single/state_dicts/'
-    metrics_path = run_dir + '/single/metrics/'
-    community_save_name = f'Community_State_Dicts_{agents_params_dict["n_out"]}' + '_Bottleneck'*agents_params_dict['use_bottleneck']
-
-    config['saves'] = {'models_save_path' : community_save_path, 
-                      'metrics_save_path' : metrics_path, 
-                      'models_save_name' : community_save_name
+    config['save_paths'] = {'training' : run_dir + 'training_results', 
+                      'metrics' : run_dir + 'metric_results', 
     }
     
-    #config['resume_run_id'] = '195cgoaq' #Use trained states from previous run
     wandb.config.update(config)
+        
+    metric_names = ['Correlation', 'Masks', 'Bottleneck']
+    metric_results = {metric : {} for metric in metric_names}
+    training_results = {}
 
     for p_con in tqdm(p_cons, desc='Community Sparsity : ', position=0, leave=None) : 
-        train_and_compute_metrics(p_con, config, loaders, device)
+        metrics, train_out = train_and_compute_metrics(p_con, config, loaders, device)
+        training_results[p_con] = train_out
+        for metric in metric_names : 
+            metric_results[metric][p_con] = metrics[metric]
+
+    for name, file in zip(['training_results', 'metric_results'], [training_results, metric_results]) : 
+        mkdir_or_save_torch(file, name, run_dir)
+        artifact = wandb.Artifact(name=name, type='dict')
+        artifact.add_file(run_dir + name)
+        wandb.log_artifact(artifact)
+
+    #wandb.log_artifact(run_dir + 'training_results', name='training_results')
+    #wandb.log_artifact(run_dir + 'metric_results', name='metric_results')
 
 
 
