@@ -45,14 +45,15 @@ def readout_retrain(community, loaders, n_classes=10, lrs=[1e-3, 1e-3], deepR_pa
     if use_tqdm : 
         pbar = tqdm_f(pbar, position=position, desc='Bottleneck Metric Trials : ', leave=None)
 
-    #single_losses_total, single_accs_total = [], []
     single_losses_total, single_accs_total = [], []
     for test in pbar : 
-        single_losses_dig, single_accs_dig = [[] for _ in range(2)], [[] for _ in range(2)]
-        
-        for target_digit in range(2) :
-            single_losses_ag, single_accs_ag = [[] for _ in range(2)], [[] for _ in range(2)]
-            for n, agent in enumerate(community.agents) : 
+
+        single_losses  = [[ [] for agent in range(2)] for target in range(2)]
+        single_accs = [[ [] for agent in range(2)] for target in range(2)]
+        for target in range(2) :
+
+            for agent, _ in enumerate(community.agents) : 
+
                 f_community = copy.deepcopy(community)
                 for f_agent in community.agents : 
                     if f_agent.use_bottleneck : 
@@ -62,7 +63,7 @@ def readout_retrain(community, loaders, n_classes=10, lrs=[1e-3, 1e-3], deepR_pa
                     f_agent.to(device)
 
                 for name, p in f_community.named_parameters() : 
-                    if 'readout' in name and str(n) in name:
+                    if 'readout' in name and str(agent) in name:
                         p.requires_grad = True
                     else : 
                         p.requires_grad = train_all_param
@@ -75,16 +76,15 @@ def readout_retrain(community, loaders, n_classes=10, lrs=[1e-3, 1e-3], deepR_pa
 
                 training_dict = {
                     'n_epochs' : n_epochs, 
-                    'task' : str(target_digit),
+                    'task' : str(target),
                     'global_rewire' : False, 
                     'check_gradients' : False, 
                     'reg_factor' : 0.,
                     'train_connections' : False,
-                    'decision_params' : ('last', str(n)) ,
-                    'early_stop' : False ,
+                    'decision_params' : ('last', str(agent)) ,
+                    'early_stop' : True ,
                     'deepR_params_dict' : deepR_params_dict
                 }
-                
                 train_out = train_community(f_community, *loaders, optimizers,
                             schedulers=schedulers, config=training_dict,
                             trials = (True, True),
@@ -93,14 +93,11 @@ def readout_retrain(community, loaders, n_classes=10, lrs=[1e-3, 1e-3], deepR_pa
 
                 test_losses, test_accs= train_out['test_losses'], train_out['test_accs']
 
-                single_losses_ag[n].extend(test_losses)
-                single_accs_ag[n].extend(test_accs)
-
-            single_losses_dig[target_digit] = np.array(single_losses_ag)
-            single_accs_dig[target_digit] = np.array(single_accs_ag)
+                single_losses[target][agent].extend(test_losses)
+                single_accs[target][agent].extend(test_accs)
         
-        single_losses_total.append(np.array(single_losses_dig))
-        single_accs_total.append(np.array(single_accs_dig))
+        single_losses_total.append(np.array(single_losses))
+        single_accs_total.append(np.array(single_accs))
             
     return {'losses' : np.array(single_losses_total), 'accs' : np.array(single_accs_total)}
 
@@ -199,7 +196,7 @@ def plot_bottleneck_results(bottleneck_metric) :
 
     fig1.suptitle('Bottleneck Re-training Performance', fontsize=15)
 
-    metrics = lambda p_con : (bottleneck_metric[p_con][metric_name][..., n, n, -1], bottleneck_metric[p_con][metric_name][..., n, n-1, -1])
+    metrics = lambda p_con : (bottleneck_metric[p_con][metric_name][..., n, n, -1], bottleneck_metric[p_con][metric_name][..., 1-n, n, -1])
     norm_diff = lambda p_con : ((metrics(p_con)[0]-metrics(p_con)[1])/(metrics(p_con)[0]+metrics(p_con)[1]))
         
     fig2, axs = plt.subplots(1, 2,  figsize=(15, 5), sharex=False)

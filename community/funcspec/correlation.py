@@ -15,22 +15,22 @@ from community.data.tasks import get_digits, rotation_conflict_task
 from community.data.process import temporal_data
 from community.common.init import init_community
 
-def fixed_information_data(data, target, fixed_mode='label', n_categories=10, i=0) : 
+def fixed_information_data(data, target, fixed, fixed_mode='label', n_categories=10) : 
     # Return a modified version of data sample, where one quality is fixed (digit label, or parity, etc)
     digits = get_digits(target, n_classes=n_categories)
     if fixed_mode == 'label':
-        d_idxs = [torch.where(digits[i] == d)[0] for d in range(10)]
+        d_idxs = [torch.where(digits[fixed] == d)[0] for d in range(10)]
     elif fixed_mode == 'parity' : 
-        d_idxs = [torch.where(digits[i]%2 == p)[0] for p in range(2)]
+        d_idxs = [torch.where(digits[fixed]%2 == p)[0] for p in range(2)]
     else : 
         raise NotImplementedError('Fixation mode not recognized ("label" or "parity")')
 
     datas = [[data[:, j, idx, :] for idx in d_idxs] for j in range(2)]
-    new_data = [torch.stack([d1, d2], axis=1) for d1, d2 in zip(*datas)]
+    new_data = [torch.stack([d1, d2], axis=1) for d1, d2 in zip(*datas)] 
     
     return new_data
 
-def fixed_rotation_data(data, digits, n_angles=4, reshape=None, i=0) : 
+def fixed_rotation_data(data, digits, fixed_dig, n_angles=4, reshape=None) : 
     if reshape is None : 
         reshape = data.shape[-1] == 784
     if reshape : 
@@ -38,7 +38,7 @@ def fixed_rotation_data(data, digits, n_angles=4, reshape=None, i=0) :
     data, target, angle_values = rotation_conflict_task(data, digits, n_angles)
     data = temporal_data(data)
     possible_angles = np.unique(angle_values.cpu())
-    d_idxs =  [torch.where(angle_values[i] == a)[0] for a in possible_angles]
+    d_idxs =  [torch.where(angle_values[fixed_dig] == a)[0] for a in possible_angles]
     datas = [[data[:, j, idx, :] for idx in d_idxs] for j in range(2)]
     new_data = [torch.stack([d1, d2], axis=1) for d1, d2 in zip(*datas)]
     return new_data
@@ -100,14 +100,12 @@ def randperm_no_fixed(n) :
     else : 
         return perm
 
-
-def get_correlation(community, data, n) : 
+def get_correlation(community, data, n_ag) : 
     _, states = community(data)
-    agent_states = states[-1][n][0]
+    agent_states = states[-1][n_ag][0]
     perm = randperm_no_fixed(agent_states.shape[0])
     agent_states = agent_states.detach().cpu().numpy()
     cor = v_pearsonr(agent_states, agent_states[perm])[0]
-
     return cor
 
 def get_pearson_metrics(community, loaders, n_tests=32, fixed_mode='label', use_tqdm=False, device=torch.device('cuda')) : 
@@ -121,42 +119,42 @@ def get_pearson_metrics(community, loaders, n_tests=32, fixed_mode='label', use_
     elif use_tqdm : 
         position = 0    
     
-    pbar = range(n_tests)
+    pbar = double_test_loader #range(n_tests)
     if use_tqdm : 
         notebook = is_notebook()
         tqdm_f = tqdm_n if notebook else tqdm
         pbar = tqdm_f(pbar, position=position, desc='Correlation Metric Trials', leave=None)
 
-    for test in pbar :
-        data, target = next(iter(double_test_loader))
+    for data, target in  pbar : #test in pbar :
+        #data, target = next(iter(double_test_loader))
         if type(data) is list : 
             data = torch.stack(data)
         data, target = temporal_data(data, 5).to(device), target.to(device)
 
+        for fixed_dig in range(2) : 
+            if not 'rotation' in fixed_mode : 
+                datas = fixed_information_data(data, target, fixed_dig, fixed_mode, 10)
+            else : 
+                try : 
+                    n_angles = int(fixed_mode.split('_')[-1])
+                except ValueError : 
+                    n_angles = 4
+                datas = fixed_rotation_data(data, target, fixed_dig, n_angles, reshape=True)
+            if type(datas) is not list : 
+                datas = [datas]
 
-        for n in range(2) : 
-            global_cor = get_correlation(community, data, n)
-            mean_cor = global_cor.mean()
-            for k in range(2) : 
-                if not 'rotation' in fixed_mode : 
-                    datas = fixed_information_data(data, target, fixed_mode, 10, k)
-                else : 
-                    try : 
-                        n_angles = int(fixed_mode.split('_')[-1])
-                    except ValueError : 
-                        n_angles = 4
-                    datas = fixed_rotation_data(data, target, n_angles, reshape=True, i=k)
-
-                if type(datas) is not list : 
-                    datas = [datas]
-                
+            for agent in range(2) : 
                 corrs = []
                 for d in datas : 
-                    cor = get_correlation(community, d, n)#/mean_cor
+                    if 0 in d.shape : 
+                        continue 
+                    cor = get_correlation(community, d, agent)
                     corrs.append(cor)
-                correlations[n][k].append(np.concatenate(corrs))
+                correlations[fixed_dig][agent].append(np.concatenate(corrs))
+
+        #print(np.array(correlations).shape)
                 
-    return np.array(correlations)   
+    return np.array(correlations)
 
 def compute_correlation_metric(p_cons, loaders, save_name, device=torch.device('cuda'), config=None) : 
 
@@ -261,8 +259,8 @@ def plot_correlations(correlations) :
         for n in range(2) : 
             for k in range(2) : 
                 linestyle = linestyles[n]
-                mean = np.array([p[:, n, k].mean() for p in means])
-                std = np.array([p[:, n, k].std() for p in means])
+                mean = np.array([p[:, k, n].mean() for p in means])
+                std = np.array([p[:, k, n].std() for p in means])
                 plot = ax.plot(p_cons[:l], mean, label=f'Subnetwork {n}, Digit {k} Fixed', linestyle=linestyle)
                 col = plot[-1].get_color()
                 ax.fill_between(p_cons[:l], mean-std, mean+std, color=col, alpha=0.2)
@@ -278,7 +276,7 @@ def plot_correlations(correlations) :
 
     fig1.suptitle('Correlation Metric', fontsize=15)
 
-    normal_metric = lambda p : (p[:, n, n], p[:, n, 1-n])
+    normal_metric = lambda p : (p[:, n, n], p[:, 1-n, n])
     diff_metric = lambda p : ((normal_metric(p)[0]-normal_metric(p)[1])/(normal_metric(p)[0]+normal_metric(p)[1]))
     diff_metric_nan = lambda p : diff_metric(p)[~np.isnan(diff_metric(p))]
 

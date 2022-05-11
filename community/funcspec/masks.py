@@ -230,6 +230,7 @@ def train_and_get_mask_metric(community, sparsity, loaders, n_tests=5, n_epochs=
         test_accuracies = []
         test_losses = []
         best_states = []
+
         for target_digit in range(2) : 
             masked_community = Mask_Community(community, sparsity).to(device)
             momentum, wd = 0.9, 0.0005
@@ -462,7 +463,6 @@ def plot_mask_metric(mask_metric) :
     ax.set_title(f'Weight Mask Metric, Proportions', fontsize=15)
     ax.set_xscale('log')  
 
-
     for m, metric in enumerate(['Accs']) : 
         ax = axs[1+m]
         for n in range(2) : 
@@ -489,7 +489,7 @@ def plot_mask_metric(mask_metric) :
     fig1.suptitle('Weight Mask Metric')
 
 
-    metrics = lambda p_con : (proportions[p_con][k][..., n, n], proportions[p_con][k][..., n, n-1])
+    metrics = lambda p_con : (proportions[p_con][k][..., n, n], proportions[p_con][k][..., 1-n, n])
     norm_diff = lambda p_con : ((metrics(p_con)[0]-metrics(p_con)[1])/(metrics(p_con)[0]+metrics(p_con)[1]))
 
     fig2, axs = plt.subplots(1, 2, figsize=(15, 5))
