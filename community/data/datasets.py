@@ -23,18 +23,18 @@ class Custom_EMNIST(datasets.EMNIST) :
         data, targets = super()._load_data()
         if self.split == 'letters' : 
             targets -= 1
+        self.n_classes = targets.unique().shape[0]
         if self.truncate is not None: 
             try : 
                 truncate_mask = np.array(targets)<self.truncate
-                mul = 10//self.truncate   
+                mul = self.n_classes//self.truncate   
                 truncate_values = np.arange(self.truncate)
             except ValueError : 
                 truncate_mask = np.stack([np.array(targets) == t for t in self.truncate]).sum(0).clip(0, 1) == 1
-                mul = 10//len(self.truncate)
+                mul = self.n_classes//len(self.truncate)
                 truncate_values = self.truncate
                 truncate_values.sort()
 
-            mul = 1
             data,  targets = torch.cat([data[truncate_mask]]*mul, 0), torch.cat([targets[truncate_mask]]*mul, 0)
 
             for i, t in enumerate(truncate_values) : 
@@ -202,11 +202,11 @@ def get_datasets(root, batch_size=256, use_cuda=True, fix_asym=False, permute=Fa
         ])
 
     truncates = np.arange(10, 47)
-    excludes = [18, 19, 21]
+    excludes = [18, 19, 21] # exclude I, J, L
     for e in excludes : 
         truncates = truncates[truncates != e]
     truncates = truncates[:20]
-    print(truncates)
+    #print(truncates)
     np.random.shuffle(truncates)
     truncates = np.split(truncates, 2)
     #truncates = None, None
