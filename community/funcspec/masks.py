@@ -4,7 +4,6 @@ import torch.nn as nn
 import torch.optim as optim
 import copy
 import math
-import torch.autograd as autograd
 from tqdm import tqdm
 from tqdm.notebook import tqdm as tqdm_n
 import wandb
@@ -17,6 +16,7 @@ from community.common.training import train_community
 from community.common.init import init_community
 from community.common.utils import is_notebook
 from community.common.wandb_utils import get_wandb_artifact, mkdir_or_save_torch
+from .subnets import GetSubnet_global
 
 # ------ Weight Masks Models ------
 
@@ -29,64 +29,6 @@ Vivek Ramanujan, Mitchell Wortsman, Aniruddha Kembhavi, Ali Farhadi, Mohammad Ra
 https://github.com/RAIVNLab/hidden-networks
 """
 
-class GetSubnet_global(autograd.Function):
-    """
-    Variation of the original sorting function, select top k% scoring parameter globally, instead of layer-per-layer
-    Args : 
-        score : single parameter score to be selected on (needed for backward pass to have only one corresponding gradient)
-        scores : total list of scores, corresponding to all parameters of model
-        k : % of weights to be selected
-    
-    """
-    @staticmethod
-    def forward(ctx, score, scores, k):
-        score_idx = [s is score for s in scores].index(True)
-        identities = torch.cat([torch.ones_like(s.flatten())*n for n, s in enumerate(scores)])
-        _, idx = torch.cat([s.flatten() for s in scores]).sort()
-        j = int((1 - k) * idx.numel())
-
-        idxs_0 = [idx[:j][identities[idx[:j]]==n] for n, _ in enumerate(scores)]
-        idxs_1 = [idx[j:][identities[idx[j:]]==n] for n, _ in enumerate(scores)]
-        outs = []
-        substract = [0]
-        substract.extend([s.numel() for s in scores[:-1]])
-        for i, (s, idx_0, idx_1) in enumerate(zip(scores, idxs_0, idxs_1)):
-            sub = np.sum(substract[:i+1])
-            out = s.clone()
-            flat_out = out.flatten()
-            flat_out[(idx_0-sub).long()] = 0
-            flat_out[(idx_1-sub).long()] = 1
-            
-            #print(out.requires_grad)
-            outs.append(out)
-            
-        return outs[score_idx]
-
-    @staticmethod
-    def backward(ctx, g):
-        # send the gradient g straight-through on the backward pass.
-        return g, None, None
-    
-class GetSubnet(autograd.Function):
-    @staticmethod
-    def forward(ctx, scores, k):
-        # Get the supermask by sorting the scores and using the top k%
-        out = scores.clone()
-        _, idx = scores.flatten().sort()
-        j = int((1 - k) * scores.numel())
-
-        # flat_out and out access the same memory.
-        flat_out = out.flatten()
-        flat_out[idx[:j]] = 0
-        flat_out[idx[j:]] = 1
-
-        return out
-
-    @staticmethod
-    def backward(ctx, g):
-        # send the gradient g straight-through on the backward pass.
-        return g, None
-    
 def get_new_name(name) : 
     new_name = ''
     for n in name.split('.') : 
@@ -190,7 +132,95 @@ def get_repartitions(masked_model) :
 
 ### ------Weight mask Metrics -------
 
-def train_and_get_mask_metric(community, sparsity, loaders, n_tests=5, n_epochs=1, lr=0.1, device=torch.device('cuda'), use_tqdm=False) : 
+
+def train_mask(community, sparsity, target_digit, loaders, lr=0.1, n_epochs=1, device=torch.device('cpu'), use_tqdm=False) : 
+
+    if type(use_tqdm) is int : 
+        position = use_tqdm
+        use_tqdm = True
+    elif use_tqdm : 
+        position = 0 
+
+    masked_community = Mask_Community(community, sparsity).to(device)
+    momentum, wd = 0.9, 0.0005
+    optimizer_agents = optim.SGD(
+        [p for p in masked_community.parameters() if p.requires_grad],
+        lr=lr,
+        momentum=momentum,
+        weight_decay=wd,
+    )
+    try : 
+        optimizer_connections = optim.Adam(community.connections.parameters())
+    except ValueError : #no connections
+        optimizer_connections = optim.Adam([torch.tensor(0)])
+
+    optimizers = [optimizer_agents, optimizer_connections]
+
+    training_dict = {
+            'n_epochs' : n_epochs, 
+            'task' : str(target_digit),
+            'global_rewire' : False, 
+            'check_gradients' : False, 
+            'reg_factor' : 0.,
+            'train_connections' : False,
+            'decision_params' : ('last', 'max'),
+            'min_acc' : None ,
+            'deepR_params_dict' : {},
+        }
+
+    train_out = train_community(masked_community, *loaders, optimizers, 
+                                config=training_dict, device=device,
+                                trials = (True, True),
+                                use_tqdm=position+1 if use_tqdm else False)
+                                    
+    return masked_community, train_out['test_losses'], train_out['test_accs'], train_out['best_state']
+
+
+def find_optimal_sparsity(masked_community, target_digit, loaders, min_acc=0.85, device=torch.device('cpu'), use_tqdm=False) : 
+
+    optimizers = None, None
+
+    if type(use_tqdm) is int : 
+        position = use_tqdm
+        use_tqdm = True
+    elif use_tqdm : 
+        position = 0 
+
+    def test_masked_com() : 
+            
+        training_dict = {
+                'n_epochs' : 1, 
+                'task' : str(target_digit),
+                'global_rewire' : False, 
+                'check_gradients' : False, 
+                'reg_factor' : 0.,
+                'train_connections' : False,
+                'decision_params' : ('last', 'max'),
+                'min_acc' : None ,
+                'deepR_params_dict' : {},
+            }
+
+        train_out = train_community(masked_community, *loaders, optimizers, 
+                                    config=training_dict, device=device,
+                                    trials = (False, True),
+                                    use_tqdm=False)
+        return train_out
+
+    train_out = test_masked_com()                        
+    test_acc = train_out['test_accs'].max()
+
+    while test_acc >= min_acc : 
+        #print(test_acc, masked_community.sparsity)
+        masked_community.sparsity *= 0.9
+        train_out = test_masked_com()                        
+        test_acc = train_out['test_accs'].max()
+
+    return masked_community.sparsity, test_acc
+
+def train_and_get_mask_metric(community, initial_sparsity, loaders,
+                                n_tests=5, n_epochs=1, lr=0.1,
+                                use_optimal_sparsity=False,
+                                device=torch.device('cuda'), use_tqdm=False) : 
     """
     Initializes and trains masks on community model.
     Args : 
@@ -211,6 +241,7 @@ def train_and_get_mask_metric(community, sparsity, loaders, n_tests=5, n_epochs=
     test_accuracies_total = []
     test_losses_total = []
     best_states_total = []
+    sparsities_total = []
 
     if type(use_tqdm) is int : 
         position = use_tqdm
@@ -230,41 +261,17 @@ def train_and_get_mask_metric(community, sparsity, loaders, n_tests=5, n_epochs=
         test_accuracies = []
         test_losses = []
         best_states = []
+        sparsities = []
 
         for target_digit in range(2) : 
-            masked_community = Mask_Community(community, sparsity).to(device)
-            momentum, wd = 0.9, 0.0005
-            optimizer_agents = optim.SGD(
-                [p for p in masked_community.parameters() if p.requires_grad],
-                lr=lr,
-                momentum=momentum,
-                weight_decay=wd,
-            )
-            try : 
-                optimizer_connections = optim.Adam(community.connections.parameters())
-            except ValueError : #no connections
-                optimizer_connections = optim.Adam([torch.tensor(0)])
+            
+            masked_community, test_loss, test_accs, best_state = train_mask(community, initial_sparsity, target_digit, loaders, lr, n_epochs, device, use_tqdm)
 
-            optimizers = [optimizer_agents, optimizer_connections]
-
-            training_dict = {
-                    'n_epochs' : n_epochs, 
-                    'task' : str(target_digit),
-                    'global_rewire' : False, 
-                    'check_gradients' : False, 
-                    'reg_factor' : 0.,
-                    'train_connections' : False,
-                    'decision_params' : ('last', 'max'),
-                    'early_stop' : False ,
-                    'deepR_params_dict' : {},
-                }
-
-            train_out = train_community(masked_community, *loaders, optimizers, 
-                                        config=training_dict, device=device,
-                                        trials = (True, True),
-                                        use_tqdm=position+1 if use_tqdm else False)
-                                    
-            test_loss, test_accs, best_state = train_out['test_losses'], train_out['test_accs'], train_out['best_state']
+            if use_optimal_sparsity : 
+                try : 
+                    optimal_sparsity, test_accs = find_optimal_sparsity(masked_community, target_digit, loaders, community.best_acc*0.95)
+                except AttributeError : 
+                    optimal_sparsity, test_accs = find_optimal_sparsity(masked_community, target_digit, loaders, min_acc=.9)
 
             prop = get_proportions_per_agent(masked_community)[0]
             
@@ -272,13 +279,23 @@ def train_and_get_mask_metric(community, sparsity, loaders, n_tests=5, n_epochs=
             test_accuracies.append(np.array(test_accs))
             test_losses.append(np.array(test_loss))
             best_states.append(best_state)
+            sparsities.append(masked_community.sparsity)
         
         best_states_total.append(np.array(best_states))
         prop_per_agent_total.append(np.array(prop_per_agent))
         test_accuracies_total.append(np.array(test_accuracies))
         test_losses_total.append(np.array(test_losses))
+        sparsities_total.append(np.array(sparsities))
+
+    results_dict = {
+        'proportions' : np.array(prop_per_agent_total),
+        'test_accs' : np.array(test_accuracies_total),
+        'test_losses' : np.array(test_losses_total),
+        'best_states' : best_states_total,
+        'sparsities' : np.array(sparsities_total),
+    }
         
-    return np.array(prop_per_agent_total), np.array(test_accuracies_total), np.array(test_losses_total), best_states_total
+    return results_dict
     
 def get_proportions_per_agent(masked_community) : 
     """
@@ -351,33 +368,33 @@ def compute_mask_metric(p_cons, loaders, save_name, p_masks=[0.1], lr=1e-1, devi
 
         prop_per_agent = {}    
         test_accs = {}
-        test_losses = {}
         best_states = {}
 
         states = community_states[p_con]
 
         for p_mask in tqdm_f(p_masks, position=1, desc='Mask Sparsity', leave=None) :
             
-            prop_per_agent[p_mask], test_accs[p_mask], test_losses[p_mask], best_states[p_mask] = [], [], [], []
+            prop_per_agent[p_mask], test_accs[p_mask], best_states[p_mask] = [], [], []
 
             for i, state in enumerate(tqdm_f(states, position=2, desc='Model Trials : ', leave=None)) :                     
                 community.load_state_dict(state)
-                prop, acc, loss, states = train_and_get_mask_metric(community, p_mask, loaders, lr=lr, device=device)
+
+                results = train_and_get_mask_metric(community, p_mask, loaders, lr=lr, device=device)
+
+                prop, acc, states = results['proporttions'], results['test_accs'], results['best_states']
                 prop_per_agent[p_mask].append(prop)
                 test_accs[p_mask].append(acc)
-                test_losses[p_mask].append(loss)
                 best_states[p_mask].append(states)
                 
             prop_per_agent[p_mask], test_accs[p_mask] = np.array(prop_per_agent[p_mask]), np.array(test_accs[p_mask])
-            test_losses[p_mask], best_states[p_mask] = np.array(test_losses[p_mask]), np.array(best_states[p_mask])
+            best_states[p_mask] = np.array(best_states[p_mask])
             
         proportions_per_agent[p_con] = prop_per_agent
         test_accuracies_supermasks[p_con] = test_accs
-        test_losses_supermasks[p_con] = test_losses
         trained_masks[p_con] = best_states
 
         metric = {'Proportions' : proportions_per_agent, 'Accs' : test_accuracies_supermasks,
-                    'Losses' : test_losses_supermasks, 'Trained_masks' : trained_masks}
+                     'Trained_masks' : trained_masks}
         
         mkdir_or_save_torch(metric, save_name, save_path)
 
@@ -387,14 +404,14 @@ def compute_mask_metric(p_cons, loaders, save_name, p_masks=[0.1], lr=1e-1, devi
         wandb.log({'Mask Metric' : wandb.Image(fig1), 'Mask Difference Metric' : wandb.Image(fig2)})
 
     return metric, figures
-
     
-def get_metrics_from_saved_masks(mask_file, masked_community=None, sparsities=[0.1, 0.05, 0.01]) : 
+def get_metrics_from_saved_masks(mask_file, masked_community=None, sparsities=[0.1, 0.05, 0.01], config=None) : 
 
     """
     Computes the weight mask metrics for different k% of selected weights from saved masks states
     """
     if masked_community is None : 
+        assert config is not None or wandb.run is not None
         try : 
             config = wandb.run.config
             agent_params_dict = config['model_params']['agents_params']
