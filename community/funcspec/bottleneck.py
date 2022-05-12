@@ -1,4 +1,5 @@
 from turtle import pos
+from attr import attrib
 import torch
 import numpy as np
 import torch.nn as nn
@@ -16,9 +17,9 @@ from community.common.init import init_community, init_optimizers
 from community.common.utils import is_notebook
 from community.common.wandb_utils import get_wandb_artifact, mkdir_or_save_torch
 
-### ------ Bottleneck Metric ------ : 
+# ------ Bottleneck Metric ------ : 
 
-def readout_retrain(community, loaders, n_classes=10, lrs=[1e-3, 1e-3], deepR_params_dict={},
+def readout_retrain(community, loaders, n_classes=10, deepR_params_dict={},
                     n_epochs=2, n_tests=3, train_all_param=False,
                     use_tqdm=False, device=torch.device('cuda')) : 
     """
@@ -45,61 +46,61 @@ def readout_retrain(community, loaders, n_classes=10, lrs=[1e-3, 1e-3], deepR_pa
     if use_tqdm : 
         pbar = tqdm_f(pbar, position=position, desc='Bottleneck Metric Trials : ', leave=None)
 
-    single_losses_total, single_accs_total = [], []
+    single_accs_total = []
     for test in pbar : 
 
-        single_losses  = [[ [] for agent in range(2)] for target in range(2)]
-        single_accs = [[ [] for agent in range(2)] for target in range(2)]
+        single_losses  = [[] for target in range(2)]
+        single_accs = [[] for target in range(2)]
         for target in range(2) :
 
-            for agent, _ in enumerate(community.agents) : 
+            f_community = copy.deepcopy(community)
+            for f_agent in f_community.agents : 
+                if f_agent.use_bottleneck : 
+                    f_agent.readout = nn.Linear(f_agent.bottleneck.out_features, n_classes)
+                else : 
+                    f_agent.readout = nn.Linear(f_agent.dims[-2], n_classes)
+                f_agent.to(device)
 
-                f_community = copy.deepcopy(community)
-                for f_agent in community.agents : 
-                    if f_agent.use_bottleneck : 
-                        f_agent.readout = nn.Linear(f_agent.bottleneck.out_features, n_classes)
-                    else : 
-                        f_agent.readout = nn.Linear(f_agent.dims[-2], n_classes)
-                    f_agent.to(device)
-
-                for name, p in f_community.named_parameters() : 
-                    if 'readout' in name and str(agent) in name:
-                        p.requires_grad = True
-                    else : 
-                        p.requires_grad = train_all_param
-            
-                lr_ag, gamma = lrs[0], 0.9
-                params_dict = {'lr' : lr_ag, 'gamma' : gamma}
-                deepR_params_dict['lr'] = lrs[1]
-                
-                optimizers, schedulers = init_optimizers(f_community, params_dict, deepR_params_dict)
-
-                training_dict = {
-                    'n_epochs' : n_epochs, 
-                    'task' : str(target),
-                    'global_rewire' : False, 
-                    'check_gradients' : False, 
-                    'reg_factor' : 0.,
-                    'train_connections' : False,
-                    'decision_params' : ('last', str(agent)) ,
-                    'early_stop' : True ,
-                    'deepR_params_dict' : deepR_params_dict
-                }
-                train_out = train_community(f_community, *loaders, optimizers,
-                            schedulers=schedulers, config=training_dict,
-                            trials = (True, True),
-                            use_tqdm=position+1 if use_tqdm else False,
-                            device=device)
-
-                test_losses, test_accs= train_out['test_losses'], train_out['test_accs']
-
-                single_losses[target][agent].extend(test_losses)
-                single_accs[target][agent].extend(test_accs)
+            for name, p in f_community.named_parameters() : 
+                if 'readout' in name :#and str(agent) in name:
+                    p.requires_grad = True
+                else : 
+                    p.requires_grad = train_all_param
         
-        single_losses_total.append(np.array(single_losses))
+            lr_ag, gamma = 1e-2, 0.9
+            params_dict = {'lr' : lr_ag, 'gamma' : gamma}
+            
+            optimizers, schedulers = init_optimizers(f_community, params_dict, deepR_params_dict)
+
+            try : 
+                min_acc = community.best_acc * 0.95
+            except AttributeError : 
+                min_acc = None
+
+            training_dict = {
+                'n_epochs' : n_epochs, 
+                'task' : str(target),
+                'global_rewire' : False, 
+                'check_gradients' : False, 
+                'reg_factor' : 0.,
+                'train_connections' : False,
+                'decision_params' : ('last', 'both') ,
+                'min_acc' : min_acc ,
+                'deepR_params_dict' : deepR_params_dict
+            }
+            train_out = train_community(f_community, *loaders, optimizers,
+                        schedulers=schedulers, config=training_dict,
+                        trials = (True, True), bottleneck_training=True,
+                        use_tqdm=position+1 if use_tqdm else False,
+                        device=device)
+
+            test_losses, test_accs= train_out['test_losses'], train_out['test_accs']
+
+            single_accs[target] = test_accs.max(0)
+        
         single_accs_total.append(np.array(single_accs))
             
-    return {'losses' : np.array(single_losses_total), 'accs' : np.array(single_accs_total)}
+    return {'accs' : np.array(single_accs_total)}
 
 
 def compute_bottleneck_metrics(p_cons, loaders, save_name, device=torch.device('cuda'), config=None) : 
@@ -151,7 +152,7 @@ def compute_bottleneck_metrics(p_cons, loaders, save_name, device=torch.device('
             for metric_name in ['losses', 'accs'] :
                 metrics[p_con][metric_name].append(metric[metric_name])
                 
-        metrics[p_con]['losses'] = np.array(metrics[p_con]['losses'])
+        #metrics[p_con]['losses'] = np.array(metrics[p_con]['losses'])
         metrics[p_con]['accs'] = np.array(metrics[p_con]['accs'])
         
         mkdir_or_save_torch(metrics, save_name, save_path)
