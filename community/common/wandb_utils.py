@@ -85,7 +85,7 @@ def get_training_dict(config)  :
         'reg_factor' : 0.,
         'train_connections' : True,
         'decision_params' : config['training']['decision_params'],
-        'early_stop' : config['training']['early_stop'] ,
+        'min_acc' : config['training']['min_acc'] ,
         'deepR_params_dict' : config['optimization']['connections'],
     }
 

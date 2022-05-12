@@ -6,6 +6,7 @@ from community.common.training import train_community
 from community.common.init import init_community, init_optimizers
 from community.common.wandb_utils import get_training_dict
 import numpy as np
+import copy
 
 def train_and_compute_metrics(p_con, config, loaders, device) : 
 
@@ -21,7 +22,7 @@ def train_and_compute_metrics(p_con, config, loaders, device) :
 
     train_outs = {}
     trained_coms = {}
-    for use_bottleneck in [True] : 
+    for use_bottleneck in [True, False] : 
             
         agents_params_dict['use_bottleneck'] = use_bottleneck
         community = init_community(agents_params_dict,
@@ -47,8 +48,9 @@ def train_and_compute_metrics(p_con, config, loaders, device) :
                     metric_name : metric
                     })
 
-            train_outs[use_bottleneck] = train_out
-            trained_coms[use_bottleneck] = community
+            community.best_acc = best_test_acc
+            train_outs[f'With{(1-use_bottleneck)*"out"} Bottleneck'] = train_out
+            trained_coms[f'With{(1-use_bottleneck)*"out"} Bottleneck'] = copy.deepcopy(community)
 
     # ------ Metrics ------
 
@@ -64,26 +66,29 @@ def train_and_compute_metrics(p_con, config, loaders, device) :
             wandb.define_metric(f'Bottleneck Agent {n}, Task {t}', step_metric='p_connection')
            
 
-    #community = trained_coms[False]
+    community = trained_coms['Without Bottleneck']
     #print('Correlations')
-    correlations = get_pearson_metrics(community, loaders, n_tests=64, device=device, use_tqdm=1)
-    correlations_metric = correlations.mean(-1).mean(-1)
+    correlations_results = get_pearson_metrics(community, loaders, device=device, use_tqdm=1)
+    correlations_metric = correlations_results.mean(-1).mean(-1)
 
     #print('Weight Masks')
-    masks_props, masks_accs, _, masks_states = train_and_get_mask_metric(community, 0.1, loaders, device=device, n_tests=3, n_epochs=1, use_tqdm=1)
-    masks_metric, masks_accs = masks_props.mean(0), masks_accs.mean(0).max(-1)
+    masks_results = train_and_get_mask_metric(community, 0.5, loaders, device=device, n_tests=3, n_epochs=2, use_tqdm=1, use_optimal_sparsity=True)
+    masks_props, masks_accs, _, masks_states, masks_spars = list(masks_results.values())
+    masks_metric, masks_accs, masks_spars = masks_props.mean(0), masks_accs.mean(0).max(-1), masks_spars.mean(0)
 
-    #community = trained_coms[True]
+    community = trained_coms['With Bottleneck']
     #print('Bottlenecks Retrain')
-    bottleneck = readout_retrain(community, loaders, deepR_params_dict=deepR_params_dict, n_tests=3, n_epochs=1, device=device, use_tqdm=1)
-    bottleneck_metric = bottleneck['accs'].mean(0).max(-1)
+    bottleneck_results = readout_retrain(community, loaders, deepR_params_dict=deepR_params_dict, n_tests=3, n_epochs=10, device=device, use_tqdm=1)
+    bottleneck_metric = bottleneck_results['accs'].mean(0).max(-1)
 
     diff_metric = lambda metric, ag : (metric[ag, ag] - metric[1-ag, ag]) / (metric[ag, ag] + metric[1-ag, ag])
 
     # ------ Log ------
     metrics = [correlations_metric, masks_metric, bottleneck_metric]
     metric_names = ['Correlation', 'Masks', 'Bottleneck']
+    all_results = [correlations_results, masks_results, bottleneck_results]
     metric_results = {metric_name : metric for metric, metric_name in zip(metrics, metric_names)}
+    all_metric_results = {metric_name : metric for metric, metric_name in zip(metrics, all_results)}
 
     for metric, metric_name in zip(metrics, metric_names) : 
         
@@ -95,4 +100,4 @@ def train_and_compute_metrics(p_con, config, loaders, device) :
         
         wandb.log(metric_log)
 
-    return metric_results, train_outs
+    return metric_results, train_outs, all_metric_results

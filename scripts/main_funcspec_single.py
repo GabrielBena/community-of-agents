@@ -19,10 +19,10 @@ if __name__ == "__main__":
 
     dataset_config = {'batch_size' : 256, 
                       'use_cuda' : use_cuda, 
-                      'fix_asym' : False, 
+                      'fix_asym' : True, 
                       'permute_dataset' : False, 
                       'seed' : None, 
-                      'data_type' : 'multi'
+                      'data_type' : 'letters'
     }
     
     all_loaders = get_datasets('data/',
@@ -33,7 +33,7 @@ if __name__ == "__main__":
                                 dataset_config['seed']
                         )
 
-    loaders = all_loaders[['multi', 'double', 'single'].index(dataset_config['data_type'])]
+    loaders = all_loaders[['multi', 'digits', 'letters', 'single'].index(dataset_config['data_type'])]
     
     agents_params_dict = {'n_agents' : 2,
                          'n_in' : 784,
@@ -70,10 +70,10 @@ if __name__ == "__main__":
         }, 
         'training' : {
             'decision_params' : ('last', 'max'),
-            'n_epochs' : 30, 
+            'n_epochs' : 25, 
             'n_tests' : 1, 
             'inverse_task' : False, 
-            'early_stop' : True
+            'min_acc' : 0.9
         },       
         'task' : 'parity_digits',
         'p_cons' : p_cons_params,
@@ -95,15 +95,16 @@ if __name__ == "__main__":
         
     metric_names = ['Correlation', 'Masks', 'Bottleneck']
     metric_results = {metric : {} for metric in metric_names}
-    training_results = {}
+    training_results, all_results = {}, {}
 
     for p_con in tqdm(p_cons, desc='Community Sparsity : ', position=0, leave=None) : 
-        metrics, train_out = train_and_compute_metrics(p_con, config, loaders, device)
+        metrics, train_out, results = train_and_compute_metrics(p_con, config, loaders, device)
         training_results[p_con] = train_out
+        all_results[p_con] = all_results
         for metric in metric_names : 
             metric_results[metric][p_con] = metrics[metric]
 
-    for name, file in zip(['training_results', 'metric_results'], [training_results, metric_results]) : 
+    for name, file in zip(['training_results', 'metric_results', 'all_results'], [training_results, metric_results, all_results]) : 
         mkdir_or_save_torch(file, name, run_dir)
         artifact = wandb.Artifact(name=name, type='dict')
         artifact.add_file(run_dir + name)
