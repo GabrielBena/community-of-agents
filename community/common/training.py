@@ -21,7 +21,7 @@ from deepR.models import step_connections
 #------ Training and Testing functions ------
             
 def train_community(model, train_loader, test_loader, optimizers, schedulers=None,
-                    config=None, trials=(True, True),
+                    config=None, trials=(True, True), bottleneck_training=False,
                     use_tqdm=True, device=torch.device('cuda')):
     """
     Training and testing function for Community of agents
@@ -47,7 +47,8 @@ def train_community(model, train_loader, test_loader, optimizers, schedulers=Non
     check_gradients = config['check_gradients']
     global_rewire = config['global_rewire']
     decision_params = config['decision_params']
-    early_stop = config['early_stop']
+    min_acc = config['min_acc']
+    early_stop = min_acc is not None
     deepR_params_dict = config['deepR_params_dict']
     #--------------
 
@@ -106,7 +107,10 @@ def train_community(model, train_loader, test_loader, optimizers, schedulers=Non
                     output = output.unsqueeze(0)     
                 if len(target.shape)==1 : 
                     target = target.unsqueeze(0)
-                if target.shape[0] != output.shape[0] : 
+                if bottleneck_training : 
+                    target = target.expand([2] + list(target.shape[1:]))
+                    take_min_loss = False
+                elif target.shape[0] != output.shape[0] : 
                     try : 
                         target = target.transpose(0, 1)
                         assert target.shape == output.shape[:-1]
@@ -118,14 +122,14 @@ def train_community(model, train_loader, test_loader, optimizers, schedulers=Non
 
                 target = target.contiguous()
 
-                assert target.shape == output.shape[:-1] or take_min_loss, print('Target and output shapes not compatible :', target.shape, output.shape)
+                assert target.shape == output.shape[:-1] or take_min_loss or bottleneck_training, print('Target and output shapes not compatible :', target.shape, output.shape)
                 #print(target.shape, output.shape)
                 
                 if take_min_loss : 
                     loss, min_idxs = torch.stack([F.cross_entropy(output[0], tgt, reduction='none') for tgt in target]).min(0)
                     loss = loss.mean()
                 else  : 
-                    loss = torch.mean(torch.stack([F.cross_entropy(out, tgt) for (out, tgt) in zip(output, target)]))
+                    loss = torch.stack([F.cross_entropy(out, tgt) for (out, tgt) in zip(output, target)]).mean()
 
                 if reg_loss : 
                     reg = F.mse_loss(deciding_ags.float().mean(), torch.full_like(deciding_ags.float().mean(), 0.5))
@@ -135,13 +139,19 @@ def train_community(model, train_loader, test_loader, optimizers, schedulers=Non
                 if take_min_loss : 
                     target = torch.where(~min_idxs.bool(), target[0], target[1])
 
-                correct = pred.eq(target.view_as(pred)).sum().item()
+                correct = pred.eq(target.view_as(pred))
+                if not bottleneck_training : 
+                    correct = correct.sum().item()
+                    train_accs.append(correct/target.numel())
+                else : 
+                    correct = correct.flatten(start_dim=1).sum(1).numpy()
+                    train_accs.append(correct/target[0].numel())
+                
                 loss.backward()
 
                 if check_gradients : 
                     check_grad(model)
 
-                train_accs.append(correct/target.numel())
                 train_losses.append(loss.cpu().data.item())
                 
                 #Apply gradients on agents weights
@@ -162,14 +172,18 @@ def train_community(model, train_loader, test_loader, optimizers, schedulers=Non
                     pbar.set_description(desc(descs))
             
         if testing : 
-            descs[1], loss, acc, deciding_ags = test_community(model, device, test_loader, decision_params=decision_params, task=task)  
+            descs[1], loss, acc, deciding_ags = test_community(model, device, test_loader, decision_params=decision_params, task=task, bottleneck_training=bottleneck_training)  
                                                  
             if loss < best_loss : 
                 best_loss = loss
                 best_state = copy.deepcopy(model.state_dict())
 
-            if acc > best_acc : 
-                best_acc = acc
+            try : 
+                if acc > best_acc : 
+                    best_acc = acc
+            except ValueError : 
+                 if( acc > best_acc).all() : 
+                    best_acc = acc
 
             test_losses.append(loss)
             test_accs.append(acc)
@@ -185,20 +199,24 @@ def train_community(model, train_loader, test_loader, optimizers, schedulers=Non
             for sch in schedulers : sch.step()
 
         results = {
-            'train_losses' : train_losses,
-            'train_accs' : train_accs,
-            'test_losses' : test_losses,
-            'test_accs' : test_accs,
+            'train_losses' : np.array(train_losses),
+            'train_accs' : np.array(train_accs),
+            'test_losses' : np.array(test_losses),
+            'test_accs' : np.array(test_accs),
             'deciding_agents' : np.array(deciding_agents),
             'best_state' : best_state
         }
 
-        if early_stop and best_acc>=0.9 and epoch>=2:
-            return results
+        try : 
+            if early_stop and best_acc>=min_acc and epoch>=2:
+                return results
+        except ValueError : 
+            if early_stop and( best_acc>=0.9).all() and epoch>=2:
+                return results
 
     return results
                    
-def test_community(model, device, test_loader, decision_params=('last', 'max'), task='parity_digits', verbose=False, seed=None):
+def test_community(model, device, test_loader, decision_params=('last', 'max'), task='parity_digits', verbose=False, seed=None, bottleneck_training=False):
     """
     Testing function for community of agents
     """
@@ -228,7 +246,10 @@ def test_community(model, device, test_loader, decision_params=('last', 'max'), 
                     output = output.unsqueeze(0)     
             if len(target.shape)==1 : 
                 target = target.unsqueeze(0)
-            if target.shape[0] != output.shape[0] : 
+            if bottleneck_training : 
+                target = target.expand([2] + list(target.shape[1:]))
+                take_min_loss = False
+            elif target.shape[0] != output.shape[0] : 
                 try : 
                     target = target.transpose(0, 1)
                     assert target.shape == output.shape[:-1]
@@ -238,7 +259,7 @@ def test_community(model, device, test_loader, decision_params=('last', 'max'), 
             else : 
                 take_min_loss = False
 
-            assert target.shape == output.shape[:-1] or take_min_loss, print(target.shape, output.shape)
+            assert target.shape == output.shape[:-1] or take_min_loss or bottleneck_training, print(target.shape, output.shape)
                 
             if take_min_loss : 
                 loss, min_idxs = torch.stack([F.cross_entropy(output[0], tgt, reduction='none') for tgt in target]).min(0)
@@ -248,16 +269,24 @@ def test_community(model, device, test_loader, decision_params=('last', 'max'), 
                 test_loss += torch.sum(torch.stack([F.cross_entropy(out, tgt, reduction='sum') for (out, tgt) in zip(output, target)]))
 
             pred = output.argmax(dim=-1, keepdim=True)  # get the index of the max log-probability
-            correct += pred.eq(target.view_as(pred)).sum().item()
-            acc += pred.eq(target.view_as(pred)).sum().item()/target.numel()
+
+            c = pred.eq(target.view_as(pred))
+            if not bottleneck_training : 
+                correct += c.sum().item()
+                acc += c.sum().item()/target.numel()
+            else : 
+                correct += c.flatten(start_dim=1).sum(1).numpy()
+                acc += c.flatten(start_dim=1).sum(1).numpy()/target[0].numel()
 
     test_loss /= len(test_loader.dataset)
     acc /= len(test_loader)
 
     deciding_agents = np.array(deciding_agents)
     
-    desc = str(' | Test set: Loss: {:.3f}, Accuracy: {}/{} ({:.0f}%), Mean decider: {:.2f}'.format(
-            test_loss, correct, (len(test_loader.dataset)*(target.shape[0])), 100*acc, deciding_agents.mean()))
+    desc = str(' | Test set: Loss: {:.3f}, Accuracy: {}/{} ({}%), Mean decider: {:.2f}'.format(
+            test_loss, np.sum(correct), (len(test_loader.dataset)*(target.shape[0])),
+            (np.round(100*a) for a in acc) if type(acc) is list else np.round(100*acc),
+            deciding_agents.mean()))
     
     if verbose : print(desc)
         
