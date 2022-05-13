@@ -85,7 +85,8 @@ def readout_retrain(community, loaders, n_classes=10, deepR_params_dict={},
                 'reg_factor' : 0.,
                 'train_connections' : False,
                 'decision_params' : ('last', 'both') ,
-                'min_acc' : min_acc ,
+                'stopping_acc' : min_acc ,
+                'early_stop' :  True,
                 'deepR_params_dict' : deepR_params_dict
             }
             train_out = train_community(f_community, *loaders, optimizers,
@@ -101,7 +102,6 @@ def readout_retrain(community, loaders, n_classes=10, deepR_params_dict={},
         single_accs_total.append(np.array(single_accs))
             
     return {'accs' : np.array(single_accs_total)}
-
 
 def compute_bottleneck_metrics(p_cons, loaders, save_name, device=torch.device('cuda'), config=None) : 
     """

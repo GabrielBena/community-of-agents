@@ -28,7 +28,9 @@ def train_and_compute_metrics(p_con, config, loaders, device) :
         community = init_community(agents_params_dict,
                                 p_con,
                                 use_deepR=config['model_params']['use_deepR'],
-                                device=device)
+                                device=device, 
+                                com_dropout=config['model_params']['com_dropout'])
+
         optimizers, schedulers = init_optimizers(community, params_dict, deepR_params_dict)
 
         if config['do_training'] : 
@@ -72,14 +74,14 @@ def train_and_compute_metrics(p_con, config, loaders, device) :
     correlations_metric = correlations_results.mean(-1).mean(-1)
 
     #print('Weight Masks')
-    masks_results = train_and_get_mask_metric(community, 0.5, loaders, device=device, n_tests=3, n_epochs=2, use_tqdm=1, use_optimal_sparsity=True)
+    masks_results = train_and_get_mask_metric(community, 0.5, loaders, device=device, n_tests=1, n_epochs=2, use_tqdm=1, use_optimal_sparsity=True)
     masks_props, masks_accs, _, masks_states, masks_spars = list(masks_results.values())
     masks_metric, masks_accs, masks_spars = masks_props.mean(0), masks_accs.mean(0).max(-1), masks_spars.mean(0)
 
     community = trained_coms['With Bottleneck']
     #print('Bottlenecks Retrain')
-    bottleneck_results = readout_retrain(community, loaders, deepR_params_dict=deepR_params_dict, n_tests=3, n_epochs=10, device=device, use_tqdm=1)
-    bottleneck_metric = bottleneck_results['accs'].mean(0).max(-1)
+    bottleneck_results = readout_retrain(community, loaders, deepR_params_dict=deepR_params_dict, n_tests=1, n_epochs=5, device=device, use_tqdm=1)
+    bottleneck_metric = bottleneck_results['accs'].mean(0)
 
     diff_metric = lambda metric, ag : (metric[ag, ag] - metric[1-ag, ag]) / (metric[ag, ag] + metric[1-ag, ag])
 
@@ -88,7 +90,7 @@ def train_and_compute_metrics(p_con, config, loaders, device) :
     metric_names = ['Correlation', 'Masks', 'Bottleneck']
     all_results = [correlations_results, masks_results, bottleneck_results]
     metric_results = {metric_name : metric for metric, metric_name in zip(metrics, metric_names)}
-    all_metric_results = {metric_name : metric for metric, metric_name in zip(metrics, all_results)}
+    all_metric_results = {metric_name : metric for metric, metric_name in zip(all_results, metric_names)}
 
     for metric, metric_name in zip(metrics, metric_names) : 
         

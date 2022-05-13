@@ -164,7 +164,8 @@ def train_mask(community, sparsity, target_digit, loaders, lr=0.1, n_epochs=1, d
             'reg_factor' : 0.,
             'train_connections' : False,
             'decision_params' : ('last', 'max'),
-            'min_acc' : None ,
+            'stopping_acc' : None ,
+            'early_stop' : False,
             'deepR_params_dict' : {},
         }
 
@@ -265,7 +266,8 @@ def train_and_get_mask_metric(community, initial_sparsity, loaders,
 
         for target_digit in range(2) : 
             
-            masked_community, test_loss, test_accs, best_state = train_mask(community, initial_sparsity, target_digit, loaders, lr, n_epochs, device, use_tqdm)
+            masked_community, test_loss, test_accs, best_state = train_mask(community, initial_sparsity, target_digit,
+                                                                         loaders, lr, n_epochs, device, position + 1 if use_tqdm else False)
 
             if use_optimal_sparsity : 
                 try : 

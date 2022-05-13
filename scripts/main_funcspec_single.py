@@ -41,27 +41,28 @@ if __name__ == "__main__":
                          'n_hid' : 50,
                          'n_layer' : 1,
                          'n_out' : 10,
-                         'train_in_out': (True, False),
+                         'train_in_out': (True, True),
                          'use_readout': True,
                          'cell_type': str(nn.RNN),
                          'use_bottleneck': False,
-                         'dropout': 0}
+                         'ag_dropout': 0.05}
     
     p_masks = [0.1]
     
-    lr, gamma = 1e-3, 0.9
+    lr, gamma = 1e-3, 0.95
     params_dict = {'lr' : lr, 'gamma' : gamma}
 
-    l1, gdnoise, lr, gamma, cooling = 1e-4, 1e-4, 0.1, 0.95, 0.95
+    l1, gdnoise, lr, gamma, cooling = 1e-5, 1e-3, 1e-3, 0.95, 0.95
     deepR_params_dict = {'l1' : l1, 'gdnoise' : gdnoise, 'lr' : lr, 'gamma' : gamma, 'cooling' : cooling}
 
-    p_cons_params = (1/agents_params_dict['n_hid']**2, 0.999, 5)
+    p_cons_params = (1/agents_params_dict['n_hid']**2, 0.999, 3)
 
     config = {
         'model_params' : {
             'agents_params' : agents_params_dict, 
             'use_deepR' : False, 
-            'global_rewire' : False
+            'global_rewire' : False,
+            'com_dropout' : 0.3
             }, 
         'datasets' : dataset_config,
         'optimization' : {
@@ -70,10 +71,11 @@ if __name__ == "__main__":
         }, 
         'training' : {
             'decision_params' : ('last', 'max'),
-            'n_epochs' : 25, 
+            'n_epochs' : 20, 
             'n_tests' : 1, 
             'inverse_task' : False, 
-            'min_acc' : 0.9
+            'stopping_acc' : 0.9,
+            'early_stop' : True
         },       
         'task' : 'parity_digits',
         'p_cons' : p_cons_params,
@@ -81,6 +83,9 @@ if __name__ == "__main__":
     }
 
     p_cons = np.geomspace(p_cons_params[0], p_cons_params[1], p_cons_params[2]).round(4)
+    com_dropouts = p_cons*config['model_params']['com_dropout']
+    com_dropouts[0] = 0.
+
     #p_cons = [0.1]
 
     # WAndB tracking : 
@@ -97,10 +102,13 @@ if __name__ == "__main__":
     metric_results = {metric : {} for metric in metric_names}
     training_results, all_results = {}, {}
 
-    for p_con in tqdm(p_cons, desc='Community Sparsity : ', position=0, leave=None) : 
+    for p, p_con in enumerate(tqdm(p_cons, desc='Community Sparsity : ', position=0, leave=None)) : 
+
+        config['model_params']['com_dropout'] = com_dropouts[p]
+
         metrics, train_out, results = train_and_compute_metrics(p_con, config, loaders, device)
         training_results[p_con] = train_out
-        all_results[p_con] = all_results
+        all_results[p_con] = results
         for metric in metric_names : 
             metric_results[metric][p_con] = metrics[metric]
 
