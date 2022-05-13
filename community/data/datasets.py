@@ -10,7 +10,7 @@ from typing import Any, Callable, Dict, List, Optional
 class Custom_EMNIST(datasets.EMNIST) : 
     def __init__(self, root: str, train: bool = True,data_type: str = 'digits',
                  transform: Optional[Callable] = None, target_transform: Optional[Callable] = None,
-                 download: bool = False, truncate : list = None) -> None:
+                 download: bool = True, truncate : list = None) -> None:
         
         self.truncate = truncate        
         super().__init__(root, train=train,
