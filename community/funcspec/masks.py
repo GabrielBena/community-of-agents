@@ -190,7 +190,7 @@ def find_optimal_sparsity(masked_community, target_digit, loaders, min_acc=0.85,
     def test_masked_com() : 
             
         training_dict = {
-                'n_epochs' : n_epochs, 
+                'n_epochs' : 1, 
                 'task' : str(target_digit),
                 'global_rewire' : False, 
                 'check_gradients' : False, 
