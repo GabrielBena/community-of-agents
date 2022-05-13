@@ -14,7 +14,7 @@ class Community(nn.Module) :
         agents : list of agents composing the community
         sparse_connections : (n_agents x n_agents) matrix specifying the sparsity of the connections in-between agents
     """
-    def __init__(self, agents, sparse_connections, use_deepR=True):
+    def __init__(self, agents, sparse_connections, use_deepR=True, com_dropout=0.):
         super(Community, self).__init__()
         self.agents = nn.ModuleList()
        
@@ -23,6 +23,7 @@ class Community(nn.Module) :
         self.n_agents = len(agents)
         self.sparse_connections = sparse_connections
         self.use_deepR = use_deepR
+        self.com_dropout = com_dropout
         self.init_connections()
         self.is_community = True
         
@@ -54,7 +55,7 @@ class Community(nn.Module) :
                         if self.use_deepR : 
                             connection = Sparse_Connect(dims, sparsity_list)
                         else : 
-                            connection = MaskedLinear(*dims, p_con)
+                            connection = MaskedLinear(*dims, p_con, dropout=self.com_dropout)
                         self.tags[i, j] = ag1.tag+ag2.tag
                         self.connections[self.tags[i, j]] = connection
                         self.connected[i, j] = 1

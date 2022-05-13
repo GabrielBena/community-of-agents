@@ -38,6 +38,11 @@ def train_community(model, train_loader, test_loader, optimizers, schedulers=Non
     training, testing = trials
 
     notebook = is_notebook()  
+
+    assert config is not None or wandb.run is not None, 'Provide training config or run with WandB'
+
+    if config is None : 
+        config = get_training_dict(wandb.config)
     
     #----Config----
     n_epochs = config['n_epochs']
@@ -47,8 +52,8 @@ def train_community(model, train_loader, test_loader, optimizers, schedulers=Non
     check_gradients = config['check_gradients']
     global_rewire = config['global_rewire']
     decision_params = config['decision_params']
-    min_acc = config['min_acc']
-    early_stop = min_acc is not None
+    min_acc = config['stopping_acc']
+    early_stop = (min_acc is not None) or config['early_stop']
     deepR_params_dict = config['deepR_params_dict']
     #--------------
 
@@ -208,11 +213,14 @@ def train_community(model, train_loader, test_loader, optimizers, schedulers=Non
         }
 
         try : 
-            if early_stop and best_acc>=min_acc and epoch>=2:
-                return results
+            if early_stop : 
+                if ((results['test_losses'][-3:].argmin() == 0) or (best_acc>=min_acc) ) and epoch>=3 :
+                    return results
         except ValueError : 
-            if early_stop and( best_acc>=0.9).all() and epoch>=2:
-                return results
+
+            if early_stop : 
+                if ((results['test_losses'][-3:].argmin() == 0) or (best_acc>=min_acc).all() ) and epoch>=3 :
+                    return results
 
     return results
                    

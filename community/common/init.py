@@ -11,7 +11,7 @@ from .models.ensembles import Community
 cell_types_dict = {str(t) : t for t in [nn.RNN, nn.LSTM, nn.GRU]}
 
 
-def init_community(agents_params_dict, p_connect, use_deepR=True, device=torch.device('cuda')) : 
+def init_community(agents_params_dict, p_connect, use_deepR=True, com_dropout=0., device=torch.device('cuda')) : 
     """
     Global model initialization
     Args : 
@@ -29,7 +29,7 @@ def init_community(agents_params_dict, p_connect, use_deepR=True, device=torch.d
         use_readout = agents_params_dict['use_readout']
         cell_type = agents_params_dict['cell_type']
         use_bottleneck = agents_params_dict['use_bottleneck']
-        dropout = agents_params_dict['dropout'] 
+        ag_dropout = agents_params_dict['ag_dropout'] 
     else : 
         n_agents, n_in, n_ins, n_hidden, n_layers, n_out, train_in_out, use_readout, cell_type, use_bottleneck, dropout = agents_params_dict
 
@@ -40,14 +40,14 @@ def init_community(agents_params_dict, p_connect, use_deepR=True, device=torch.d
 
     if n_ins is None : 
         agents = [Agent(n_in, n_hidden, n_layers, n_out, str(n),
-                use_readout, train_in_out, cell_type, use_bottleneck, dropout) for n in range(n_agents)]
+                use_readout, train_in_out, cell_type, use_bottleneck, ag_dropout) for n in range(n_agents)]
 
     else: 
         agents = [Agent(n_in, n_hidden, n_layers, n_out, str(n),
-                    use_readout, train_in_out, cell_type, use_bottleneck, dropout) for n, n_in in enumerate(n_ins)]
+                    use_readout, train_in_out, cell_type, use_bottleneck, ag_dropout) for n, n_in in enumerate(n_ins)]
 
     sparse_connections = (np.ones((n_agents, n_agents)) - np.eye(n_agents))*p_connect    
-    community = Community(agents, sparse_connections, use_deepR).to(device)
+    community = Community(agents, sparse_connections, use_deepR, com_dropout).to(device)
     
     return community
 

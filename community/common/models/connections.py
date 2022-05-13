@@ -7,7 +7,8 @@ from deepR.models import weight_sampler_strict_number
 
 class MaskedLinear(nn.Linear):
 
-    def __init__(self, in_features: int, out_features: int, sparsity: float,  bias: bool = True, w_mask=None, weight_scale=None,
+    def __init__(self, in_features: int, out_features: int, sparsity: float,  bias: bool = True,
+                w_mask=None, weight_scale=None, dropout=0., 
                  device=None, dtype=None) -> None:
         super().__init__(in_features, out_features, bias=bias, device=device, dtype=dtype)
         assert (w_mask is not None) or (sparsity is not None), 'Provide either weight mask or sparsity'
@@ -35,6 +36,9 @@ class MaskedLinear(nn.Linear):
 
         self.weight.requires_grad = True
         self.nb_neurons = in_features
+        self.use_dropout = dropout > 0.
+        if self.use_dropout : 
+            self.dropout = nn.Dropout(dropout)
         
         self.weight_scale = 1. if weight_scale is None else weight_scale
         self.reset_parameters_()
@@ -42,7 +46,10 @@ class MaskedLinear(nn.Linear):
         self.is_deepR_connect = False
             
     def forward(self, input: torch.Tensor) -> torch.Tensor:
-        return F.linear(input, self.weight*self.w_mask, self.bias)
+        h = F.linear(input, self.weight*self.w_mask, self.bias)
+        if self.use_dropout : 
+            h = self.dropout(h)
+        return h
 
     def extra_repr(self) -> str:
         return 'in_features={}, out_features={}, bias={}, masked'.format(
