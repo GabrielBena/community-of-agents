@@ -197,7 +197,8 @@ def find_optimal_sparsity(masked_community, target_digit, loaders, min_acc=0.85,
                 'reg_factor' : 0.,
                 'train_connections' : False,
                 'decision_params' : ('last', 'max'),
-                'min_acc' : None ,
+                'stopping_acc' : None ,
+                'early_stop' : False,
                 'deepR_params_dict' : {},
             }
 
