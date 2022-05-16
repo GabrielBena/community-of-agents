@@ -135,12 +135,6 @@ def get_repartitions(masked_model) :
 
 def train_mask(community, sparsity, target_digit, loaders, lr=0.1, n_epochs=1, device=torch.device('cpu'), use_tqdm=False) : 
 
-    if type(use_tqdm) is int : 
-        position = use_tqdm
-        use_tqdm = True
-    elif use_tqdm : 
-        position = 0 
-
     masked_community = Mask_Community(community, sparsity).to(device)
     momentum, wd = 0.9, 0.0005
     optimizer_agents = optim.SGD(
@@ -172,7 +166,7 @@ def train_mask(community, sparsity, target_digit, loaders, lr=0.1, n_epochs=1, d
     train_out = train_community(masked_community, *loaders, optimizers, 
                                 config=training_dict, device=device,
                                 trials = (True, True),
-                                use_tqdm=position+1 if use_tqdm else False)
+                                use_tqdm=use_tqdm)
                                     
     return masked_community, train_out['test_losses'], train_out['test_accs'], train_out['best_state']
 
@@ -272,9 +266,9 @@ def train_and_get_mask_metric(community, initial_sparsity, loaders,
 
             if use_optimal_sparsity : 
                 try : 
-                    optimal_sparsity, test_accs = find_optimal_sparsity(masked_community, target_digit, loaders, community.best_acc*0.95)
+                    optimal_sparsity, test_accs = find_optimal_sparsity(masked_community, target_digit, loaders, community.best_acc*0.95, device=device)
                 except AttributeError : 
-                    optimal_sparsity, test_accs = find_optimal_sparsity(masked_community, target_digit, loaders, min_acc=.9)
+                    optimal_sparsity, test_accs = find_optimal_sparsity(masked_community, target_digit, loaders, min_acc=.9, device=device)
 
             prop = get_proportions_per_agent(masked_community)[0]
             

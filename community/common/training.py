@@ -146,10 +146,10 @@ def train_community(model, train_loader, test_loader, optimizers, schedulers=Non
 
                 correct = pred.eq(target.view_as(pred))
                 if not bottleneck_training : 
-                    correct = correct.sum().item()
+                    correct = correct.sum().cpu().data.item()
                     train_accs.append(correct/target.numel())
                 else : 
-                    correct = correct.flatten(start_dim=1).sum(1).numpy()
+                    correct = correct.flatten(start_dim=1).sum(1).cpu().data.numpy()
                     train_accs.append(correct/target[0].numel())
                 
                 loss.backward()
@@ -280,11 +280,11 @@ def test_community(model, device, test_loader, decision_params=('last', 'max'), 
 
             c = pred.eq(target.view_as(pred))
             if not bottleneck_training : 
-                correct += c.sum().item()
-                acc += c.sum().item()/target.numel()
+                correct += c.sum().cpu().data.item()
+                acc += c.sum().cpu().data.item()/target.numel()
             else : 
-                correct += c.flatten(start_dim=1).sum(1).numpy()
-                acc += c.flatten(start_dim=1).sum(1).numpy()/target[0].numel()
+                correct += c.flatten(start_dim=1).sum(1).cpu().data.numpy()
+                acc += c.flatten(start_dim=1).sum(1).cpu().data.numpy()/target[0].numel()
 
     test_loss /= len(test_loader.dataset)
     acc /= len(test_loader)
