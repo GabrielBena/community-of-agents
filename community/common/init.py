@@ -11,7 +11,7 @@ from .models.ensembles import Community
 cell_types_dict = {str(t) : t for t in [nn.RNN, nn.LSTM, nn.GRU]}
 
 
-def init_community(agents_params_dict, p_connect, use_deepR=True, com_dropout=0., device=torch.device('cuda')) : 
+def init_community(agents_params_dict, connections_params_dict, device=torch.device('cuda')) : 
     """
     Global model initialization
     Args : 
@@ -33,6 +33,11 @@ def init_community(agents_params_dict, p_connect, use_deepR=True, com_dropout=0.
     else : 
         n_agents, n_in, n_ins, n_hidden, n_layers, n_out, train_in_out, use_readout, cell_type, use_bottleneck, dropout = agents_params_dict
 
+    use_deepR = connections_params_dict['use_deepR']
+    com_dropout = connections_params_dict['com_dropout']
+    binarize = connections_params_dict['binarize']
+    p_connect = connections_params_dict['sparsity']
+
     if type(cell_type) is tuple : 
         cell_type = cell_type[0]
     if type(cell_type) is str : 
@@ -47,7 +52,7 @@ def init_community(agents_params_dict, p_connect, use_deepR=True, com_dropout=0.
                     use_readout, train_in_out, cell_type, use_bottleneck, ag_dropout) for n, n_in in enumerate(n_ins)]
 
     sparse_connections = (np.ones((n_agents, n_agents)) - np.eye(n_agents))*p_connect    
-    community = Community(agents, sparse_connections, use_deepR, com_dropout).to(device)
+    community = Community(agents, sparse_connections, use_deepR, com_dropout, binarize).to(device)
     
     return community
 
