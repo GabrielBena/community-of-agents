@@ -130,6 +130,8 @@ class MultiDataset(Dataset) :
                                  if i != self.small_dataset_idx and shuffle
                                  else torch.arange(len(self.small_dataset))
                                  for i, d in enumerate(self.datasets)]
+
+        self.n_classes = len(self.small_dataset.targets.unique())
         
         if self.fix_asym : 
             self.new_idxs = self.get_forbidden_indexs()
@@ -141,7 +143,9 @@ class MultiDataset(Dataset) :
             _, target_1 = self.datasets[0][idx1]
             _, target_2 = self.datasets[1][idx2]
 
-            return not (target_1 == target_2 or target_1 == (target_2-1)%10) 
+            valid = not (target_1 == (target_2-1)%self.n_classes or target_1 == target_2) 
+
+            return valid
 
     def get_forbidden_indexs(self) : 
         new_idxs = []
@@ -168,10 +172,10 @@ class MultiDataset(Dataset) :
         except : 
             return datas, labels
 
-def get_datasets(root, batch_size=256, use_cuda=True, fix_asym=False, permute=False, seed=None) :
+def get_datasets(root, batch_size=256, use_cuda=True, fix_asym=False, n_classes=10, split_classes=True) :
         
     train_kwargs = {'batch_size': batch_size, 'shuffle' : True}
-    test_kwargs = {'batch_size': batch_size, 'shuffle' : True, 'drop_last' : True}
+    test_kwargs = {'batch_size': batch_size, 'shuffle' : False, 'drop_last' : True}
     if use_cuda:
         cuda_kwargs = {'num_workers': 0,
                     'pin_memory': True}
@@ -187,7 +191,7 @@ def get_datasets(root, batch_size=256, use_cuda=True, fix_asym=False, permute=Fa
 
     single_digits = [datasets.MNIST(root, train=t, download=True,
                     transform=transform) for t in [True, False]]
-    double_digits = [DoubleMNIST(root, train=t, fix_asym=fix_asym)
+    double_digits = [DoubleMNIST(root, train=t, fix_asym=False)
                         for t in [True, False]]
 
     single_fashion = [datasets.FashionMNIST(root, train=t,
@@ -205,17 +209,21 @@ def get_datasets(root, batch_size=256, use_cuda=True, fix_asym=False, permute=Fa
     excludes = [18, 19, 21] # exclude I, J, L
     for e in excludes : 
         truncates = truncates[truncates != e]
-    truncates = truncates[:20]
-    #print(truncates)
-    np.random.shuffle(truncates)
-    truncates = np.split(truncates, 2)
-    #truncates = None, None
+    #np.random.shuffle(truncates)
+    if split_classes : 
+        assert n_classes <= 17, "Max 17 classes for a separate set for each agents"
+        truncates = truncates[:n_classes*2]
+        truncates = np.split(truncates, 2)
+    else : 
+        assert n_classes <= 34, "Max 34 classes for the same set for each agents"
+        truncates = truncates[:n_classes]   
+        truncates = truncates, truncates
 
     single_letters = [[Custom_EMNIST(root, train=t, data_type='balanced',
                                  truncate=trunc, transform=transform) for t in [True, False]]
                                  for trunc in truncates]
 
-    multi_datasets = [MultiDataset([s1, s2]) for (s1, s2) in zip(single_digits, single_letters[0])]
+    multi_datasets = [MultiDataset([s1, s2], fix_asym=False) for (s1, s2) in zip(single_digits, single_letters[0])]
     double_letters = [MultiDataset([s1, s2], fix_asym=fix_asym, shuffle=True) for (s1, s2) in zip(single_letters[0], single_letters[1])]
 
     single_loaders_dig = [torch.utils.data.DataLoader(d, **k) for d, k in zip(single_digits, kwargs)]

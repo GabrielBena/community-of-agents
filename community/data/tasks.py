@@ -30,7 +30,7 @@ def rotation_conflict_task(datas, digits, n_angles=4) :
     target = torch.where(mask, digits[:, 0], digits[:, 1])
     return rotated_datas, target, angle_values
 
-def get_task_target(target, task='parity_digits_10', n_classes=10, temporal_target=False) : 
+def get_task_target(target, task='parity_digits_10', temporal_target=False) : 
     """
     Returns target for different possible tasks
     Args : 
@@ -39,6 +39,8 @@ def get_task_target(target, task='parity_digits_10', n_classes=10, temporal_targ
                digit number ("0", "1"), "parity", "parity_digits_10", "parity_digits_100" or "sum" ...
     """
 
+    n_classes = len(target.unique())
+
     if temporal_target : 
 
         return get_task_target(target, task, n_classes, False).unique(dim=0)
@@ -46,7 +48,7 @@ def get_task_target(target, task='parity_digits_10', n_classes=10, temporal_targ
     else : 
 
         digits = digits_1, digits_2 = get_digits(target, n_classes)
-        parity = (digits_1 + digits_2)%2
+        parity = (digits_1 + digits_2)%2  #0 when same parities
         global_target = (digits_1*10 + digits_2)
         global_target_inv = (digits_1 + digits_2*10)
 
@@ -59,11 +61,19 @@ def get_task_target(target, task='parity_digits_10', n_classes=10, temporal_targ
             if task == 'parity' : 
                 return parity
 
+            if task == 'inv' : 
+                return torch.stack(digits[::-1])
+                
             elif 'parity_digits_100' in task : 
                 if not 'inv' in task : 
                     return global_target*(1-parity) + global_target_inv*parity
                 else : 
                     return global_target*(parity) + global_target_inv*(1 - parity)    
+            
+            elif 'both_parity_digits' in task : 
+                target_1 = digits_1*(1-parity) + digits_2*parity
+                target_2 = digits_1*(parity) + digits_2*(1-parity)
+                return torch.stack((target_1, target_2))
 
             elif 'parity_digits' in task :
                 if not 'inv' in task :
@@ -84,7 +94,7 @@ def get_task_target(target, task='parity_digits_10', n_classes=10, temporal_targ
                     return global_target
 
             elif task == 'none' : 
-                return target
+                return target.transpose(0, 1)
 
             elif task == 'both' : 
                 return torch.stack([digits_1*(1-parity) + digits_2*parity, digits_1*(parity) + digits_2*(1-parity)])
@@ -100,7 +110,6 @@ def get_task_target(target, task='parity_digits_10', n_classes=10, temporal_targ
             else : 
                 raise ValueError('Task recognized, try digit number ("0", "1"), "parity", "parity_digits", "parity_digits_100" or "sum" ')
                        
-
 #------ Continual Learning Tasks ------ : 
 
 def get_continual_task(data, target, task, seed, n_tasks=None, n_classes=10) : 

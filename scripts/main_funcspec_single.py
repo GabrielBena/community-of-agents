@@ -1,3 +1,4 @@
+from multiprocessing import connection
 from os import mkdir
 from community.common.wandb_utils import mkdir_or_save_torch
 import torch
@@ -14,7 +15,7 @@ from tqdm import tqdm
 
 if __name__ == "__main__": 
 
-    use_cuda = False
+    use_cuda = True
     device = torch.device("cuda" if use_cuda else "cpu")
 
     dataset_config = {'batch_size' : 256, 
@@ -55,15 +56,20 @@ if __name__ == "__main__":
     l1, gdnoise, lr, gamma, cooling = 1e-5, 1e-3, 1e-3, 0.95, 0.95
     deepR_params_dict = {'l1' : l1, 'gdnoise' : gdnoise, 'lr' : lr, 'gamma' : gamma, 'cooling' : cooling}
 
-    p_cons_params = (1/agents_params_dict['n_hid']**2, 0.999, 3)
+    p_cons_params = (1/agents_params_dict['n_hid']**2, 0.999, 10)
+
+    connections_params_dict = {'use_deepR' : False, 
+                               'global_rewire' : False,
+                               'com_dropout' : 0.1, 
+                               'sparsity' : p_cons_params[0], 
+                               'binarize' : False
+    }
 
     config = {
         'model_params' : {
             'agents_params' : agents_params_dict, 
-            'use_deepR' : False, 
-            'global_rewire' : False,
-            'com_dropout' : 0.3
-            }, 
+            'connections_params' : connections_params_dict            
+        }, 
         'datasets' : dataset_config,
         'optimization' : {
             'agents' : params_dict,
@@ -83,7 +89,7 @@ if __name__ == "__main__":
     }
 
     p_cons = np.geomspace(p_cons_params[0], p_cons_params[1], p_cons_params[2]).round(4)
-    com_dropouts = p_cons*config['model_params']['com_dropout']
+    com_dropouts = p_cons*config['model_params']['connections_params']['com_dropout']
     com_dropouts[0] = 0.
 
     #p_cons = [0.1]
@@ -104,7 +110,7 @@ if __name__ == "__main__":
 
     for p, p_con in enumerate(tqdm(p_cons, desc='Community Sparsity : ', position=0, leave=None)) : 
 
-        config['model_params']['com_dropout'] = com_dropouts[p]
+        config['model_params']['connections_params']['com_dropout'] = com_dropouts[p]
 
         metrics, train_out, results = train_and_compute_metrics(p_con, config, loaders, device)
         training_results[p_con] = train_out

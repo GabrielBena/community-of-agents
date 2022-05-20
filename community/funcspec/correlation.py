@@ -15,17 +15,21 @@ from community.data.tasks import get_digits, rotation_conflict_task
 from community.data.process import temporal_data
 from community.common.init import init_community
 
-def fixed_information_data(data, target, fixed, fixed_mode='label', n_categories=10) : 
+def fixed_information_data(data, target, fixed, fixed_mode='label') : 
     # Return a modified version of data sample, where one quality is fixed (digit label, or parity, etc)
-    digits = get_digits(target, n_classes=n_categories)
+    digits = get_digits(target)
+    bs = digits[0].shape[0]
+    n_classes = len(digits[0].unique())    
+    #data[:, 1-fixed, ...] = data[:, 1-fixed, torch.randperm(bs), ...]
     if fixed_mode == 'label':
-        d_idxs = [torch.where(digits[fixed] == d)[0] for d in range(10)]
+        d_idxs = [torch.where(digits[fixed] == d)[0] for d in range(n_classes)]
     elif fixed_mode == 'parity' : 
         d_idxs = [torch.where(digits[fixed]%2 == p)[0] for p in range(2)]
     else : 
         raise NotImplementedError('Fixation mode not recognized ("label" or "parity")')
 
     datas = [[data[:, j, idx, :] for idx in d_idxs] for j in range(2)]
+        
     new_data = [torch.stack([d1, d2], axis=1) for d1, d2 in zip(*datas)] 
     
     return new_data
@@ -100,17 +104,18 @@ def randperm_no_fixed(n) :
     else : 
         return perm
 
-def get_correlation(community, data, n_ag) : 
-    _, states = community(data)
-    agent_states = states[-1][n_ag][0]
-    perm = randperm_no_fixed(agent_states.shape[0])
-    agent_states = agent_states.detach().cpu().numpy()
-    cor = v_pearsonr(agent_states, agent_states[perm])[0]
+def get_correlation(community, data) : 
+    states = community(data)[1]
+
+    agent_states = [states[-1][n_ag][0].cpu().data.numpy() for n_ag in range(2)]
+    perm = randperm_no_fixed(agent_states[0].shape[0])
+    cor = np.stack([v_pearsonr(ag_s, ag_s[perm])[0] for ag_s in agent_states])
+
     return cor
 
-def get_pearson_metrics(community, loaders, n_tests=32, fixed_mode='label', use_tqdm=False, device=torch.device('cuda')) : 
+def get_pearson_metrics(community, loaders, fixed_mode='label', use_tqdm=False, device=torch.device('cuda')) : 
     
-    correlations = [[[] for _ in range(2)] for _ in range(2)]
+    correlations = [[] for _ in range(2)]
     double_test_loader = loaders[1]
     
     if type(use_tqdm) is int : 
@@ -129,32 +134,27 @@ def get_pearson_metrics(community, loaders, n_tests=32, fixed_mode='label', use_
         #data, target = next(iter(double_test_loader))
         if type(data) is list : 
             data = torch.stack(data)
-        data, target = temporal_data(data, 5).to(device), target.to(device)
+        data, target = temporal_data(data).to(device), target.to(device)
 
         for fixed_dig in range(2) : 
             if not 'rotation' in fixed_mode : 
-                datas = fixed_information_data(data, target, fixed_dig, fixed_mode, 10)
+                datas = fixed_information_data(data, target, fixed_dig, fixed_mode)
             else : 
                 try : 
                     n_angles = int(fixed_mode.split('_')[-1])
                 except ValueError : 
                     n_angles = 4
                 datas = fixed_rotation_data(data, target, fixed_dig, n_angles, reshape=True)
+
             if type(datas) is not list : 
                 datas = [datas]
-
-            for agent in range(2) : 
-                corrs = []
-                for d in datas : 
-                    if 0 in d.shape : 
-                        continue 
-                    cor = get_correlation(community, d, agent)
-                    corrs.append(cor)
-                correlations[fixed_dig][agent].append(np.concatenate(corrs))
+                
+            corrs = [get_correlation(community, d).mean(-1) for d in datas if 0 not in d.shape]
+            correlations[fixed_dig].append(np.stack(corrs, 1))
 
         #print(np.array(correlations).shape)
                 
-    return np.array(correlations)
+    return np.array(correlations).transpose(0, 2, 1, 3)
 
 def compute_correlation_metric(p_cons, loaders, save_name, device=torch.device('cuda'), config=None) : 
 

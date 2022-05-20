@@ -2,7 +2,7 @@ import torch
 import numpy as np
 from .tasks import rotation_conflict_task, get_task_target
 
-def temporal_data(data, n_steps=5, conv_com=False) : 
+def temporal_data(data, n_steps=2, conv_com=False) : 
     """
     Stack data in time for use with RNNs
     """
@@ -63,7 +63,7 @@ def flatten_double_data(data) :
     return data.transpose(1, 2).flatten(start_dim=2)
 
 
-def process_data(data, target, task, conv_com=False, varying_temporal=False) : 
+def process_data(data, target, task, conv_com=False, varying_temporal=False, n_steps=2) : 
 
     if 'rotation_conflict' in task : 
         try : 
@@ -71,12 +71,12 @@ def process_data(data, target, task, conv_com=False, varying_temporal=False) :
         except ValueError : 
             n_angles = 4
         data, target, _ = rotation_conflict_task(data, target, n_angles)
-        data = temporal_data(data, n_steps=5, conv_com=conv_com)
+        data = temporal_data(data, n_steps=n_steps, conv_com=conv_com)
     else : 
         if not varying_temporal : 
-            data = temporal_data(data, n_steps=5, conv_com=conv_com)  
+            data = temporal_data(data, n_steps=n_steps, conv_com=conv_com)  
         else : 
-            data, target = varying_temporal_data(data, target, n_steps=5, conv_com=conv_com, transpose_and_cat=True)   
+            data, target = varying_temporal_data(data, target, n_steps=n_steps, conv_com=conv_com, transpose_and_cat=True)   
             
         target = get_task_target(target, task, temporal_target=(len(target.shape)>2) )
 
