@@ -20,7 +20,7 @@ from community.common.wandb_utils import get_wandb_artifact, mkdir_or_save_torch
 # ------ Bottleneck Metric ------ : 
 
 def readout_retrain(community, loaders, n_classes=10, deepR_params_dict={},
-                    n_epochs=2, n_tests=3, train_all_param=False,
+                    n_epochs=3, n_tests=3, train_all_param=False,
                     use_tqdm=False, device=torch.device('cuda')) : 
     """
     Retrains the bottleneck-readout connections of each sub-network for each sub-task and stores performance.
@@ -91,7 +91,7 @@ def readout_retrain(community, loaders, n_classes=10, deepR_params_dict={},
             }
             train_out = train_community(f_community, *loaders, optimizers,
                         schedulers=schedulers, config=training_dict,
-                        trials = (True, True), bottleneck_training=True,
+                        trials = (True, True), joint_training=True,
                         use_tqdm=position+1 if use_tqdm else False,
                         device=device)
 

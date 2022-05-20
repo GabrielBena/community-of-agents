@@ -11,6 +11,9 @@ import copy
 def train_and_compute_metrics(p_con, config, loaders, device) : 
 
     agents_params_dict = config['model_params']['agents_params']
+    connections_params_dict = config['model_params']['connections_params']
+    connections_params_dict['sparsity'] = p_con
+
     deepR_params_dict = config['optimization']['connections']
     params_dict = config['optimization']['agents']
 
@@ -25,11 +28,7 @@ def train_and_compute_metrics(p_con, config, loaders, device) :
     for use_bottleneck in [True, False] : 
             
         agents_params_dict['use_bottleneck'] = use_bottleneck
-        community = init_community(agents_params_dict,
-                                p_con,
-                                use_deepR=config['model_params']['use_deepR'],
-                                device=device, 
-                                com_dropout=config['model_params']['com_dropout'])
+        community = init_community(agents_params_dict, connections_params_dict, device)
 
         optimizers, schedulers = init_optimizers(community, params_dict, deepR_params_dict)
 
@@ -61,7 +60,6 @@ def train_and_compute_metrics(p_con, config, loaders, device) :
         wandb.define_metric(f'Masks Diff {n}', step_metric='p_connection')
         wandb.define_metric(f'Bottleneck Diff {n}', step_metric='p_connection')
 
-        
         for t in range(2) : 
             wandb.define_metric(f'Correlation Agent {n}, Task {t}', step_metric='p_connection')
             wandb.define_metric(f'Masks Agent {n}, Task {t}', step_metric='p_connection')
@@ -80,7 +78,7 @@ def train_and_compute_metrics(p_con, config, loaders, device) :
 
     community = trained_coms['With Bottleneck']
     #print('Bottlenecks Retrain')
-    bottleneck_results = readout_retrain(community, loaders, deepR_params_dict=deepR_params_dict, n_tests=1, n_epochs=5, device=device, use_tqdm=1)
+    bottleneck_results = readout_retrain(community, loaders, deepR_params_dict=deepR_params_dict, n_tests=1, n_epochs=3, device=device, use_tqdm=1)
     bottleneck_metric = bottleneck_results['accs'].mean(0)
 
     diff_metric = lambda metric, ag : (metric[ag, ag] - metric[1-ag, ag]) / (metric[ag, ag] + metric[1-ag, ag])

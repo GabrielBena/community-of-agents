@@ -57,11 +57,11 @@ class Agent(nn.Module):
         self.dims = [n_in, n_hidden, n_out]
         self.tag = tag
         
-        self.cell = cell_type(n_in, n_hidden, n_layers,  batch_first=False, nonlinearity='relu')
+        self.cell = cell_type(n_in, n_hidden, n_layers,  batch_first=False)
         self.cell_type = cell_type
         for n, p in self.cell.named_parameters() : 
             if 'weight' in n : 
-                init.kaiming_normal_(p, nonlinearity='relu')
+                init.xavier_normal_(p, init.calculate_gain('tanh', p))
         
         self.use_bottleneck = use_bottleneck
         self.dropout = nn.Dropout(dropout) if dropout>0 else None
@@ -107,7 +107,6 @@ class Agent(nn.Module):
             
         if x_h is None : 
             x, h = self.cell(x_in)
-        
         else:
             if type(self.cell) is nn.RNN or type(self.cell) is LeakyRNN or type(self.cell) is nn.GRU:
                 h = x_h + x_connect
@@ -116,7 +115,7 @@ class Agent(nn.Module):
                 h = x_h[0] + x_connect, x_h[1]
             
             x, h = self.cell(x_in, h)   
-            
+
         output = x
         if self.dropout : output = self.dropout(output)
         if self.use_bottleneck : 
@@ -126,7 +125,7 @@ class Agent(nn.Module):
             output = self.readout(output)
             if softmax  : 
                 output = F.log_softmax(output, dim=-1)
-            
+        
         return output, h   
     
     def cell_params(self, name) : 

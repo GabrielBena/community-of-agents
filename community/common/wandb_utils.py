@@ -80,7 +80,7 @@ def get_training_dict(config)  :
     training_dict = {
         'n_epochs' : config['training']['n_epochs'], 
         'task' : config['task'],
-        'global_rewire' : config['model_params']['global_rewire'], 
+        'global_rewire' : config['model_params']['connections_params']['global_rewire'], 
         'check_gradients' : False, 
         'reg_factor' : 0.,
         'train_connections' : True,

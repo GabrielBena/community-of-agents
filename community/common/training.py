@@ -21,7 +21,7 @@ from deepR.models import step_connections
 #------ Training and Testing functions ------
             
 def train_community(model, train_loader, test_loader, optimizers, schedulers=None,
-                    config=None, trials=(True, True), bottleneck_training=False,
+                    config=None, trials=(True, True), joint_training=False,
                     use_tqdm=True, device=torch.device('cuda')):
     """
     Training and testing function for Community of agents
@@ -53,7 +53,7 @@ def train_community(model, train_loader, test_loader, optimizers, schedulers=Non
     global_rewire = config['global_rewire']
     decision_params = config['decision_params']
     min_acc = config['stopping_acc']
-    early_stop = (min_acc is not None) or config['early_stop']
+    early_stop = config['early_stop']
     deepR_params_dict = config['deepR_params_dict']
     #--------------
 
@@ -103,7 +103,7 @@ def train_community(model, train_loader, test_loader, optimizers, schedulers=Non
                 optimizer_agents.zero_grad()
                 if optimizer_connections : optimizer_connections.zero_grad()
 
-                output, _ = model(data)
+                output, *_ = model(data)
                 output, deciding_ags = get_decision(output, *decision_params)
 
                 #if deciding_ags is not None and deciding_ags.shape[0]==train_loader.batch_size: deciding_agents.append(deciding_ags.cpu().data.numpy())
@@ -112,23 +112,20 @@ def train_community(model, train_loader, test_loader, optimizers, schedulers=Non
                     output = output.unsqueeze(0)     
                 if len(target.shape)==1 : 
                     target = target.unsqueeze(0)
-                if bottleneck_training : 
+                
+                if joint_training : 
                     target = target.expand([2] + list(target.shape[1:]))
                     take_min_loss = False
                 elif target.shape[0] != output.shape[0] : 
-                    try : 
-                        target = target.transpose(0, 1)
-                        assert target.shape == output.shape[:-1]
-                    except AssertionError : 
-                        target = target.transpose(0, 1)
-                        take_min_loss = True
+                    take_min_loss = True
                 else : 
                     take_min_loss = False
 
+                #print(output.shape, target.shape, take_min_loss)
+
                 target = target.contiguous()
 
-                assert target.shape == output.shape[:-1] or take_min_loss or bottleneck_training, print('Target and output shapes not compatible :', target.shape, output.shape)
-                #print(target.shape, output.shape)
+                assert target.shape == output.shape[:-1] or take_min_loss or joint_training, print('Target and output shapes not compatible :', target.shape, output.shape)
                 
                 if take_min_loss : 
                     loss, min_idxs = torch.stack([F.cross_entropy(output[0], tgt, reduction='none') for tgt in target]).min(0)
@@ -145,7 +142,7 @@ def train_community(model, train_loader, test_loader, optimizers, schedulers=Non
                     target = torch.where(~min_idxs.bool(), target[0], target[1])
 
                 correct = pred.eq(target.view_as(pred))
-                if not bottleneck_training : 
+                if not joint_training : 
                     correct = correct.sum().cpu().data.item()
                     train_accs.append(correct/target.numel())
                 else : 
@@ -168,16 +165,18 @@ def train_community(model, train_loader, test_loader, optimizers, schedulers=Non
                                                   sparsity_list, deepR_params_dict=deepR_params_dict)
                 else : 
                     nb_new_con = 0
-
-                descs[0] = str('Train Epoch: {} [{}/{} ({:.0f}%)] Loss: {:.3f} New Cons: {}'.format(
+                acc = train_accs[-1]
+                descs[0] = str('Train Epoch: {} [{}/{} ({:.0f}%)] Loss: {:.3f}, Accuracy: {}%, New Cons: {}'.format(
                         epoch, batch_idx * train_loader.batch_size, len(train_loader.dataset),
-                        100. * batch_idx / len(train_loader), loss.item(), nb_new_con))
+                        100. * batch_idx / len(train_loader), loss.item(),
+                        (np.round(100*a) for a in acc) if type(acc) is list else np.round(100*acc),
+                        nb_new_con))
 
                 if use_tqdm: 
                     pbar.set_description(desc(descs))
             
         if testing : 
-            descs[1], loss, acc, deciding_ags = test_community(model, device, test_loader, decision_params=decision_params, task=task, bottleneck_training=bottleneck_training)  
+            descs[1], loss, acc, deciding_ags = test_community(model, device, test_loader, decision_params=decision_params, task=task, joint_training=joint_training)  
                                                  
             if loss < best_loss : 
                 best_loss = loss
@@ -212,19 +211,24 @@ def train_community(model, train_loader, test_loader, optimizers, schedulers=Non
             'best_state' : best_state
         }
 
-        try : 
-            if early_stop : 
-                if ((results['test_losses'][-3:].argmin() == 0) or (best_acc>=min_acc) ) and epoch>=3 :
-                    return results
-        except ValueError : 
-
-            if early_stop : 
-                if ((results['test_losses'][-3:].argmin() == 0) or (best_acc>=min_acc).all() ) and epoch>=3 :
-                    return results
+        # Stop training if loss doesn't go down or if min_acc is reached
+        if epoch >= 4 : 
+            if results['test_losses'][-4:].argmin() == 0 and early_stop : 
+                print('Stopping Training (Early Stop), loss hasn\'t improved in 4 epochs')
+                return results    
+            if min_acc is not None :                 
+                try :  
+                    if (best_acc>=min_acc) :
+                        print(f'Stopping Training, Minimum accuracy of {min_acc} reached')
+                        return results
+                except ValueError : 
+                    if (best_acc>=min_acc).all() :
+                        print(f'Stopping Training, Minimum accuracy of {min_acc} reached')
+                        return results
 
     return results
                    
-def test_community(model, device, test_loader, decision_params=('last', 'max'), task='parity_digits', verbose=False, seed=None, bottleneck_training=False):
+def test_community(model, device, test_loader, decision_params=('last', 'max'), task='parity_digits', verbose=False, seed=None, joint_training=False):
     """
     Testing function for community of agents
     """
@@ -246,7 +250,7 @@ def test_community(model, device, test_loader, decision_params=('last', 'max'), 
                             
             data, target = process_data(data, target, task, conv_com)
 
-            output, _ = model(data)
+            output, *_ = model(data)
             output, deciding_ags = get_decision(output, *decision_params)
             if deciding_ags is not None and deciding_ags.shape[0]==test_loader.batch_size: deciding_agents.append(deciding_ags.cpu().data.numpy())
             
@@ -254,20 +258,22 @@ def test_community(model, device, test_loader, decision_params=('last', 'max'), 
                     output = output.unsqueeze(0)     
             if len(target.shape)==1 : 
                 target = target.unsqueeze(0)
-            if bottleneck_training : 
+            if joint_training : 
                 target = target.expand([2] + list(target.shape[1:]))
                 take_min_loss = False
             elif target.shape[0] != output.shape[0] : 
                 try : 
                     target = target.transpose(0, 1)
                     assert target.shape == output.shape[:-1]
+                    take_min_loss = False
                 except AssertionError : 
                     target = target.transpose(0, 1)
                     take_min_loss = True
             else : 
+
                 take_min_loss = False
 
-            assert target.shape == output.shape[:-1] or take_min_loss or bottleneck_training, print(target.shape, output.shape)
+            assert target.shape == output.shape[:-1] or take_min_loss or joint_training, print(target.shape, output.shape)
                 
             if take_min_loss : 
                 loss, min_idxs = torch.stack([F.cross_entropy(output[0], tgt, reduction='none') for tgt in target]).min(0)
@@ -279,14 +285,14 @@ def test_community(model, device, test_loader, decision_params=('last', 'max'), 
             pred = output.argmax(dim=-1, keepdim=True)  # get the index of the max log-probability
 
             c = pred.eq(target.view_as(pred))
-            if not bottleneck_training : 
+            if not joint_training : 
                 correct += c.sum().cpu().data.item()
                 acc += c.sum().cpu().data.item()/target.numel()
             else : 
                 correct += c.flatten(start_dim=1).sum(1).cpu().data.numpy()
                 acc += c.flatten(start_dim=1).sum(1).cpu().data.numpy()/target[0].numel()
 
-    test_loss /= len(test_loader.dataset)
+    test_loss /= len(test_loader.dataset) * target.shape[0]
     acc /= len(test_loader)
 
     deciding_agents = np.array(deciding_agents)
@@ -320,6 +326,7 @@ def compute_trained_communities(p_cons, loaders, device=torch.device('cuda'), no
     print(f'Starting training on {task}')
     params_dict, deepR_params_dict = tuple(config['optimization'].values())
     agent_params_dict = config['model_params']['agents_params']
+    connections_params_dict = config['model_params']['connections_params']
 
     inverse_task = 'digits' in task and config['training']['inverse_task']
 
@@ -360,7 +367,7 @@ def compute_trained_communities(p_cons, loaders, device=torch.device('cuda'), no
             deepR_params_dict['gdnoise'], params_dict['lr'], deepR_params_dict['lr'] = gdnoises[i], lrs_ag[i], lrs_con[i]  
             
             test_task = task + 'inv'*((test >= config['training']['n_tests']//2) and inverse_task)
-            community = init_community(agent_params_dict, p_con, use_deepR=config['model_params']['use_deepR'], device=device)
+            community = init_community(agent_params_dict, p_con, use_deepR=connections_params_dict['use_deepR'], device=device)
             optimizers, schedulers = init_optimizers(community, params_dict, deepR_params_dict)
 
             training_dict = get_training_dict(config)
