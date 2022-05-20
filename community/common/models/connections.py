@@ -3,13 +3,15 @@ import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
 from deepR.models import weight_sampler_strict_number
+from community.spiking.surrogate import super_spike
 
 
 class MaskedLinear(nn.Linear):
 
-    def __init__(self, in_features: int, out_features: int, sparsity: float,  bias: bool = True,
-                w_mask=None, weight_scale=None, dropout=0., 
+    def __init__(self, in_features: int, out_features: int, sparsity: float,  bias: bool = False,
+                w_mask=None, weight_scale=None, dropout=0.,  binarize=False,
                  device=None, dtype=None) -> None:
+
         super().__init__(in_features, out_features, bias=bias, device=device, dtype=dtype)
         assert (w_mask is not None) or (sparsity is not None), 'Provide either weight mask or sparsity'
 
@@ -39,6 +41,8 @@ class MaskedLinear(nn.Linear):
         self.use_dropout = dropout > 0.
         if self.use_dropout : 
             self.dropout = nn.Dropout(dropout)
+
+        self.binarize = binarize
         
         self.weight_scale = 1. if weight_scale is None else weight_scale
         self.reset_parameters_()
@@ -46,9 +50,13 @@ class MaskedLinear(nn.Linear):
         self.is_deepR_connect = False
             
     def forward(self, input: torch.Tensor) -> torch.Tensor:
+        #print(input.count_nonzero() / input.numel())
         h = F.linear(input, self.weight*self.w_mask, self.bias)
         if self.use_dropout : 
             h = self.dropout(h)
+        if self.binarize : 
+            h = super_spike(h)
+        #print(h.count_nonzero(dim=1).max())
         return h
 
     def extra_repr(self) -> str:
@@ -70,7 +78,7 @@ class Sparse_Connect(nn.Module):
         dims : dimensions of the network
         sparsity_list : sparsities of the different layers
     """
-    def __init__(self, dims, sparsity_list):
+    def __init__(self, dims, sparsity_list, dropout=0., binarize=False):
         super().__init__()
         self.thetas = torch.nn.ParameterList()
         self.weight = torch.nn.ParameterList()
@@ -87,6 +95,11 @@ class Sparse_Connect(nn.Module):
             assert (w == w_sign*th*(th>0)).all()
 
         self.is_deepR_connect = True
+        self.use_dropout = dropout > 0.
+        if self.use_dropout : 
+            self.dropout = nn.Dropout(dropout)
+
+        self.binarize = binarize
             
     def forward(self, x, relu=False) : 
         if type(x) is tuple : 
@@ -101,4 +114,9 @@ class Sparse_Connect(nn.Module):
             x = torch.matmul(x, w)
             if relu : 
                 x = F.relu(x)
+            
+        if self.use_dropout : 
+            x = self.dropout(x)
+        if self.binarize : 
+            x = super_spike(x)
         return x

@@ -14,8 +14,8 @@ class Community(nn.Module) :
         agents : list of agents composing the community
         sparse_connections : (n_agents x n_agents) matrix specifying the sparsity of the connections in-between agents
     """
-    def __init__(self, agents, sparse_connections, use_deepR=True, com_dropout=0.):
-        super(Community, self).__init__()
+    def __init__(self, agents, sparse_connections, use_deepR=True, com_dropout=0., binarize=False):
+        super().__init__()
         self.agents = nn.ModuleList()
        
         for ag in agents : 
@@ -24,6 +24,7 @@ class Community(nn.Module) :
         self.sparse_connections = sparse_connections
         self.use_deepR = use_deepR
         self.com_dropout = com_dropout
+        self.binarize = binarize
         self.init_connections()
         self.is_community = True
         
@@ -53,9 +54,9 @@ class Community(nn.Module) :
                         dims = [n_in, n_out]
                         sparsity_list = [p_con]
                         if self.use_deepR : 
-                            connection = Sparse_Connect(dims, sparsity_list)
+                            connection = Sparse_Connect(dims, sparsity_list, self.com_dropout, self.binarize)
                         else : 
-                            connection = MaskedLinear(*dims, p_con, dropout=self.com_dropout)
+                            connection = MaskedLinear(*dims, p_con, dropout=self.com_dropout, binarize=self.binarize)
                         self.tags[i, j] = ag1.tag+ag2.tag
                         self.connections[self.tags[i, j]] = connection
                         self.connected[i, j] = 1
@@ -64,6 +65,7 @@ class Community(nn.Module) :
     def forward(self, x):
         outputs = []
         states = []
+        connections =  []
         
         #Split_data checks if the data is provided on a per-agent manner or in a one-to-all manner. 
         #data can be a double list of len n_timesteps x n_agents or a tensor with second dimension n_agents
@@ -75,6 +77,7 @@ class Community(nn.Module) :
                 
             output = [None for ag in self.agents]
             state = [None for ag in self.agents]
+            connection = [None for ag in self.agents]
             
             for ag1 in self.agents :
                 i = int(ag1.tag)
@@ -96,7 +99,8 @@ class Community(nn.Module) :
                             #Output-to-Input connections j->i
                             #sparse_out = self.connections[self.tags[j, i]](outputs[n-1][j])
                             #inputs += sparse_out[0]
-
+                            
+                    connection[i] = inputs_connect
                     out, h = ag1(inputs, states[t-1][i], inputs_connect)
                     
                 else : 
@@ -109,10 +113,12 @@ class Community(nn.Module) :
             states.append(state)
             output = torch.cat(output)            
             outputs.append(output)
+            if t>0 : connections.append(torch.stack(connection))
             
         outputs = torch.stack(outputs)
+        connections = torch.stack(connections)
         
-        return outputs, states 
+        return outputs, states, connections
     
     @property
     def nb_connections(self) : 
