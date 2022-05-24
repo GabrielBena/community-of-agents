@@ -1,5 +1,6 @@
 import torch
 import numpy as np
+import torch.nn.functional as F
 
 #------Decision Making Functions ------: 
 
@@ -31,7 +32,7 @@ def max_decision(outputs) :
 
     return (outputs*mask).sum(0), deciding_ags
 
-def get_decision(outputs, temporal_decision='last', agent_decision='0', parity=None):
+def get_decision(outputs, temporal_decision='last', agent_decision='0', target=None):
     if temporal_decision == 'last' : 
         outputs = outputs[-1]
     elif temporal_decision == 'sum' : 
@@ -72,6 +73,14 @@ def get_decision(outputs, temporal_decision='last', agent_decision='0', parity=N
         
         elif agent_decision == 'both' : 
             deciding_ags = None
+
+        elif agent_decision == 'loss' : 
+            assert target is not None, 'provide target for decision based on min loss'
+            loss, min_idxs = torch.stack([F.cross_entropy(out, target, reduction='none') for out in outputs]).min(0)
+            min_idxs = min_idxs.unsqueeze(-1).expand_as(outputs[0])
+            outputs = torch.where(~min_idxs.bool(), outputs[0], outputs[1])
+            deciding_ags = min_idxs
+            return outputs, deciding_ags
             
         else : 
             raise ValueError('Deciding agent not recognized, try agent number ("0", "1"), "max", "random", "both" or "parity" ')

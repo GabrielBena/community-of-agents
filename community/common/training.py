@@ -104,7 +104,7 @@ def train_community(model, train_loader, test_loader, optimizers, schedulers=Non
                 if optimizer_connections : optimizer_connections.zero_grad()
 
                 output, *_ = model(data)
-                output, deciding_ags = get_decision(output, *decision_params)
+                output, deciding_ags = get_decision(output, *decision_params, target=target)
 
                 #if deciding_ags is not None and deciding_ags.shape[0]==train_loader.batch_size: deciding_agents.append(deciding_ags.cpu().data.numpy())
                 
@@ -127,11 +127,13 @@ def train_community(model, train_loader, test_loader, optimizers, schedulers=Non
 
                 assert target.shape == output.shape[:-1] or take_min_loss or joint_training, print('Target and output shapes not compatible :', target.shape, output.shape)
                 
+                factors = [1, 1]
+
                 if take_min_loss : 
                     loss, min_idxs = torch.stack([F.cross_entropy(output[0], tgt, reduction='none') for tgt in target]).min(0)
                     loss = loss.mean()
                 else  : 
-                    loss = torch.stack([F.cross_entropy(out, tgt) for (out, tgt) in zip(output, target)]).mean()
+                    loss = torch.stack([F.cross_entropy(out, tgt)*f for (out, tgt, f) in zip(output, target, factors)]).mean()
 
                 if reg_loss : 
                     reg = F.mse_loss(deciding_ags.float().mean(), torch.full_like(deciding_ags.float().mean(), 0.5))
@@ -214,16 +216,16 @@ def train_community(model, train_loader, test_loader, optimizers, schedulers=Non
         # Stop training if loss doesn't go down or if min_acc is reached
         if epoch >= 4 : 
             if results['test_losses'][-4:].argmin() == 0 and early_stop : 
-                print('Stopping Training (Early Stop), loss hasn\'t improved in 4 epochs')
+                #print('Stopping Training (Early Stop), loss hasn\'t improved in 4 epochs')
                 return results    
             if min_acc is not None :                 
                 try :  
                     if (best_acc>=min_acc) :
-                        print(f'Stopping Training, Minimum accuracy of {min_acc} reached')
+                        #print(f'Stopping Training, Minimum accuracy of {min_acc} reached')
                         return results
                 except ValueError : 
                     if (best_acc>=min_acc).all() :
-                        print(f'Stopping Training, Minimum accuracy of {min_acc} reached')
+                        #print(f'Stopping Training, Minimum accuracy of {min_acc} reached')
                         return results
 
     return results
@@ -251,7 +253,7 @@ def test_community(model, device, test_loader, decision_params=('last', 'max'), 
             data, target = process_data(data, target, task, conv_com)
 
             output, *_ = model(data)
-            output, deciding_ags = get_decision(output, *decision_params)
+            output, deciding_ags = get_decision(output, *decision_params, target=target)
             if deciding_ags is not None and deciding_ags.shape[0]==test_loader.batch_size: deciding_agents.append(deciding_ags.cpu().data.numpy())
             
             if len(output.shape)==2 : 
