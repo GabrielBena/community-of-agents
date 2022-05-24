@@ -49,6 +49,7 @@ def get_task_target(target, task='parity_digits_10', temporal_target=False) :
 
         digits = digits_1, digits_2 = get_digits(target, n_classes)
         parity = (digits_1 + digits_2)%2  #0 when same parities
+        
         global_target = (digits_1*10 + digits_2)
         global_target_inv = (digits_1 + digits_2*10)
 

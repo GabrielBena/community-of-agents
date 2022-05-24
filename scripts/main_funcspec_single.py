@@ -23,15 +23,16 @@ if __name__ == "__main__":
                       'fix_asym' : True, 
                       'permute_dataset' : False, 
                       'seed' : None, 
-                      'data_type' : 'letters'
-    }
+                      'data_type' : 'letters',
+                      'n_classes' : 6,
+                      'split_classes' : True    }
     
     all_loaders = get_datasets('data/',
                                 dataset_config['batch_size'],
                                 dataset_config['use_cuda'],
                                 dataset_config['fix_asym'],
-                                dataset_config['permute_dataset'], 
-                                dataset_config['seed']
+                                dataset_config['n_classes'],
+                                dataset_config['split_classes'],
                         )
 
     loaders = all_loaders[['multi', 'digits', 'letters', 'single'].index(dataset_config['data_type'])]
@@ -41,12 +42,12 @@ if __name__ == "__main__":
                          'n_ins' : None,
                          'n_hid' : 50,
                          'n_layer' : 1,
-                         'n_out' : 10,
+                         'n_out' : dataset_config['n_classes'],
                          'train_in_out': (True, True),
                          'use_readout': True,
                          'cell_type': str(nn.RNN),
                          'use_bottleneck': False,
-                         'ag_dropout': 0.05}
+                         'ag_dropout': 0.0}
     
     p_masks = [0.1]
     
@@ -56,13 +57,13 @@ if __name__ == "__main__":
     l1, gdnoise, lr, gamma, cooling = 1e-5, 1e-3, 1e-3, 0.95, 0.95
     deepR_params_dict = {'l1' : l1, 'gdnoise' : gdnoise, 'lr' : lr, 'gamma' : gamma, 'cooling' : cooling}
 
-    p_cons_params = (1/agents_params_dict['n_hid']**2, 0.999, 10)
+    p_cons_params = (1/agents_params_dict['n_hid']**2, 0.999, 20)
 
     connections_params_dict = {'use_deepR' : False, 
                                'global_rewire' : False,
-                               'com_dropout' : 0.1, 
+                               'com_dropout' : 0., 
                                'sparsity' : p_cons_params[0], 
-                               'binarize' : False
+                               'binarize' : True
     }
 
     config = {
@@ -76,19 +77,20 @@ if __name__ == "__main__":
             'connections' : deepR_params_dict,
         }, 
         'training' : {
-            'decision_params' : ('last', 'max'),
-            'n_epochs' : 20, 
+            'decision_params' : ('last', 'loss'),
+            'n_epochs' : 25, 
             'n_tests' : 1, 
             'inverse_task' : False, 
             'stopping_acc' : 0.9,
-            'early_stop' : True
+            'early_stop' : False
         },       
         'task' : 'parity_digits',
         'p_cons' : p_cons_params,
         'do_training' : True
     }
 
-    p_cons = np.geomspace(p_cons_params[0], p_cons_params[1], p_cons_params[2]).round(4)
+    p_cons = (np.geomspace(p_cons_params[0], p_cons_params[1], p_cons_params[2]) * agents_params_dict['n_hid']**2).round()
+    p_cons = np.unique(p_cons / agents_params_dict['n_hid']**2)
     com_dropouts = p_cons*config['model_params']['connections_params']['com_dropout']
     com_dropouts[0] = 0.
 
