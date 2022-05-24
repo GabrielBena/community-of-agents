@@ -16,11 +16,12 @@ from community.data.process import temporal_data
 from community.common.init import init_community
 
 def fixed_information_data(data, target, fixed, fixed_mode='label') : 
+    data = data.clone()
     # Return a modified version of data sample, where one quality is fixed (digit label, or parity, etc)
     digits = get_digits(target)
     bs = digits[0].shape[0]
     n_classes = len(digits[0].unique())    
-    #data[:, 1-fixed, ...] = data[:, 1-fixed, torch.randperm(bs), ...]
+    data[:, 1-fixed, ...] = data[:, 1-fixed, torch.randperm(bs), ...]
     if fixed_mode == 'label':
         d_idxs = [torch.where(digits[fixed] == d)[0] for d in range(n_classes)]
     elif fixed_mode == 'parity' : 
@@ -114,8 +115,7 @@ def get_correlation(community, data) :
     return cor
 
 def get_pearson_metrics(community, loaders, fixed_mode='label', use_tqdm=False, device=torch.device('cuda')) : 
-    
-    correlations = [[] for _ in range(2)]
+
     double_test_loader = loaders[1]
     
     if type(use_tqdm) is int : 
@@ -124,37 +124,37 @@ def get_pearson_metrics(community, loaders, fixed_mode='label', use_tqdm=False, 
     elif use_tqdm : 
         position = 0    
     
-    pbar = double_test_loader #range(n_tests)
+    pbar = double_test_loader
     if use_tqdm : 
         notebook = is_notebook()
         tqdm_f = tqdm_n if notebook else tqdm
         pbar = tqdm_f(pbar, position=position, desc='Correlation Metric Trials', leave=None)
 
-    for data, target in  pbar : #test in pbar :
-        #data, target = next(iter(double_test_loader))
-        if type(data) is list : 
-            data = torch.stack(data)
-        data, target = temporal_data(data).to(device), target.to(device)
+    correlations = [[] for digit in range(2)]
 
-        for fixed_dig in range(2) : 
-            if not 'rotation' in fixed_mode : 
-                datas = fixed_information_data(data, target, fixed_dig, fixed_mode)
-            else : 
-                try : 
-                    n_angles = int(fixed_mode.split('_')[-1])
-                except ValueError : 
-                    n_angles = 4
-                datas = fixed_rotation_data(data, target, fixed_dig, n_angles, reshape=True)
+    for datas, label in pbar: 
+        datas = temporal_data(datas).to(device)
+        
+        for target_digit in range(2) :  
 
-            if type(datas) is not list : 
-                datas = [datas]
-                
-            corrs = [get_correlation(community, d).mean(-1) for d in datas if 0 not in d.shape]
-            correlations[fixed_dig].append(np.stack(corrs, 1))
+            fixed_data = fixed_information_data(datas, label, fixed=target_digit, fixed_mode=fixed_mode)
+ 
+            outs = [community(f) for f in fixed_data]
+            states = [o[1] for o in outs]
 
-        #print(np.array(correlations).shape)
-                
-    return np.array(correlations).transpose(0, 2, 1, 3)
+            states_0 = [s[-1][0][0].cpu().data.numpy() for s in states]
+            states_1 = [s[-1][1][0].cpu().data.numpy() for s in states]
+
+            perm = lambda s : randperm_no_fixed(s.shape[0])
+
+            corrs_0 = [v_pearsonr(s, s[perm(s)] )[0] for s in states_0]
+            corrs_1 = [v_pearsonr(s, s[perm(s)] )[0] for s in states_1]
+
+            cors = [np.array([c.mean() for c in corrs_0]) , np.array([c.mean() for c in corrs_1])]
+            correlations[target_digit].append(cors)
+            
+    correlations = np.array(correlations).transpose(0, 2, 1, 3)
+    return correlations
 
 def compute_correlation_metric(p_cons, loaders, save_name, device=torch.device('cuda'), config=None) : 
 
