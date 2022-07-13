@@ -10,6 +10,8 @@ data/
 wandb
 !/community/data
 artifacts
+gifs/
+
 
 # Distribution / packaging
 .Python
