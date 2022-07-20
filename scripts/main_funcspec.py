@@ -7,7 +7,7 @@ from torchvision import *
 from community.funcspec.masks import compute_mask_metric
 from community.funcspec.bottleneck import compute_bottleneck_metrics
 from community.funcspec.correlation import compute_correlation_metric
-from community.data.datasets import get_datasets
+from community.data.datasets import get_datasets_alphabet, get_datasets_symbols
 from community.common.training import compute_trained_communities
 
 import warnings
@@ -20,31 +20,49 @@ if __name__ == "__main__":
 
     use_cuda = False
     device = torch.device("cuda" if use_cuda else "cpu")
+    n_classes = 2
+
+    symbol_config = {'data_size' : (30000, 5000),
+                                'nb_steps' : 50,
+                                'n_symbols' : n_classes - 1,
+                                'symbol_size' : 5,
+                                'input_size' : 30,
+                                'static' : False
+                                
+        
+    }
 
     dataset_config = {'batch_size' : 256, 
                       'use_cuda' : use_cuda, 
                       'fix_asym' : False, 
                       'permute_dataset' : False, 
                       'seed' : None, 
-                      'data_type' : 'multi'
+                      'data_type' : 'symbols',
+                      'n_classes' : n_classes,
+                      'symbol_config' : symbol_config
     }
     
-    all_loaders = get_datasets('data/',
+    
+    if dataset_config['data_type'] == 'symbols' : 
+        loaders, datasets = get_datasets_symbols(symbol_config,
+                                       dataset_config['batch_size'],
+                                       dataset_config['use_cuda'])
+    else : 
+        all_loaders = get_datasets_alphabet('data/',
                                 dataset_config['batch_size'],
                                 dataset_config['use_cuda'],
                                 dataset_config['fix_asym'],
                                 dataset_config['permute_dataset'], 
                                 dataset_config['seed']
                         )
-
-    loaders = all_loaders[['multi', 'double', 'single'].index(dataset_config['data_type'])]
+        loaders = all_loaders[['multi', 'double_d',  'double_l', 'single_d' 'single_l'].index(dataset_config['data_type'])]
     
     agents_params_dict = {'n_agents' : 2,
                          'n_in' : 784,
                          'n_ins' : None,
                          'n_hid' : 50,
                          'n_layer' : 1,
-                         'n_out' : 10,
+                         'n_out' : dataset_config['n_classes'],
                          'train_in_out': (True, False),
                          'use_readout': True,
                          'cell_type': str(nn.RNN),

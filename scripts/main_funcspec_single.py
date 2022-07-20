@@ -6,7 +6,7 @@ import numpy as np
 import torch.nn as nn
 from torchvision import *
 
-from community.data.datasets import get_datasets
+from community.data.datasets import get_datasets_alphabet, get_datasets_symbols
 from community.funcspec.single_model_loop import train_and_compute_metrics
 import wandb
 from tqdm import tqdm
@@ -17,28 +17,48 @@ if __name__ == "__main__":
 
     use_cuda = True
     device = torch.device("cuda" if use_cuda else "cpu")
+    n_classes = 2
+
+    symbol_config = {'data_size' : (15000, 5000),
+                                'nb_steps' : 50,
+                                'n_symbols' : n_classes - 1,
+                                'symbol_size' : 5,
+                                'input_size' : 30,
+                                'static' : False
+                                
+        
+    }
 
     dataset_config = {'batch_size' : 256, 
                       'use_cuda' : use_cuda, 
-                      'fix_asym' : True, 
+                      'fix_asym' : False, 
                       'permute_dataset' : False, 
                       'seed' : None, 
-                      'data_type' : 'letters',
-                      'n_classes' : 6,
-                      'split_classes' : True    }
+                      'data_type' : 'symbols',
+                      'n_classes' : n_classes,
+                      'symbol_config' : symbol_config
+    }
     
-    all_loaders = get_datasets('data/',
+    
+    if dataset_config['data_type'] == 'symbols' : 
+        loaders, datasets = get_datasets_symbols(symbol_config,
+                                       dataset_config['batch_size'],
+                                       dataset_config['use_cuda'])
+
+        dataset_config['input_size'] = symbol_config['input_size'] ** 2
+    else : 
+        all_loaders = get_datasets_alphabet('data/',
                                 dataset_config['batch_size'],
                                 dataset_config['use_cuda'],
                                 dataset_config['fix_asym'],
-                                dataset_config['n_classes'],
-                                dataset_config['split_classes'],
+                                dataset_config['permute_dataset'], 
+                                dataset_config['seed']
                         )
-
-    loaders = all_loaders[['multi', 'digits', 'letters', 'single'].index(dataset_config['data_type'])]
+        loaders = all_loaders[['multi', 'double_d',  'double_l', 'single_d' 'single_l'].index(dataset_config['data_type'])]
+        dataset_config['input_size'] = 784
     
     agents_params_dict = {'n_agents' : 2,
-                         'n_in' : 784,
+                         'n_in' : dataset_config['input_size'],
                          'n_ins' : None,
                          'n_hid' : 50,
                          'n_layer' : 1,
@@ -57,7 +77,7 @@ if __name__ == "__main__":
     l1, gdnoise, lr, gamma, cooling = 1e-5, 1e-3, 1e-3, 0.95, 0.95
     deepR_params_dict = {'l1' : l1, 'gdnoise' : gdnoise, 'lr' : lr, 'gamma' : gamma, 'cooling' : cooling}
 
-    p_cons_params = (1/agents_params_dict['n_hid']**2, 0.999, 20)
+    p_cons_params = (1/agents_params_dict['n_hid']**2, 0.999, 10)
 
     connections_params_dict = {'use_deepR' : False, 
                                'global_rewire' : False,
@@ -77,11 +97,11 @@ if __name__ == "__main__":
             'connections' : deepR_params_dict,
         }, 
         'training' : {
-            'decision_params' : ('last', 'loss'),
-            'n_epochs' : 25, 
+            'decision_params' : ('last', 'max'),
+            'n_epochs' : 10, 
             'n_tests' : 1, 
             'inverse_task' : False, 
-            'stopping_acc' : 0.9,
+            'stopping_acc' : 0.95,
             'early_stop' : False
         },       
         'task' : 'parity_digits',

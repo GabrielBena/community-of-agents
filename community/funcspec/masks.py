@@ -133,7 +133,7 @@ def get_repartitions(masked_model) :
 ### ------Weight mask Metrics -------
 
 
-def train_mask(community, sparsity, target_digit, loaders, lr=0.1, n_epochs=1, device=torch.device('cpu'), use_tqdm=False) : 
+def train_mask(community, sparsity, target_digit, loaders, lr=0.1, n_epochs=1, device=torch.device('cpu'), use_tqdm=False, symbols=False) : 
 
     masked_community = Mask_Community(community, sparsity).to(device)
     momentum, wd = 0.9, 0.0005
@@ -161,6 +161,7 @@ def train_mask(community, sparsity, target_digit, loaders, lr=0.1, n_epochs=1, d
             'stopping_acc' : None ,
             'early_stop' : False,
             'deepR_params_dict' : {},
+            'data_type' : 'symbols' if symbols else None
         }
 
     train_out = train_community(masked_community, *loaders, optimizers, 
@@ -171,7 +172,7 @@ def train_mask(community, sparsity, target_digit, loaders, lr=0.1, n_epochs=1, d
     return masked_community, train_out['test_losses'], train_out['test_accs'], train_out['best_state']
 
 
-def find_optimal_sparsity(masked_community, target_digit, loaders, min_acc=0.85, device=torch.device('cpu'), use_tqdm=False) : 
+def find_optimal_sparsity(masked_community, target_digit, loaders, min_acc=0.85, device=torch.device('cpu'), use_tqdm=False, symbols=False) : 
 
     optimizers = None, None
 
@@ -194,6 +195,7 @@ def find_optimal_sparsity(masked_community, target_digit, loaders, min_acc=0.85,
                 'stopping_acc' : None ,
                 'early_stop' : False,
                 'deepR_params_dict' : {},
+                'data_type' : 'symbols' if symbols else None
             }
 
         train_out = train_community(masked_community, *loaders, optimizers, 
@@ -216,7 +218,8 @@ def find_optimal_sparsity(masked_community, target_digit, loaders, min_acc=0.85,
 def train_and_get_mask_metric(community, initial_sparsity, loaders,
                                 n_tests=5, n_epochs=1, lr=0.1,
                                 use_optimal_sparsity=False,
-                                device=torch.device('cuda'), use_tqdm=False) : 
+                                device=torch.device('cuda'), use_tqdm=False, 
+                                symbols=False) : 
     """
     Initializes and trains masks on community model.
     Args : 
@@ -262,13 +265,13 @@ def train_and_get_mask_metric(community, initial_sparsity, loaders,
         for target_digit in range(2) : 
             
             masked_community, test_loss, test_accs, best_state = train_mask(community, initial_sparsity, target_digit,
-                                                                         loaders, lr, n_epochs, device, position + 1 if use_tqdm else False)
+                                                                         loaders, lr, n_epochs, device, position + 1 if use_tqdm else False, symbols=symbols)
 
             if use_optimal_sparsity : 
                 try : 
-                    optimal_sparsity, test_accs = find_optimal_sparsity(masked_community, target_digit, loaders, community.best_acc*0.95, device=device)
+                    optimal_sparsity, test_accs = find_optimal_sparsity(masked_community, target_digit, loaders, community.best_acc*0.95, device=device, symbols=symbols)
                 except AttributeError : 
-                    optimal_sparsity, test_accs = find_optimal_sparsity(masked_community, target_digit, loaders, min_acc=.9, device=device)
+                    optimal_sparsity, test_accs = find_optimal_sparsity(masked_community, target_digit, loaders, min_acc=.9, device=device, symbols=symbols)
 
             prop = get_proportions_per_agent(masked_community)[0]
             

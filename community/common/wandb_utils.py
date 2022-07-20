@@ -88,6 +88,7 @@ def get_training_dict(config)  :
         'stopping_acc' : config['training']['stopping_acc'] ,
         'early_stop' : config['training']['early_stop'] ,
         'deepR_params_dict' : config['optimization']['connections'],
+        'data_type' : config['datasets']['data_type'] 
     }
 
     return training_dict

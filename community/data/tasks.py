@@ -94,6 +94,11 @@ def get_task_target(target, task='parity_digits_10', temporal_target=False) :
                 else : 
                     return global_target
 
+            elif 'count' in task : 
+                new_target = torch.where(target.argmax(-1).bool(), target[:, 1], target[:, 0])
+                new_target[target[:, 0] == target[:, 1]] = 0
+                return new_target
+
             elif task == 'none' : 
                 return target.transpose(0, 1)
 

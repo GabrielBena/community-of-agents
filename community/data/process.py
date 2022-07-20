@@ -63,9 +63,13 @@ def flatten_double_data(data) :
     return data.transpose(1, 2).flatten(start_dim=2)
 
 
-def process_data(data, target, task, conv_com=False, varying_temporal=False, n_steps=2) : 
+def process_data(data, target, task, conv_com=False, symbols=False, varying_temporal=False, n_steps=2) : 
 
-    if 'rotation_conflict' in task : 
+    if symbols : 
+        data =  data.permute(1, 2, 0, 3, 4).float()
+        if not conv_com : data = data.flatten(start_dim=-2)         
+
+    elif 'rotation_conflict' in task : 
         try : 
             n_angles = int(task.split('_')[-1])
         except ValueError : 
@@ -78,6 +82,6 @@ def process_data(data, target, task, conv_com=False, varying_temporal=False, n_s
         else : 
             data, target = varying_temporal_data(data, target, n_steps=n_steps, conv_com=conv_com, transpose_and_cat=True)   
             
-        target = get_task_target(target, task, temporal_target=(len(target.shape)>2) )
+    target = get_task_target(target, task, temporal_target=(len(target.shape)>2) )
 
     return data, target

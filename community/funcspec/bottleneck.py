@@ -21,7 +21,7 @@ from community.common.wandb_utils import get_wandb_artifact, mkdir_or_save_torch
 
 def readout_retrain(community, loaders, n_classes=10, deepR_params_dict={},
                     n_epochs=3, n_tests=3, train_all_param=False,
-                    use_tqdm=False, device=torch.device('cuda')) : 
+                    use_tqdm=False, device=torch.device('cuda'), symbols=False) : 
     """
     Retrains the bottleneck-readout connections of each sub-network for each sub-task and stores performance.
     Args : 
@@ -87,7 +87,8 @@ def readout_retrain(community, loaders, n_classes=10, deepR_params_dict={},
                 'decision_params' : ('last', 'both') ,
                 'stopping_acc' : min_acc ,
                 'early_stop' :  True,
-                'deepR_params_dict' : deepR_params_dict
+                'deepR_params_dict' : deepR_params_dict,
+                'data_type' : 'symbols' if symbols else None
             }
             train_out = train_community(f_community, *loaders, optimizers,
                         schedulers=schedulers, config=training_dict,

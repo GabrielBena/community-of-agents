@@ -55,6 +55,7 @@ def train_community(model, train_loader, test_loader, optimizers, schedulers=Non
     min_acc = config['stopping_acc']
     early_stop = config['early_stop']
     deepR_params_dict = config['deepR_params_dict']
+    symbols = config['data_type'] == 'symbols'
     #--------------
 
     reg_loss = reg_factor>0.
@@ -98,7 +99,7 @@ def train_community(model, train_loader, test_loader, optimizers, schedulers=Non
                 #Forward pass
 
                 #Task Selection
-                data, target = process_data(data, target, task, conv_com)
+                data, target = process_data(data, target, task, conv_com, symbols=symbols)
 
                 optimizer_agents.zero_grad()
                 if optimizer_connections : optimizer_connections.zero_grad()
@@ -178,7 +179,7 @@ def train_community(model, train_loader, test_loader, optimizers, schedulers=Non
                     pbar.set_description(desc(descs))
             
         if testing : 
-            descs[1], loss, acc, deciding_ags = test_community(model, device, test_loader, decision_params=decision_params, task=task, joint_training=joint_training)  
+            descs[1], loss, acc, deciding_ags = test_community(model, device, test_loader, decision_params=decision_params, task=task, joint_training=joint_training, symbols=symbols)  
                                                  
             if loss < best_loss : 
                 best_loss = loss
@@ -230,7 +231,7 @@ def train_community(model, train_loader, test_loader, optimizers, schedulers=Non
 
     return results
                    
-def test_community(model, device, test_loader, decision_params=('last', 'max'), task='parity_digits', verbose=False, seed=None, joint_training=False):
+def test_community(model, device, test_loader, decision_params=('last', 'max'), task='parity_digits', verbose=False, seed=None, joint_training=False, symbols=False):
     """
     Testing function for community of agents
     """
@@ -250,7 +251,7 @@ def test_community(model, device, test_loader, decision_params=('last', 'max'), 
             else : 
                 data, target = data.to(device), target.to(device)
                             
-            data, target = process_data(data, target, task, conv_com)
+            data, target = data, target = process_data(data, target, task, conv_com, symbols=symbols)
 
             output, *_ = model(data)
             output, deciding_ags = get_decision(output, *decision_params, target=target)

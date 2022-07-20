@@ -5,6 +5,8 @@ from torchvision.datasets import EMNIST
 import numpy as np
 import numpy.random as rd
 from typing import Any, Callable, Dict, List, Optional
+import matplotlib.pyplot as plt
+from tqdm import tqdm
 
 class Custom_EMNIST(datasets.EMNIST) : 
     def __init__(self, root: str, train: bool = True,data_type: str = 'digits',
@@ -171,7 +173,131 @@ class MultiDataset(Dataset) :
         except : 
             return datas, labels
 
-def get_datasets(root, batch_size=256, use_cuda=True, fix_asym=False, n_classes=10, split_classes=True) :
+class SymbolsDataset(Dataset) : 
+
+    def __init__(self, data_config) -> None:
+        super().__init__()
+
+        self.data_config = data_config
+
+        self.symbols = ( np.zeros((5, 5)), np.zeros((5, 5)) )
+
+        for i in range(5) : 
+            for j in range(5) : 
+                if (i + j)%4 == 2 or (i - j)%4 == 2 : 
+                    self.symbols[1][i, j] = 1
+
+                if i%4 == 0 or j%4 == 0 : 
+                    self.symbols[0][i, j] = 1 
+
+        fig, axs = plt.subplots(1, 2)
+        for ax, sym in zip(axs, self.symbols) : 
+            ax.imshow(sym)
+        plt.show()
+
+        self.data = self.generate_data()
+
+    def get_random_symbol_data(self, data_size, nb_steps,  n_symbols, symbol_size, input_size, static) : 
+        
+        assert np.remainder(input_size, symbol_size) == 0
+        n_grid = input_size//symbol_size 
+
+        assert n_symbols <= n_grid
+
+        if static : 
+                
+            squares = list(range((n_grid)**2))
+            positions = np.stack([np.random.choice(squares, n_symbols, replace=False) for _ in tqdm(range(data_size), desc='Generating Data')])
+            centers = np.stack(
+                [np.array(np.unravel_index(positions, (n_grid, n_grid))).transpose(1, 2, 0) * symbol_size
+                for _ in range(nb_steps)])
+            jitter = np.repeat(np.random.random_integers(-1, 0, (data_size, 2))[:, None, :], n_symbols, axis=1)
+
+        else : 
+            centers = np.stack(
+                [[np.stack(
+                    self.get_random_trajectory(nb_steps, input_size, symbol_size)).T for _ in range(n_symbols)]
+                    for _ in tqdm(range(data_size), desc='Generating Data')]
+                                
+                ).transpose(2, 0, 1, -1)
+            #return 0, 0, 0, centers
+            ""
+
+        labels = np.random.random_integers(0, 1, (data_size, n_symbols))
+
+        grids = self.place_symbols_from_centers(centers, labels, data_size, input_size, symbol_size)
+
+        return torch.from_numpy(grids).transpose(0, 1), torch.from_numpy(labels).sum(-1), torch.from_numpy(centers)#, torch.from_numpy(jitter)
+
+    def place_symbols_from_centers(self, centers, labels, data_size, input_size, symbol_size) : 
+
+        grids = []
+        def assign_square(grid, center_pos, l, d) : 
+            grid[d, center_pos[0] : center_pos[0] + symbol_size, center_pos[1] : center_pos[1] + symbol_size] += self.symbols[l]
+
+        for center in centers : 
+            grid = np.zeros((data_size, input_size, input_size))
+
+            for d in range(data_size) : 
+                for l, c in zip(labels[d], center[d]) : 
+                    assign_square(grid, (c[0], c[1]), l, d)
+
+            grids.append(grid)
+            
+        return np.stack(grids)
+
+    def get_random_trajectory(self, seq_length, image_size, symbol_size, step_length=0.2):
+        """
+        Generate a trajectory
+        https://tcapelle.github.io/pytorch/fastai/cv/2021/05/01/moving_mnist.html
+        """
+        canvas_size = image_size - symbol_size
+        x, y = np.random.random(2)
+        v_min = 1 / (step_length * canvas_size)
+        v_x, v_y = np.random.random(2) * (1 - v_min) + v_min
+
+        assert v_x * step_length * canvas_size >= 1
+        assert v_y * step_length * canvas_size >= 1
+
+        out_x, out_y = [], []
+        
+        for i in range(seq_length):
+            # Take a step along velocity.
+            y += v_y * step_length
+            x += v_x * step_length
+
+            # Bounce off edges.
+            if x <= 0:
+                x = 0
+                v_x = -v_x
+            if x >= 1.0:
+                x = 1.0
+                v_x = -v_x
+            if y <= 0:
+                y = 0
+                v_y = -v_y
+            if y >= 1.0:
+                y = 1.0
+                v_y = -v_y
+            out_x.append(x * canvas_size)
+            out_y.append(y * canvas_size)
+
+        return torch.tensor(out_x).int(),  torch.tensor(out_y).int()
+
+    def generate_data(self) : 
+
+        datas = self.get_random_symbol_data(**self.data_config), self.get_random_symbol_data(**self.data_config)
+        data = [torch.stack((d1, d2), axis=1) for d1, d2 in zip(*datas)]
+        return data
+    
+    def __len__(self) : 
+        return self.data_config['data_size']
+
+    def __getitem__(self, index: Any):
+
+        return self.data[0][index].transpose(0, 1), self.data[1][index]
+
+def get_datasets_alphabet(root, batch_size=256, use_cuda=True, fix_asym=False, n_classes=10, split_classes=True) :
         
     train_kwargs = {'batch_size': batch_size, 'shuffle' : True}
     test_kwargs = {'batch_size': batch_size, 'shuffle' : False, 'drop_last' : True}
@@ -231,3 +357,33 @@ def get_datasets(root, batch_size=256, use_cuda=True, fix_asym=False, n_classes=
     multi_loaders = [torch.utils.data.DataLoader(d, **k) for d, k in zip(multi_datasets, kwargs)]
 
     return multi_loaders, double_loaders_dig, double_loaders_letters, single_loaders_dig, single_letters
+
+
+def get_datasets_symbols(data_config, batch_size=128, use_cuda=True, n_classes=10) : 
+
+    train_kwargs = {'batch_size': batch_size, 'shuffle' : True}
+    test_kwargs = {'batch_size': batch_size, 'shuffle' : False, 'drop_last' : True}
+    if use_cuda:
+        cuda_kwargs = {'num_workers': 0,
+                    'pin_memory': True}
+                    
+        train_kwargs.update(cuda_kwargs)
+        test_kwargs.update(cuda_kwargs)
+    transform=transforms.Compose([
+        transforms.ToTensor(),
+        transforms.Normalize((0.1307,), (0.3081,))
+        ])
+
+    kwargs = train_kwargs, test_kwargs
+
+    data_configs = ({k : v[0] if i == 0 else v for i, (k, v) in enumerate(data_config.items()) }, {k : v[1] if i == 0 else v for i, (k, v) in enumerate(data_config.items()) })
+    datasets = [SymbolsDataset(d) for d in data_configs]
+    dataloaders = [torch.utils.data.DataLoader(d, **k) for d, k in zip(datasets, kwargs)]
+
+    return dataloaders, datasets
+
+
+
+
+
+

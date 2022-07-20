@@ -12,7 +12,7 @@ from scipy.stats import pearsonr
 from community.common.utils import is_notebook
 from community.common.wandb_utils import get_wandb_artifact, mkdir_or_save_torch
 from community.data.tasks import get_digits, rotation_conflict_task
-from community.data.process import temporal_data
+from community.data.process import process_data, temporal_data
 from community.common.init import init_community
 
 def fixed_information_data(data, target, fixed, fixed_mode='label') : 
@@ -114,7 +114,7 @@ def get_correlation(community, data) :
 
     return cor
 
-def get_pearson_metrics(community, loaders, fixed_mode='label', use_tqdm=False, device=torch.device('cuda')) : 
+def get_pearson_metrics(community, loaders, fixed_mode='label', symbols=False, use_tqdm=False, device=torch.device('cuda')) : 
 
     double_test_loader = loaders[1]
     
@@ -133,7 +133,11 @@ def get_pearson_metrics(community, loaders, fixed_mode='label', use_tqdm=False, 
     correlations = [[] for digit in range(2)]
 
     for datas, label in pbar: 
-        datas = temporal_data(datas).to(device)
+
+        if not symbols :
+             datas = temporal_data(datas).to(device)
+        else :
+            datas = process_data(datas, label, 'none', False, True)[0].to(device)
         
         for target_digit in range(2) :  
 
