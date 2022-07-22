@@ -130,7 +130,7 @@ def create_gifs(data, target, name, input_size, task=None) :
         os.mkdir('gifs')
         'continue'
 
-    img_list = lambda i : data[..., i, :, :].transpose(0, 1).cpu().data.numpy()*255
+    img_list = lambda i : data[..., i, :, :].cpu().data.numpy()*255
 
     def create_gif(img_list, l, w, name) : 
             
