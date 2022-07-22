@@ -7,6 +7,7 @@ import numpy.random as rd
 from typing import Any, Callable, Dict, List, Optional
 import matplotlib.pyplot as plt
 from tqdm import tqdm
+from scipy.optimize import fmin_cobyla
 
 class Custom_EMNIST(datasets.EMNIST) : 
     def __init__(self, root: str, train: bool = True,data_type: str = 'digits',
@@ -175,13 +176,12 @@ class MultiDataset(Dataset) :
 
 class SymbolsDataset(Dataset) : 
 
-    def __init__(self, data_config) -> None:
+    def __init__(self, data_config, print=False) -> None:
         super().__init__()
 
         self.data_config = data_config
 
         self.symbols = ( np.zeros((5, 5)), np.zeros((5, 5)) )
-
         for i in range(5) : 
             for j in range(5) : 
                 if (i + j)%4 == 2 or (i - j)%4 == 2 : 
@@ -189,13 +189,45 @@ class SymbolsDataset(Dataset) :
 
                 if i%4 == 0 or j%4 == 0 : 
                     self.symbols[0][i, j] = 1 
-
-        fig, axs = plt.subplots(1, 2)
-        for ax, sym in zip(axs, self.symbols) : 
-            ax.imshow(sym)
-        plt.show()
+        if print :        
+            fig, axs = plt.subplots(1, 2)
+            for ax, sym in zip(axs, self.symbols) : 
+                ax.imshow(sym)
+            plt.show()
 
         self.data = self.generate_data()
+
+
+    def get_probabilities(self, n_classes) : 
+
+        get_tns = lambda x : np.array([(x**2).sum()] + [2*pn*(x[:n+1].sum()) for n, pn in enumerate(x[1:])])
+        min_tns = lambda tns : ((tns -(np.ones_like(tns)/len(tns)))**2).sum()
+        min_f = lambda x : min_tns(get_tns(x))
+
+        constraints = []
+
+        f_cons_0 = lambda x : np.ones(n_classes).dot(x) - 1
+
+        #cons_0 = LinearConstraint(np.ones(n_classes), 1, 1) 
+        cons_0 = {'type': 'eq', 'fun': f_cons_0}
+
+        """
+        for k in range(n_classes) : 
+            A = np.zeros(n_classes)
+            A[k] = 1
+            print(A)
+            constraints.append(LinearConstraint(A, 0, np.inf))
+
+        """
+
+        x_init = np.ones(n_classes)/n_classes
+
+        x_final = fmin_cobyla(min_f, x_init, (f_cons_0))
+
+        if not  x_final.sum() == 1 : 
+            x_final += np.ones(n_classes)*(1 - x_final.sum())/n_classes
+
+        return x_final
 
     def get_random_symbol_data(self, data_size, nb_steps,  n_symbols, symbol_size, input_size, static) : 
         
@@ -223,11 +255,16 @@ class SymbolsDataset(Dataset) :
             #return 0, 0, 0, centers
             ""
 
-        labels = np.random.random_integers(0, 1, (data_size, n_symbols))
+        probas = self.get_probabilities(n_symbols+1)
+        labels = np.random.multinomial(1, probas, size=(data_size)).argmax(-1)
+        #labels = np.random.random_integers(0, 1, (data_size, n_symbols)).sum(-1)
+        #labels = np.random.random_integers(0, n_symbols, data_size)
+
+        #print(np.unique(labels, return_counts=True))
 
         grids = self.place_symbols_from_centers(centers, labels, data_size, input_size, symbol_size)
 
-        return torch.from_numpy(grids).transpose(0, 1), torch.from_numpy(labels).sum(-1), torch.from_numpy(centers)#, torch.from_numpy(jitter)
+        return torch.from_numpy(grids).transpose(0, 1), torch.from_numpy(labels), torch.from_numpy(centers)#, torch.from_numpy(jitter)
 
     def place_symbols_from_centers(self, centers, labels, data_size, input_size, symbol_size) : 
 
@@ -239,7 +276,8 @@ class SymbolsDataset(Dataset) :
             grid = np.zeros((data_size, input_size, input_size))
 
             for d in range(data_size) : 
-                for l, c in zip(labels[d], center[d]) : 
+                for i, c in enumerate(center[d]) : 
+                    l = int(i < labels[d])
                     assign_square(grid, (c[0], c[1]), l, d)
 
             grids.append(grid)
