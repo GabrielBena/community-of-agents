@@ -172,7 +172,7 @@ def train_mask(community, sparsity, target_digit, loaders, lr=0.1, n_epochs=1, d
     return masked_community, train_out['test_losses'], train_out['test_accs'], train_out['best_state']
 
 
-def find_optimal_sparsity(masked_community, target_digit, loaders, min_acc=0.85, device=torch.device('cpu'), use_tqdm=False, symbols=False) : 
+def find_optimal_sparsity(masked_community, target_digit, loaders, min_acc=0.95, device=torch.device('cpu'), use_tqdm=False, symbols=False) : 
 
     optimizers = None, None
 
@@ -191,7 +191,7 @@ def find_optimal_sparsity(masked_community, target_digit, loaders, min_acc=0.85,
                 'check_gradients' : False, 
                 'reg_factor' : 0.,
                 'train_connections' : False,
-                'decision_params' : ('last', 'loss'),
+                'decision_params' : ('last', 'max'),
                 'stopping_acc' : None ,
                 'early_stop' : False,
                 'deepR_params_dict' : {},

@@ -113,7 +113,11 @@ class Community(nn.Module) :
             states.append(state)
             output = torch.cat(output)            
             outputs.append(output)
-            if t>0 : connections.append(torch.stack(connection))
+            if t>0 : 
+                try : 
+                    connections.append(torch.stack(connection))
+                except : 
+                    connections.append(torch.tensor(connections))
             
         outputs = torch.stack(outputs)
         connections = torch.stack(connections)

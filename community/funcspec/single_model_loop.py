@@ -73,13 +73,13 @@ def train_and_compute_metrics(p_con, config, loaders, device) :
     correlations_metric = correlations_results.mean(-1).mean(-1)
 
     #print('Weight Masks')
-    masks_results = train_and_get_mask_metric(community, 0.5, loaders, device=device, n_tests=3, n_epochs=2, use_tqdm=1, use_optimal_sparsity=True, symbols=symbols)
+    masks_results = train_and_get_mask_metric(community, 0.1, loaders, device=device, n_tests=1, n_epochs=2, use_tqdm=1, use_optimal_sparsity=True, symbols=symbols)
     masks_props, masks_accs, _, masks_states, masks_spars = list(masks_results.values())
     masks_metric, masks_accs, masks_spars = masks_props.mean(0), masks_accs.mean(0).max(-1), masks_spars.mean(0)
 
     community = trained_coms['With Bottleneck']
     #print('Bottlenecks Retrain')
-    bottleneck_results = readout_retrain(community, loaders, deepR_params_dict=deepR_params_dict, n_tests=3, n_epochs=2, device=device, use_tqdm=1, symbols=symbols)
+    bottleneck_results = readout_retrain(community, loaders, deepR_params_dict=deepR_params_dict, n_tests=1, n_epochs=2, device=device, use_tqdm=1, symbols=symbols)
     bottleneck_metric = bottleneck_results['accs'].mean(0)
 
     diff_metric = lambda metric, ag : (metric[ag, ag] - metric[1-ag, ag]) / (metric[ag, ag] + metric[1-ag, ag])

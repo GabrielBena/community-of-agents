@@ -219,15 +219,15 @@ def train_community(model, train_loader, test_loader, optimizers, schedulers=Non
             if results['test_losses'][-4:].argmin() == 0 and early_stop : 
                 #print('Stopping Training (Early Stop), loss hasn\'t improved in 4 epochs')
                 return results    
-            if min_acc is not None :                 
-                try :  
-                    if (best_acc>=min_acc) :
-                        #print(f'Stopping Training, Minimum accuracy of {min_acc} reached')
-                        return results
-                except ValueError : 
-                    if (best_acc>=min_acc).all() :
-                        #print(f'Stopping Training, Minimum accuracy of {min_acc} reached')
-                        return results
+        if min_acc is not None :                 
+            try :  
+                if (best_acc>=min_acc) :
+                    #print(f'Stopping Training, Minimum accuracy of {min_acc} reached')
+                    return results
+            except ValueError : 
+                if (best_acc>=min_acc).all() :
+                    #print(f'Stopping Training, Minimum accuracy of {min_acc} reached')
+                    return results
 
     return results
                    

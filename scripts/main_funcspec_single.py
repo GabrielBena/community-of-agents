@@ -17,17 +17,17 @@ if __name__ == "__main__":
 
     use_cuda = True
     device = torch.device("cuda" if use_cuda else "cpu")
-    n_classes = 2
+    n_classes = 6
 
-    symbol_config = {'data_size' : (15000, 5000),
+    symbol_config = {'data_size' : (60000, 10000),
                                 'nb_steps' : 50,
                                 'n_symbols' : n_classes - 1,
                                 'symbol_size' : 5,
                                 'input_size' : 30,
-                                'static' : False
-                                
-        
-    }
+                                'static' : True
+                    }
+    if symbol_config['static'] :
+        symbol_config['nb_steps'] = 2
 
     dataset_config = {'batch_size' : 256, 
                       'use_cuda' : use_cuda, 
@@ -78,6 +78,7 @@ if __name__ == "__main__":
     deepR_params_dict = {'l1' : l1, 'gdnoise' : gdnoise, 'lr' : lr, 'gamma' : gamma, 'cooling' : cooling}
 
     p_cons_params = (1/agents_params_dict['n_hid']**2, 0.999, 10)
+    #p_cons_params = (0, 1., 10)
 
     connections_params_dict = {'use_deepR' : False, 
                                'global_rewire' : False,
@@ -98,18 +99,22 @@ if __name__ == "__main__":
         }, 
         'training' : {
             'decision_params' : ('last', 'max'),
-            'n_epochs' : 10, 
+            'n_epochs' : 20, 
             'n_tests' : 1, 
             'inverse_task' : False, 
             'stopping_acc' : 0.95,
             'early_stop' : False
         },       
-        'task' : 'parity_digits',
+        'task' : 'count',
         'p_cons' : p_cons_params,
         'do_training' : True
     }
 
-    p_cons = (np.geomspace(p_cons_params[0], p_cons_params[1], p_cons_params[2]) * agents_params_dict['n_hid']**2).round()
+    try : 
+        p_cons = (np.geomspace(p_cons_params[0], p_cons_params[1], p_cons_params[2]) * agents_params_dict['n_hid']**2).round()
+    except ValueError : 
+        p_cons = (np.linspace(p_cons_params[0], p_cons_params[1], p_cons_params[2]) * agents_params_dict['n_hid']**2).round()
+
     p_cons = np.unique(p_cons / agents_params_dict['n_hid']**2)
     com_dropouts = p_cons*config['model_params']['connections_params']['com_dropout']
     com_dropouts[0] = 0.
@@ -130,8 +135,10 @@ if __name__ == "__main__":
     metric_results = {metric : {} for metric in metric_names}
     training_results, all_results = {}, {}
 
-    for p, p_con in enumerate(tqdm(p_cons, desc='Community Sparsity : ', position=0, leave=None)) : 
+    pbar = tqdm(p_cons, position=0, leave=None)
+    for p, p_con in enumerate(pbar) :
 
+        pbar.set_description(f'Community Sparsity ({p_con}) ') 
         config['model_params']['connections_params']['com_dropout'] = com_dropouts[p]
 
         metrics, train_out, results = train_and_compute_metrics(p_con, config, loaders, device)
