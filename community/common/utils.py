@@ -6,7 +6,7 @@ from numpy.random import seed as seed_np
 from os import environ
 from torch.random import manual_seed as seed_tcpu
 from torch.cuda import manual_seed_all as seed_tgpu
-
+from community.data.tasks import get_task_target
 
 #------ Connection counting utility functions -----
 
@@ -113,6 +113,39 @@ def plot_grid(imgs, labels=None, row_title=None, figsize=None, save_loc=None, **
     if save_loc is not None : 
         plt.savefig(save_loc)
     plt.show()
+
+
+
+from PIL import Image
+import shutil, os
+
+def create_gifs(data, target, name, input_size, task=None) : 
+
+    if task : target = get_task_target(target, task)
+    
+    try : 
+        shutil.rmtree('gifs/')
+        os.mkdir('gifs')
+    except FileNotFoundError : 
+        os.mkdir('gifs')
+        'continue'
+
+    img_list = lambda i : data[..., i, :, :].transpose(0, 1).cpu().data.numpy()*255
+
+    def create_gif(img_list, l, w, name) : 
+            
+            images_list = [Image.fromarray(img.reshape(w, l)).resize((256, 256)) for img in img_list]
+            images_list = images_list # + images_list[::-1] # loop back beginning
+
+            images_list[0].save(
+                f'{name}.gif', 
+                save_all=True, 
+                append_images=images_list[1:],
+                loop=0)
+
+    [create_gif(img_list(i), input_size, 2*input_size, 'gifs/' + f'{name}_{i}_{target[i].data.item()}') for i in range(10)];
+
+    
 
 # ------ Others ------
 
