@@ -207,11 +207,22 @@ def find_optimal_sparsity(masked_community, target_digit, loaders, min_acc=0.95,
     train_out = test_masked_com()                        
     test_acc = train_out['test_accs'].max()
 
+    def conditional_loop():
+        condition = test_acc >= min_acc
+        print(condition)
+        while condition :
+            yield
+
+    pbar = tqdm(total=100, position=position, leave=None)
+    pbar.set_description(f'For Mask of Sparsity {masked_community.sparsity}, Acc is {test_acc}, min_acc = {min_acc}')
+
     while test_acc >= min_acc : 
         #print(test_acc, masked_community.sparsity)
-        masked_community.sparsity *= 0.9
+        masked_community.sparsity *= 0.7
         train_out = test_masked_com()                        
         test_acc = train_out['test_accs'].max()
+        pbar.set_description(f'For Mask of Sparsity {masked_community.sparsity}, Acc is {test_acc}')
+        pbar.update(1)
 
     return masked_community.sparsity, test_acc
 
@@ -269,9 +280,9 @@ def train_and_get_mask_metric(community, initial_sparsity, loaders,
 
             if use_optimal_sparsity : 
                 try : 
-                    optimal_sparsity, test_accs = find_optimal_sparsity(masked_community, target_digit, loaders, community.best_acc*0.95, device=device, symbols=symbols)
+                    optimal_sparsity, test_accs = find_optimal_sparsity(masked_community, target_digit, loaders, community.best_acc*0.95, device=device, symbols=symbols, use_tqdm=position + 1 if use_tqdm else False)
                 except AttributeError : 
-                    optimal_sparsity, test_accs = find_optimal_sparsity(masked_community, target_digit, loaders, min_acc=.9, device=device, symbols=symbols)
+                    optimal_sparsity, test_accs = find_optimal_sparsity(masked_community, target_digit, loaders, min_acc=.95, device=device, symbols=symbols, use_tqdm=position + 1 if use_tqdm else False)
 
             prop = get_proportions_per_agent(masked_community)[0]
             

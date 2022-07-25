@@ -182,6 +182,7 @@ class SymbolsDataset(Dataset) :
         self.data_config = data_config
 
         self.symbols = ( np.zeros((5, 5)), np.zeros((5, 5)) )
+    
         for i in range(5) : 
             for j in range(5) : 
                 if (i + j)%4 == 2 or (i - j)%4 == 2 : 
@@ -189,6 +190,7 @@ class SymbolsDataset(Dataset) :
 
                 if i%4 == 0 or j%4 == 0 : 
                     self.symbols[0][i, j] = 1 
+        
         if print :        
             fig, axs = plt.subplots(1, 2)
             for ax, sym in zip(axs, self.symbols) : 
@@ -196,6 +198,7 @@ class SymbolsDataset(Dataset) :
             plt.show()
 
         self.data = self.generate_data()
+        
 
 
     def get_probabilities(self, n_classes) : 
@@ -229,12 +232,14 @@ class SymbolsDataset(Dataset) :
 
         return x_final
 
-    def get_random_symbol_data(self, data_size, nb_steps,  n_symbols, symbol_size, input_size, static) : 
+    def get_random_symbol_data(self, data_size, nb_steps,  n_symbols, symbol_size, input_size, static, inv) : 
         
         assert np.remainder(input_size, symbol_size) == 0
         n_grid = input_size//symbol_size 
 
         assert n_symbols <= n_grid
+
+        self.symbols = self.symbols[::-1] if inv else self.symbols
 
         if static : 
                 
@@ -324,7 +329,7 @@ class SymbolsDataset(Dataset) :
 
     def generate_data(self) : 
 
-        datas = self.get_random_symbol_data(**self.data_config), self.get_random_symbol_data(**self.data_config)
+        datas = self.get_random_symbol_data(**self.data_config, inv=False), self.get_random_symbol_data(**self.data_config, inv=True)
         data = [torch.stack((d1, d2), axis=1) for d1, d2 in zip(*datas)]
         return data
     

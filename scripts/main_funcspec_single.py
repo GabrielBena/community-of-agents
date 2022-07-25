@@ -17,7 +17,7 @@ if __name__ == "__main__":
 
     use_cuda = True
     device = torch.device("cuda" if use_cuda else "cpu")
-    n_classes = 2
+    n_classes = 6
 
     symbol_config = {'data_size' : (60000, 10000),
                                 'nb_steps' : 50,
