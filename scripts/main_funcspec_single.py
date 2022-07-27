@@ -17,14 +17,16 @@ if __name__ == "__main__":
 
     use_cuda = True
     device = torch.device("cuda" if use_cuda else "cpu")
-    n_classes = 6
 
-    symbol_config = {'data_size' : (60000, 10000),
+    n_classes = np.random.randint(2, 6)
+    print(f'Training for {n_classes} classes')
+
+    symbol_config = {'data_size' : (30000, 5000),
                                 'nb_steps' : 50,
                                 'n_symbols' : n_classes - 1,
                                 'symbol_size' : 5,
                                 'input_size' : 30,
-                                'static' : True
+                                'static' : False
                     }
     if symbol_config['static'] :
         symbol_config['nb_steps'] = 2
@@ -99,7 +101,7 @@ if __name__ == "__main__":
         }, 
         'training' : {
             'decision_params' : ('last', 'max'),
-            'n_epochs' : 20, 
+            'n_epochs' : 25, 
             'n_tests' : 1, 
             'inverse_task' : False, 
             'stopping_acc' : 0.95,
@@ -131,7 +133,9 @@ if __name__ == "__main__":
     
     wandb.config.update(config)
         
-    metric_names = ['Correlation', 'Masks', 'Bottleneck']
+    #metric_names = ['Correlation', 'Masks', 'Bottleneck']
+
+    metric_names = ['Correlation', 'Bottleneck']
     metric_results = {metric : {} for metric in metric_names}
     training_results, all_results = {}, {}
 

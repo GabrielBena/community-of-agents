@@ -216,7 +216,7 @@ class ConvCommunity(nn.Module) :
         self.dims = [n_in, n_hid, n_out]
         use_readout= not(use_deciding_agent or use_sparse_readout)
 
-        agents = [Agent(n_in, n_hid, n_out, str(n), cell_type=cell_type, use_readout=use_readout) for n in range(n_agents)]        
+        agents = [Agent(n_in, n_hid, 1, n_out, str(n), cell_type=cell_type, use_readout=use_readout) for n in range(n_agents)]        
         self.agents = nn.ModuleList()
        
         for ag in agents : 

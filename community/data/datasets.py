@@ -181,15 +181,9 @@ class SymbolsDataset(Dataset) :
 
         self.data_config = data_config
 
-        self.symbols = ( np.zeros((5, 5)), np.zeros((5, 5)) )
-    
-        for i in range(5) : 
-            for j in range(5) : 
-                if (i + j)%4 == 2 or (i - j)%4 == 2 : 
-                    self.symbols[1][i, j] = 1
+        self.symbols = self.get_symbols()
 
-                if i%4 == 0 or j%4 == 0 : 
-                    self.symbols[0][i, j] = 1 
+        assert data_config['symbol_size'] == self.symbols[0].shape[0]
         
         if print :        
             fig, axs = plt.subplots(1, 2)
@@ -199,6 +193,19 @@ class SymbolsDataset(Dataset) :
 
         self.data = self.generate_data()
         
+
+    def get_symbols(self, type=0) : 
+
+        symbols = ( np.zeros((5, 5)), np.zeros((5, 5)) )
+       
+        for i in range(5) : 
+            for j in range(5) : 
+                if (i + j)%4 == 2 or (i - j)%4 == 2 : 
+                    symbols[1][i, j] = 1
+
+                if i%4 == 0 or j%4 == 0 : 
+                    symbols[0][i, j] = 1 
+        return symbols
 
 
     def get_probabilities(self, n_classes) : 

@@ -80,7 +80,7 @@ def train_and_compute_metrics(p_con, config, loaders, device) :
 
     community = trained_coms['With Bottleneck']
     #print('Bottlenecks Retrain')
-    bottleneck_results = readout_retrain(community, loaders, deepR_params_dict=deepR_params_dict, n_tests=1, n_epochs=2, device=device, use_tqdm=1, symbols=symbols)
+    bottleneck_results = readout_retrain(community, loaders, deepR_params_dict=deepR_params_dict, n_tests=1, n_epochs=3, device=device, use_tqdm=1, symbols=symbols)
     bottleneck_metric = bottleneck_results['accs'].mean(0)
 
     diff_metric = lambda metric, ag : (metric[ag, ag] - metric[1-ag, ag]) / (metric[ag, ag] + metric[1-ag, ag])
