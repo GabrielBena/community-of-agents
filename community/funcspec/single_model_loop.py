@@ -16,7 +16,6 @@ def train_and_compute_metrics(p_con, config, loaders, device) :
 
     deepR_params_dict = config['optimization']['connections']
     params_dict = config['optimization']['agents']
-    symbols = config['datasets']['data_type'] == 'symbols'
 
     wandb.define_metric('p_connection')
     wandb.log({'p_connection' : p_con})
@@ -55,6 +54,17 @@ def train_and_compute_metrics(p_con, config, loaders, device) :
             trained_coms[f'With{(1-use_bottleneck)*"out"} Bottleneck'] = copy.deepcopy(community)
 
     # ------ Metrics ------
+    
+    metric_results, all_metric_results = compute_all_metrics(trained_coms, loaders, config, device)
+
+    return metric_results, train_outs, all_metric_results
+
+
+def compute_all_metrics(trained_coms, loaders, config, device) : 
+
+    symbols = config['datasets']['data_type'] == 'symbols'
+    deepR_params_dict = config['optimization']['connections']
+
 
     for n in range(2) : 
         wandb.define_metric(f'Correlation Diff {n}', step_metric='p_connection')
@@ -107,4 +117,5 @@ def train_and_compute_metrics(p_con, config, loaders, device) :
         
         wandb.log(metric_log)
 
-    return metric_results, train_outs, all_metric_results
+    return metric_results, all_metric_results
+

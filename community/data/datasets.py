@@ -176,37 +176,57 @@ class MultiDataset(Dataset) :
 
 class SymbolsDataset(Dataset) : 
 
-    def __init__(self, data_config, print=False) -> None:
+    def __init__(self, data_config, plot=False) -> None:
         super().__init__()
 
         self.data_config = data_config
 
-        self.symbols = self.get_symbols()
+        self.symbols = self.get_symbols(data_config['symbol_type'])
 
-        assert data_config['symbol_size'] == self.symbols[0].shape[0]
+        self.symbol_size = self.symbols[0].shape[0]
         
-        if print :        
+        if plot :        
             fig, axs = plt.subplots(1, 2)
             for ax, sym in zip(axs, self.symbols) : 
                 ax.imshow(sym)
             plt.show()
 
+        self.regen_trajs = False
+        self.regen_labels = False
+        self.regenerate = False
+
         self.data = self.generate_data()
+
+
+    def get_symbols(self, s_type=0) : 
+
+        if s_type == '0' : 
+
+            symbols = ( np.zeros((5, 5)), np.zeros((5, 5)) )
         
+            for i in range(5) : 
+                for j in range(5) : 
+                    if (i + j)%4 == 2 or (i - j)%4 == 2 : 
+                        symbols[1][i, j] = 1
 
-    def get_symbols(self, type=0) : 
+                    if i%4 == 0 or j%4 == 0 : 
+                        symbols[0][i, j] = 1 
 
-        symbols = ( np.zeros((5, 5)), np.zeros((5, 5)) )
-       
-        for i in range(5) : 
-            for j in range(5) : 
-                if (i + j)%4 == 2 or (i - j)%4 == 2 : 
-                    symbols[1][i, j] = 1
+        elif s_type == '1' : 
 
-                if i%4 == 0 or j%4 == 0 : 
-                    symbols[0][i, j] = 1 
+            X = np.array([[1, 0, 1], [0, 1, 0], [1, 0, 1]])
+            C = np.array([[0, 1, 0], [1, 1, 1], [0, 1, 0]])
+
+            symbols = X, C
+
+        elif 'random' in s_type : 
+            s_size = int(s_type.split('_')[-1])
+            symbols = ( np.random.randint(0, 2, size=(s_size, s_size)), np.random.randint(0, 2, size=(s_size, s_size)) )
+
+        else : 
+            raise NotImplementedError(' Provide symbol type in [0, 1, "random_{size}"] ')
+            
         return symbols
-
 
     def get_probabilities(self, n_classes) : 
 
@@ -239,50 +259,55 @@ class SymbolsDataset(Dataset) :
 
         return x_final
 
-    def get_random_symbol_data(self, data_size, nb_steps,  n_symbols, symbol_size, input_size, static, inv) : 
+    def get_symbol_data(self, data_size, nb_steps,  n_symbols, symbol_type, input_size, static, inv) : 
+
+        symbol_size = self.symbol_size
         
         assert np.remainder(input_size, symbol_size) == 0
         n_grid = input_size//symbol_size 
 
         assert n_symbols <= n_grid
 
-        self.symbols = self.symbols[::-1] if inv else self.symbols
+        if not self.regen_trajs: 
+            if static : 
+                squares = list(range((n_grid)**2))
+                positions = np.stack([np.random.choice(squares, n_symbols, replace=False) for _ in tqdm(range(data_size), desc='Generating Data')])
+                centers = np.stack(
+                    [np.array(np.unravel_index(positions, (n_grid, n_grid))).transpose(1, 2, 0) * symbol_size
+                    for _ in range(nb_steps)])
+                jitter = np.repeat(np.random.random_integers(-1, 0, (data_size, 2))[:, None, :], n_symbols, axis=1)
 
-        if static : 
-                
-            squares = list(range((n_grid)**2))
-            positions = np.stack([np.random.choice(squares, n_symbols, replace=False) for _ in tqdm(range(data_size), desc='Generating Data')])
-            centers = np.stack(
-                [np.array(np.unravel_index(positions, (n_grid, n_grid))).transpose(1, 2, 0) * symbol_size
-                for _ in range(nb_steps)])
-            jitter = np.repeat(np.random.random_integers(-1, 0, (data_size, 2))[:, None, :], n_symbols, axis=1)
+            else : 
+                centers = np.stack(
+                    [[np.stack(
+                        self.get_random_trajectory(nb_steps, input_size, symbol_size)).T for _ in range(n_symbols)]
+                        for _ in tqdm(range(data_size), desc='Generating Data')]
+                                    
+                    ).transpose(2, 0, 1, -1)
+
+            centers = np.concatenate((centers, centers[::-1]))
 
         else : 
-            centers = np.stack(
-                [[np.stack(
-                    self.get_random_trajectory(nb_steps, input_size, symbol_size)).T for _ in range(n_symbols)]
-                    for _ in tqdm(range(data_size), desc='Generating Data')]
-                                
-                ).transpose(2, 0, 1, -1)
-            #return 0, 0, 0, centers
-            ""
+            centers = self.data[-1]
 
-        probas = self.get_probabilities(n_symbols+1)
-        labels = np.random.multinomial(1, probas, size=(data_size)).argmax(-1)
-        #labels = np.random.random_integers(0, 1, (data_size, n_symbols)).sum(-1)
-        #labels = np.random.random_integers(0, n_symbols, data_size)
+        if not self.regen_labels : 
 
-        #print(np.unique(labels, return_counts=True))
+            probas = self.get_probabilities(n_symbols+1)
+            labels = np.random.multinomial(1, probas, size=(data_size)).argmax(-1)
+        else : 
+            labels = self.data[1]
 
-        grids = self.place_symbols_from_centers(centers, labels, data_size, input_size, symbol_size)
+        grids = self.place_symbols_from_centers(centers, labels, data_size, input_size, symbol_size, inv)
+        
+        return torch.from_numpy(grids).transpose(0, 1), torch.from_numpy(labels), torch.from_numpy(centers).transpose(0, 1) #, torch.from_numpy(jitter)
 
-        return torch.from_numpy(grids).transpose(0, 1), torch.from_numpy(labels), torch.from_numpy(centers)#, torch.from_numpy(jitter)
+    def place_symbols_from_centers(self, centers, labels, data_size, input_size, symbol_size, inv) : 
 
-    def place_symbols_from_centers(self, centers, labels, data_size, input_size, symbol_size) : 
+        symbols = self.symbols[::-1] if inv else self.symbols
 
         grids = []
         def assign_square(grid, center_pos, l, d) : 
-            grid[d, center_pos[0] : center_pos[0] + symbol_size, center_pos[1] : center_pos[1] + symbol_size] += self.symbols[l]
+            grid[d, center_pos[0] : center_pos[0] + symbol_size, center_pos[1] : center_pos[1] + symbol_size] += symbols[l]
 
         for center in centers : 
             grid = np.zeros((data_size, input_size, input_size))
@@ -297,6 +322,7 @@ class SymbolsDataset(Dataset) :
         return np.stack(grids)
 
     def get_random_trajectory(self, seq_length, image_size, symbol_size, step_length=0.2):
+
         """
         Generate a trajectory
         https://tcapelle.github.io/pytorch/fastai/cv/2021/05/01/moving_mnist.html
@@ -336,16 +362,24 @@ class SymbolsDataset(Dataset) :
 
     def generate_data(self) : 
 
-        datas = self.get_random_symbol_data(**self.data_config, inv=False), self.get_random_symbol_data(**self.data_config, inv=True)
+        datas = self.get_symbol_data(**self.data_config, inv=False), self.get_symbol_data(**self.data_config, inv=True)
         data = [torch.stack((d1, d2), axis=1) for d1, d2 in zip(*datas)]
         return data
     
     def __len__(self) : 
         return self.data_config['data_size']
 
-    def __getitem__(self, index: Any):
-
-        return self.data[0][index].transpose(0, 1), self.data[1][index]
+    def __getitem__(self, index: Any, inv=False):
+        if not self.regenerate : 
+            return self.data[0][index].transpose(0, 1), self.data[1][index]
+        else : 
+            centers, labels = self.data[-1][index].unsqueeze(2), self.data[1][index]
+            #print(centers.shape, labels)
+            new_data = []
+            for ag, (c, l, i)in enumerate(zip(centers, labels, [inv, ~inv])) : 
+                new_data.append(self.place_symbols_from_centers(c, [l], 1, self.data_config['input_size'], self.symbol_size,inv=i)[:, 0, ...])
+            
+            return torch.from_numpy(np.stack(new_data)).transpose(0, 1), labels
 
 def get_datasets_alphabet(root, batch_size=256, use_cuda=True, fix_asym=False, n_classes=10, split_classes=True) :
         
@@ -408,8 +442,7 @@ def get_datasets_alphabet(root, batch_size=256, use_cuda=True, fix_asym=False, n
 
     return multi_loaders, double_loaders_dig, double_loaders_letters, single_loaders_dig, single_letters
 
-
-def get_datasets_symbols(data_config, batch_size=128, use_cuda=True, n_classes=10) : 
+def get_datasets_symbols(data_config, batch_size=128, use_cuda=True, n_classes=10, plot=False) : 
 
     train_kwargs = {'batch_size': batch_size, 'shuffle' : True}
     test_kwargs = {'batch_size': batch_size, 'shuffle' : False, 'drop_last' : True}
@@ -427,7 +460,8 @@ def get_datasets_symbols(data_config, batch_size=128, use_cuda=True, n_classes=1
     kwargs = train_kwargs, test_kwargs
 
     data_configs = ({k : v[0] if i == 0 else v for i, (k, v) in enumerate(data_config.items()) }, {k : v[1] if i == 0 else v for i, (k, v) in enumerate(data_config.items()) })
-    datasets = [SymbolsDataset(d) for d in data_configs]
+    datasets = [SymbolsDataset(d, plot=plot) for d in data_configs]
+    datasets[1].symbols = datasets[0].symbols
     dataloaders = [torch.utils.data.DataLoader(d, **k) for d, k in zip(datasets, kwargs)]
 
     return dataloaders, datasets

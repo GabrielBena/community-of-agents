@@ -134,19 +134,18 @@ def create_gifs(data, target, name, input_size, task=None) :
 
     def create_gif(img_list, l, w, name) : 
             
-            images_list = [Image.fromarray(img.reshape(w, l)).resize((256, 256)) for img in img_list]
-            images_list = images_list # + images_list[::-1] # loop back beginning
+        images_list = [Image.fromarray(img.reshape(w, l)).resize((256, 256)) for img in img_list]
+        images_list = images_list # + images_list[::-1] # loop back beginning
 
-            images_list[0].save(
-                f'{name}.gif', 
-                save_all=True, 
-                append_images=images_list[1:],
-                loop=0)
+        images_list[0].save(
+            f'{name}.gif', 
+            save_all=True, 
+            append_images=images_list[1:],
+            loop=0)
 
-    [create_gif(img_list(i), input_size, 2*input_size, 'gifs/' + f'{name}_{i}_{target[i].data.item()}') for i in range(10)];
+    [create_gif(img_list(i), input_size, 2*input_size, 'gifs/' + f'{name}_{i}_{target[i].cpu().data.numpy()}') for i in range(min(10, len(target))) ];
 
     
-
 # ------ Others ------
 
 def rescue_code(function):
