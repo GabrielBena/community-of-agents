@@ -8,6 +8,8 @@ from typing import Any, Callable, Dict, List, Optional
 import matplotlib.pyplot as plt
 from tqdm import tqdm
 from scipy.optimize import fmin_cobyla
+from itertools import permutations
+
 
 class Custom_EMNIST(datasets.EMNIST) : 
     def __init__(self, root: str, train: bool = True,data_type: str = 'digits',
@@ -182,8 +184,8 @@ class SymbolsDataset(Dataset) :
         self.data_config = data_config
 
         self.symbols = self.get_symbols(data_config['symbol_type'])
-
         self.symbol_size = self.symbols[0].shape[0]
+        self.n_symbols = data_config['n_symbols']
         
         if plot :        
             fig, axs = plt.subplots(1, 2)
@@ -191,13 +193,20 @@ class SymbolsDataset(Dataset) :
                 ax.imshow(sym)
             plt.show()
 
-        self.regen_trajs = False
-        self.regen_labels = False
+        #Permutation of ways to assign symbols, for each label
+        symbol_assignments = [np.zeros(self.n_symbols, dtype=int) for _ in range(self.n_symbols + 1)]
+        for l, s_assign in enumerate(symbol_assignments) : 
+            s_assign[:l] = 1    
+            symbol_assignments[l] = list(set(permutations(s_assign)))
+        
+        self.symbol_assignments = symbol_assignments
+        self.symbol_assignments_len = [len(s) for s in self.symbol_assignments]
+
+        #Set this to True to regenerate random symbol assignments at each call of __getitem__
         self.regenerate = False
 
         self.data = self.generate_data()
-
-
+        
     def get_symbols(self, s_type=0) : 
 
         if s_type == '0' : 
@@ -268,54 +277,55 @@ class SymbolsDataset(Dataset) :
 
         assert n_symbols <= n_grid
 
-        if not self.regen_trajs: 
-            if static : 
-                squares = list(range((n_grid)**2))
-                positions = np.stack([np.random.choice(squares, n_symbols, replace=False) for _ in tqdm(range(data_size), desc='Generating Data')])
-                centers = np.stack(
-                    [np.array(np.unravel_index(positions, (n_grid, n_grid))).transpose(1, 2, 0) * symbol_size
-                    for _ in range(nb_steps)])
-                jitter = np.repeat(np.random.random_integers(-1, 0, (data_size, 2))[:, None, :], n_symbols, axis=1)
+        if static : 
+            squares = list(range((n_grid)**2))
+            positions = np.stack([np.random.choice(squares, n_symbols, replace=False) for _ in tqdm(range(data_size), desc='Generating Data')])
+            centers = np.stack(
+                [np.array(np.unravel_index(positions, (n_grid, n_grid))).transpose(1, 2, 0) * symbol_size
+                for _ in range(nb_steps)])
+            jitter = np.repeat(np.random.random_integers(-1, 0, (data_size, 2))[:, None, :], n_symbols, axis=1)
 
-            else : 
-                centers = np.stack(
-                    [[np.stack(
-                        self.get_random_trajectory(nb_steps, input_size, symbol_size)).T for _ in range(n_symbols)]
-                        for _ in tqdm(range(data_size), desc='Generating Data')]
-                                    
-                    ).transpose(2, 0, 1, -1)
+        else : 
+            centers = np.stack(
+                [[np.stack(
+                    self.get_random_trajectory(nb_steps, input_size, symbol_size)).T for _ in range(n_symbols)]
+                    for _ in tqdm(range(data_size), desc='Generating Data')]
+                                
+                ).transpose(2, 0, 1, -1)
 
+        if not self.data_config['static'] : 
             centers = np.concatenate((centers, centers[::-1]))
 
-        else : 
-            centers = self.data[-1]
+        probas = self.get_probabilities(n_symbols+1)
+        #probas = np.ones(n_symbols + 1) / (n_symbols + 1)
 
-        if not self.regen_labels : 
-
-            probas = self.get_probabilities(n_symbols+1)
-            labels = np.random.multinomial(1, probas, size=(data_size)).argmax(-1)
-        else : 
-            labels = self.data[1]
+        labels = np.random.multinomial(1, probas, size=(data_size)).argmax(-1)
 
         grids = self.place_symbols_from_centers(centers, labels, data_size, input_size, symbol_size, inv)
         
         return torch.from_numpy(grids).transpose(0, 1), torch.from_numpy(labels), torch.from_numpy(centers).transpose(0, 1) #, torch.from_numpy(jitter)
 
-    def place_symbols_from_centers(self, centers, labels, data_size, input_size, symbol_size, inv) : 
+    def place_symbols_from_centers(self, centers, labels, data_size, input_size, symbol_size, inv, symbol_assigns=None) : 
 
         symbols = self.symbols[::-1] if inv else self.symbols
 
         grids = []
         def assign_square(grid, center_pos, l, d) : 
             grid[d, center_pos[0] : center_pos[0] + symbol_size, center_pos[1] : center_pos[1] + symbol_size] += symbols[l]
+                
+        if symbol_assigns is None or None in symbol_assigns: 
+            symbol_assigns = [np.random.choice(self.symbol_assignments_len[l]) for l in labels]
+            symbol_assignments = [self.symbol_assignments[l][n_assign] for l, n_assign in zip(labels, symbol_assigns)]
+        else : 
+            symbol_assignments = symbol_assigns
 
-        for center in centers : 
+
+        for t, center in enumerate(centers) : 
             grid = np.zeros((data_size, input_size, input_size))
-
             for d in range(data_size) : 
                 for i, c in enumerate(center[d]) : 
-                    l = int(i < labels[d])
-                    assign_square(grid, (c[0], c[1]), l, d)
+                    #l = int(i < labels[d])
+                    assign_square(grid, (c[0], c[1]), symbol_assignments[d][i], d)
 
             grids.append(grid)
             
@@ -369,15 +379,20 @@ class SymbolsDataset(Dataset) :
     def __len__(self) : 
         return self.data_config['data_size']
 
-    def __getitem__(self, index: Any, inv=False):
+    def __getitem__(self, index: Any, inv=False, symbol_assigns=[None, None]):
+
         if not self.regenerate : 
             return self.data[0][index].transpose(0, 1), self.data[1][index]
         else : 
             centers, labels = self.data[-1][index].unsqueeze(2), self.data[1][index]
-            #print(centers.shape, labels)
             new_data = []
-            for ag, (c, l, i)in enumerate(zip(centers, labels, [inv, ~inv])) : 
-                new_data.append(self.place_symbols_from_centers(c, [l], 1, self.data_config['input_size'], self.symbol_size,inv=i)[:, 0, ...])
+            for ag, (c, l, i, s_a)in enumerate(zip(centers, labels, [inv, not inv], symbol_assigns)) : 
+                new_data.append(self.place_symbols_from_centers(c, [l], 1,
+                                                                self.data_config['input_size'],
+                                                                self.symbol_size,
+                                                                inv=i,
+                                                                symbol_assigns=[s_a])[:, 0, ...])
+                                                                
             
             return torch.from_numpy(np.stack(new_data)).transpose(0, 1), labels
 
