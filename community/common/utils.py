@@ -119,7 +119,7 @@ def plot_grid(imgs, labels=None, row_title=None, figsize=None, save_loc=None, **
 from PIL import Image
 import shutil, os
 
-def create_gifs(data, target, name, input_size, task=None) : 
+def create_gifs(data, target=None, name='gif', input_size=30, task=None) : 
 
     if task : target = get_task_target(target, task)
     
@@ -143,7 +143,13 @@ def create_gifs(data, target, name, input_size, task=None) :
             append_images=images_list[1:],
             loop=0)
 
-    [create_gif(img_list(i), input_size, 2*input_size, 'gifs/' + f'{name}_{i}_{target[i].cpu().data.numpy()}') for i in range(min(10, len(target))) ];
+    data_size = data.shape[2]
+    if target is None : 
+        target = ['' for _ in range(data_size)]
+    else : 
+        target = target.cpu().data.numpy()
+
+    [create_gif(img_list(i), input_size, 2*input_size, 'gifs/' + f'{name}_{i}_{target[i]}') for i in range(min(10, len(target))) ];
 
     
 # ------ Others ------
