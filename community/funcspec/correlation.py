@@ -94,7 +94,7 @@ def pearsonr_numpy(x, y) :
     return r_val
     
 #v_pearsonr = vmap(pearsonr)
-v_pearsonr = np.vectorize(pearsonr, signature='(n),(n)->(),()')
+v_pearsonr = np.vectorize(pearsonr, signature='(n1),(n2)->(),()')
 #v_pearsonr = np.vectorize(pearsonr_numpy, )
 
 def randperm_no_fixed(n) : 
