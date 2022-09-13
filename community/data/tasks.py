@@ -4,11 +4,8 @@ import torchvision.transforms.functional as TF
 
 
 def get_digits(target, n_classes=10) : 
-    if len(target.shape) > 1 : 
-        return target[..., 0], target[..., 1]
-    else :
-        d1 = torch.div(target, n_classes, rounding_mode='floor')
-        return d1, target - d1*n_classes
+
+    return target[..., 0], target[..., 1]
 
 def rotation_conflict_task(datas, digits, n_angles=4) : 
     device = datas.device
@@ -47,75 +44,61 @@ def get_task_target(target, task='parity_digits_10', temporal_target=False) :
 
     else : 
 
-        digits = digits_1, digits_2 = get_digits(target, n_classes)
-        parity = (digits_1 + digits_2)%2  #0 when same parities
-        
-        global_target = (digits_1*10 + digits_2)
-        global_target_inv = (digits_1 + digits_2*10)
+        new_target = None
 
-        try : 
-            task = int(task)
-            return digits[task] 
-            
-        except ValueError : 
+        #Task can be a combination of subtasks, separated by _
+        tasks = task.split('_')
 
-            if task == 'parity' : 
-                return parity
+        if 'inv' in tasks : 
+            new_target = target.flip(-1)
+            digits = digits_0, digits_1 = get_digits(new_target, n_classes)
+        else : 
+            digits = digits_0, digits_1 = get_digits(target, n_classes)
 
-            if task == 'inv' : 
-                return torch.stack(digits[::-1])
-                
-            elif 'parity_digits_100' in task : 
-                if not 'inv' in task : 
-                    return global_target*(1-parity) + global_target_inv*parity
-                else : 
-                    return global_target*(parity) + global_target_inv*(1 - parity)    
-            
-            elif 'both_parity_digits' in task : 
-                target_1 = digits_1*(1-parity) + digits_2*parity
-                target_2 = digits_1*(parity) + digits_2*(1-parity)
-                return torch.stack((target_1, target_2))
+        parity = (digits_0 + digits_1)%2  #0 when same parity
+        target_100 = (digits_0*10 + digits_1)
 
-            elif 'parity_digits' in task :
-                if not 'inv' in task :
-                    return digits_1*(1-parity) + digits_2*parity
-                else :
-                    return digits_1*(parity) + digits_2*(1-parity)
+        if 'parity' in tasks : 
+            if 'digits' in tasks : 
+                new_target = torch.where(parity.bool(), digits_0, digits_1)
+            elif 'both' in tasks : 
+                new_target = torch.stack(torch.where(parity.bool(), digits_0, digits_1), torch.where(parity.bool(), digits_1, digits_0))
+            else : 
+                new_target = parity
 
-            elif task == 'sum' : 
-                return digits[0] + digits[1]
+        elif '100_class' in tasks: 
+            new_target = target_100
 
-            elif 'opposite' == task : 
-                return target.flip(1)
+        elif 'count' in tasks : 
 
-            elif '100_class' in task: 
-                if 'inv' in task : 
-                    return global_target_inv
-                else : 
-                    return global_target
-
-            elif 'count' in task : 
+            if 'max' in tasks : 
                 new_target = torch.where(target.argmax(-1).bool(), target[:, 1], target[:, 0])
                 new_target[target[:, 0] == target[:, 1]] = 0
-                return new_target
+            elif 'min' in tasks : 
+                new_target = torch.where(target.argmin(-1).bool(), target[:, 1], target[:, 0])
+                new_target[target[:, 0] == target[:, 1]] = 3
+            elif 'equal' in tasks : 
+                new_target = target[:, 0] != target[:, 1]
 
-            elif task == 'none' : 
-                return target.transpose(0, 1)
+        elif task == 'none' : 
+            new_target = target.transpose(0, 1)
 
-            elif task == 'both' : 
-                return torch.stack([digits_1*(1-parity) + digits_2*parity, digits_1*(parity) + digits_2*(1-parity)])
+        if 'sum' in tasks : 
+            new_target = target.sum(-1)
 
-            elif task == 'both_100' : 
-                return torch.stack([global_target*(1-parity) + global_target_inv*parity, global_target*(parity) + global_target_inv*(1-parity)])
-
-            elif task == '20_class_parity_based' : 
-                parities = [d%2 for d in digits]
-                targets = [d + p*10 for d, p in zip(digits, parities[::-1])]
-                return torch.stack(targets)
-                
-            else : 
-                raise ValueError('Task recognized, try digit number ("0", "1"), "parity", "parity_digits", "parity_digits_100" or "sum" ')
-                       
+        try : 
+            task = int(tasks[-1])
+            if new_target is None : 
+                new_target = target
+            new_target = new_target[..., task] 
+            
+        except ValueError : 
+            'continue'
+            
+        if new_target is None : 
+            raise ValueError('Task recognized, try digit number ("0", "1"), "parity", "parity_digits", "parity_digits_100" or "sum" ')
+                    
+        return new_target
 #------ Continual Learning Tasks ------ : 
 
 def get_continual_task(data, target, task, seed, n_tasks=None, n_classes=10) : 

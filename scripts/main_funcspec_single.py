@@ -1,6 +1,6 @@
 from multiprocessing import connection
 from os import mkdir
-from community.common.wandb_utils import mkdir_or_save_torch
+from community.utils.wandb_utils import mkdir_or_save_torch
 import torch
 import numpy as np
 import torch.nn as nn
@@ -18,18 +18,21 @@ if __name__ == "__main__":
     use_cuda = True
     device = torch.device("cuda" if use_cuda else "cpu")
 
-    n_classes = np.random.randint(2, 6)
+    n_classes = np.random.choice([2, 5, 10])
+    #n_classes = 10
     print(f'Training for {n_classes} classes')
 
-    symbol_config = {'data_size' : (30000, 5000),
+    symbol_config = {'data_size' : [30000, 5000],
                                 'nb_steps' : 50,
                                 'n_symbols' : n_classes - 1,
-                                'symbol_size' : 5,
-                                'input_size' : 30,
-                                'static' : False
+                                'input_size' : 50,
+                                'static' : True, 
+                                'symbol_type' : '0'
                     }
+                    
     if symbol_config['static'] :
         symbol_config['nb_steps'] = 2
+        symbol_config['data_size'] = [d*2 for d in symbol_config['data_size']]
 
     dataset_config = {'batch_size' : 256, 
                       'use_cuda' : use_cuda, 
@@ -40,7 +43,6 @@ if __name__ == "__main__":
                       'n_classes' : n_classes,
                       'symbol_config' : symbol_config
     }
-    
     
     if dataset_config['data_type'] == 'symbols' : 
         loaders, datasets = get_datasets_symbols(symbol_config,
@@ -62,8 +64,8 @@ if __name__ == "__main__":
     agents_params_dict = {'n_agents' : 2,
                          'n_in' : dataset_config['input_size'],
                          'n_ins' : None,
-                         'n_hid' : 50,
-                         'n_layer' : 1,
+                         'n_hid' : 25,
+                         'n_layer' : 2,
                          'n_out' : dataset_config['n_classes'],
                          'train_in_out': (True, True),
                          'use_readout': True,
@@ -107,7 +109,7 @@ if __name__ == "__main__":
             'stopping_acc' : 0.95,
             'early_stop' : False
         },       
-        'task' : 'count',
+        'task' : 'max_count',
         'p_cons' : p_cons_params,
         'do_training' : True
     }
