@@ -11,7 +11,10 @@ wandb
 !/community/data
 artifacts
 gifs/
+saves/
+graphs/
 
+*.code-workspace
 
 # Distribution / packaging
 .Python
