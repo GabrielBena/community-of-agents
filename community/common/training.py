@@ -7,17 +7,19 @@ import copy
 from tqdm.notebook import tqdm as tqdm_n
 from tqdm import tqdm
 import wandb
+import seaborn as sns
+import matplotlib.pyplot as plt
 
 from .init import init_community, init_optimizers
-from .utils import check_grad, is_notebook
-from .wandb_utils import get_training_dict, mkdir_or_save_torch
+from ..utils.others import check_grad, is_notebook
+from ..utils.wandb_utils import get_training_dict, mkdir_or_save_torch
 
 from .models.ensembles import ConvCommunity
 from .decision import get_decision
-from ..data.process import process_data
+from ..data.process import process_data, get_task_target
 
 from deepR.models import step_connections
-                    
+
 #------ Training and Testing functions ------
             
 def train_community(model, train_loader, test_loader, optimizers, schedulers=None,
@@ -308,6 +310,48 @@ def test_community(model, device, test_loader, decision_params=('last', 'max'), 
     if verbose : print(desc)
         
     return desc, test_loss.cpu().data.item(), acc, deciding_agents
+
+def plot_confusion_mat(model, test_loader, config, device=torch.device('cuda')) : 
+
+    accs = []
+    targets, t_targets = [], []
+
+    task = config['task']
+    symbols = config['data_type'] == 'symbols'
+    decision_params = config['decision_params']
+
+    conv_com = type(model) is ConvCommunity
+
+    for batch_idx, (data, target) in enumerate(test_loader) : 
+        
+        data, target = process_data(data, target, task, conv_com, symbols=symbols)
+
+        t_target = get_task_target(target, task).to(device)
+
+        outputs, states, conns = model(data)
+        #print((outputs[-1][0] == outputs[-1][1]).all())
+        output, deciding_ags = get_decision(outputs, decision_params, target)
+
+        loss = F.cross_entropy(output, t_target)
+
+        pred = output.argmax(dim=-1, keepdim=True)
+        correct = pred.eq(t_target.view_as(pred)).cpu().data
+        targets.append(target.cpu())
+        t_targets.append(t_target.cpu())
+        accs.append(correct)
+
+    accs, targets = torch.cat(accs), torch.cat(targets)
+    n_classes = len(targets.unique())
+    t_masks = [(targets == t ).all(1) for t in targets.unique(dim=0)]
+
+    acc_per_target = [accs[m].float().mean() for m in t_masks]
+    acc_per_target = np.array([accs[m].float().mean() for m in t_masks]).reshape(n_classes, n_classes)
+    
+    #acc_per_target = np.array([[acc_per_target[t1*n_classes + t2].cpu().data.item() for t1 in range(n_classes)] for t2 in range(n_classes)])
+
+    ax = sns.heatmap(acc_per_target, cmap="inferno", annot=acc_per_target.round(1).astype(str), annot_kws={'fontsize': 10}, fmt='s')
+    ax.set_title('Confusion Matrix')   
+    plt.show()
 
 def compute_trained_communities(p_cons, loaders, device=torch.device('cuda'), notebook=False, 
                                 config=None) : 
