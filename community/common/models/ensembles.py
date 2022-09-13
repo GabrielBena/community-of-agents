@@ -5,7 +5,7 @@ import numpy as np
 
 from .connections import MaskedLinear, Sparse_Connect
 from .agents import Agent
-from ..utils import get_output_shape
+from ...utils.model import get_output_shape
 
 class Community(nn.Module) : 
     """

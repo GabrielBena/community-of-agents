@@ -14,8 +14,8 @@ warnings.filterwarnings('ignore')
 
 from community.common.training import train_community
 from community.common.init import init_community
-from community.common.utils import is_notebook
-from community.common.wandb_utils import get_wandb_artifact, mkdir_or_save_torch
+from community.utils.others import is_notebook
+from community.utils.wandb_utils import get_wandb_artifact, mkdir_or_save_torch
 from .subnets import GetSubnet_global
 
 # ------ Weight Masks Models ------

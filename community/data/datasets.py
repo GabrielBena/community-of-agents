@@ -296,8 +296,8 @@ class SymbolsDataset(Dataset) :
         if not self.data_config['static'] : 
             centers = np.concatenate((centers, centers[::-1]))
 
-        probas = self.get_probabilities(n_symbols+1)
-        #probas = np.ones(n_symbols + 1) / (n_symbols + 1)
+        #probas = self.get_probabilities(n_symbols+1)
+        probas = np.ones(n_symbols + 1) / (n_symbols + 1)
 
         labels = np.random.multinomial(1, probas, size=(data_size)).argmax(-1)
 
@@ -459,7 +459,7 @@ def get_datasets_alphabet(root, batch_size=256, use_cuda=True, fix_asym=False, n
 
 def get_datasets_symbols(data_config, batch_size=128, use_cuda=True, n_classes=10, plot=False) : 
 
-    train_kwargs = {'batch_size': batch_size, 'shuffle' : True}
+    train_kwargs = {'batch_size': batch_size, 'shuffle' : True, 'drop_last' : True}
     test_kwargs = {'batch_size': batch_size, 'shuffle' : False, 'drop_last' : True}
     if use_cuda:
         cuda_kwargs = {'num_workers': 0,
@@ -480,9 +480,5 @@ def get_datasets_symbols(data_config, batch_size=128, use_cuda=True, n_classes=1
     dataloaders = [torch.utils.data.DataLoader(d, **k) for d, k in zip(datasets, kwargs)]
 
     return dataloaders, datasets
-
-
-
-
 
 

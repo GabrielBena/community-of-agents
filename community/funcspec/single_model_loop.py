@@ -4,7 +4,7 @@ from community.funcspec.bottleneck import readout_retrain
 from community.funcspec.correlation import get_pearson_metrics
 from community.common.training import train_community
 from community.common.init import init_community, init_optimizers
-from community.common.wandb_utils import get_training_dict
+from community.utils.wandb_utils import get_training_dict
 import numpy as np
 import copy
 
