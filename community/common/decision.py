@@ -33,16 +33,22 @@ def max_decision(outputs) :
     return (outputs*mask).sum(0), deciding_ags
 
 def get_decision(outputs, temporal_decision='last', agent_decision='0', target=None):
-    if temporal_decision == 'last' : 
-        outputs = outputs[-1]
-    elif temporal_decision == 'sum' : 
-        outputs = torch.sum(outputs, axis=0)
-    elif temporal_decision == 'mean' :
-        outputs = torch.mean(outputs, axis=0)
-    elif temporal_decision == None : 
-        outputs = outputs
-    else : 
-        raise ValueError('temporal decision not recognized, try "last", "sum" or "mean" ')
+
+    try : 
+        deciding_ts = int(temporal_decision)
+        outputs = outputs[deciding_ts]
+    except ValueError : 
+            
+        if temporal_decision == 'last' : 
+            outputs = outputs[-1]
+        elif temporal_decision == 'sum' : 
+            outputs = torch.sum(outputs, axis=0)
+        elif temporal_decision == 'mean' :
+            outputs = torch.mean(outputs, axis=0)
+        elif temporal_decision == None : 
+            outputs = outputs
+        else : 
+            raise ValueError('temporal decision not recognized, try "last", "sum" or "mean", or time_step of decision ("0", "-1" ) ')
         
     if len(outputs.shape) == 2 : 
         return outputs, None
