@@ -21,7 +21,66 @@ from ..data.process import process_data, get_task_target
 from deepR.models import step_connections
 
 #------ Training and Testing functions ------
-            
+
+def get_loss_and_target(output, target, joint_training=False) : 
+
+    """
+    3 possibilities : 
+        -Single target for both agents (joint training)
+        -Double target for single decision (take_min_loss)
+        -Double target for both agents (take_avg_loss)
+    """
+    """
+    if len(output.shape)==2 : 
+        output = output.unsqueeze(0)     
+    if len(target.shape)==1 : 
+        target = target.unsqueeze(0)
+    
+    if joint_training : 
+        target = target.expand([2] + list(target.shape[1:]))
+        take_min_loss = False
+    elif target.transpose(0, 1).shape == output.shape[:-1] : 
+        target = target.transpose(0, 1)
+        take_min_loss = False
+    elif target.shape[0] != output.shape[0] : 
+        take_min_loss = True
+    else : 
+        take_min_loss = False
+
+    target = target.contiguous()
+
+    assert target.shape == output.shape[:-1] or joint_training, print('Target and output shapes not compatible :', target.shape, output.shape)
+
+    factors = [1, 1]
+
+    if take_min_loss : 
+        loss, min_idxs = torch.stack([F.cross_entropy(output[0], tgt, reduction='none') for tgt in target]).min(0)
+        loss = loss.mean()
+    else  : 
+        loss = torch.stack([F.cross_entropy(out, tgt)*f for (out, tgt, f) in zip(output, target, factors)]).mean()
+
+    if take_min_loss : 
+        target = torch.where(~min_idxs.bool(), target[0], target[1])
+    """
+
+    try : 
+        loss = F.cross_entropy(output, target, reduction='none').mean()
+        #if task == 'equal_count' : 
+        #loss[t_target == 0] *= 2
+        output = output.unsqueeze(0)
+    except RuntimeError :        
+        #loss = F.cross_entropy(output[0], t_target[:, 0], reduction='none')
+        loss = torch.stack([F.cross_entropy(o, t, reduction='none') for o, t in zip(output, target)]).T.mean()
+        #if task == 'equal_count' : 
+            #loss[t_target.T == 0] *= 2
+    except ValueError : 
+        target = target.unsqueeze(0).expand(output.shape[:-1])
+        loss = torch.stack([F.cross_entropy(o, t, reduction='none') for o, t in zip(output, target)]).T.mean()
+
+    #print(output.shape, target.shape, take_min_loss)
+    
+    return output, target, loss
+
 def train_community(model, train_loader, test_loader, optimizers, schedulers=None,
                     config=None, trials=(True, True), joint_training=False,
                     use_tqdm=True, device=torch.device('cuda')):
@@ -111,43 +170,17 @@ def train_community(model, train_loader, test_loader, optimizers, schedulers=Non
 
                 #if deciding_ags is not None and deciding_ags.shape[0]==train_loader.batch_size: deciding_agents.append(deciding_ags.cpu().data.numpy())
                 
-                if len(output.shape)==2 : 
-                    output = output.unsqueeze(0)     
-                if len(target.shape)==1 : 
-                    target = target.unsqueeze(0)
-                
-                if joint_training : 
-                    target = target.expand([2] + list(target.shape[1:]))
-                    take_min_loss = False
-                elif target.shape[0] != output.shape[0] : 
-                    take_min_loss = True
-                else : 
-                    take_min_loss = False
-
-                #print(output.shape, target.shape, take_min_loss)
-
-                target = target.contiguous()
-
-                assert target.shape == output.shape[:-1] or take_min_loss or joint_training, print('Target and output shapes not compatible :', target.shape, output.shape)
-                
-                factors = [1, 1]
-
-                if take_min_loss : 
-                    loss, min_idxs = torch.stack([F.cross_entropy(output[0], tgt, reduction='none') for tgt in target]).min(0)
-                    loss = loss.mean()
-                else  : 
-                    loss = torch.stack([F.cross_entropy(out, tgt)*f for (out, tgt, f) in zip(output, target, factors)]).mean()
+                output, target, loss = get_loss_and_target(output, target, joint_training)
 
                 if reg_loss : 
                     reg = F.mse_loss(deciding_ags.float().mean(), torch.full_like(deciding_ags.float().mean(), 0.5))
                     loss += reg*reg_factor
 
                 pred = output.argmax(dim=-1, keepdim=True)  # get the index of the max log-probability
-                if take_min_loss : 
-                    target = torch.where(~min_idxs.bool(), target[0], target[1])
 
                 correct = pred.eq(target.view_as(pred))
-                if not joint_training : 
+
+                if output.shape[0] == 1 : # not joint_training : 
                     correct = correct.sum().cpu().data.item()
                     train_accs.append(correct/target.numel())
                 else : 
@@ -170,6 +203,7 @@ def train_community(model, train_loader, test_loader, optimizers, schedulers=Non
                                                   sparsity_list, deepR_params_dict=deepR_params_dict)
                 else : 
                     nb_new_con = 0
+
                 acc = train_accs[-1]
                 descs[0] = str('Train Epoch: {} [{}/{} ({:.0f}%)] Loss: {:.3f}, Accuracy: {}%, New Cons: {}'.format(
                         epoch, batch_idx * train_loader.batch_size, len(train_loader.dataset),
@@ -259,45 +293,20 @@ def test_community(model, device, test_loader, decision_params=('last', 'max'), 
             output, deciding_ags = get_decision(output, *decision_params, target=target)
             if deciding_ags is not None and deciding_ags.shape[0]==test_loader.batch_size: deciding_agents.append(deciding_ags.cpu().data.numpy())
             
-            if len(output.shape)==2 : 
-                    output = output.unsqueeze(0)     
-            if len(target.shape)==1 : 
-                target = target.unsqueeze(0)
-            if joint_training : 
-                target = target.expand([2] + list(target.shape[1:]))
-                take_min_loss = False
-            elif target.shape[0] != output.shape[0] : 
-                try : 
-                    target = target.transpose(0, 1)
-                    assert target.shape == output.shape[:-1]
-                    take_min_loss = False
-                except AssertionError : 
-                    target = target.transpose(0, 1)
-                    take_min_loss = True
-            else : 
+            output, target, loss = get_loss_and_target(output, target, joint_training)
 
-                take_min_loss = False
-
-            assert target.shape == output.shape[:-1] or take_min_loss or joint_training, print(target.shape, output.shape)
-                
-            if take_min_loss : 
-                loss, min_idxs = torch.stack([F.cross_entropy(output[0], tgt, reduction='none') for tgt in target]).min(0)
-                test_loss += loss.sum()
-                target = torch.where(~min_idxs.bool(), target[0], target[1])
-            else : 
-                test_loss += torch.sum(torch.stack([F.cross_entropy(out, tgt, reduction='sum') for (out, tgt) in zip(output, target)]))
-
+            test_loss += loss
             pred = output.argmax(dim=-1, keepdim=True)  # get the index of the max log-probability
 
             c = pred.eq(target.view_as(pred))
-            if not joint_training : 
+            if output.shape[0]==1 : #not joint_training : 
                 correct += c.sum().cpu().data.item()
                 acc += c.sum().cpu().data.item()/target.numel()
             else : 
                 correct += c.flatten(start_dim=1).sum(1).cpu().data.numpy()
                 acc += c.flatten(start_dim=1).sum(1).cpu().data.numpy()/target[0].numel()
 
-    test_loss /= len(test_loader.dataset) * target.shape[0]
+    test_loss /= len(test_loader)
     acc /= len(test_loader)
 
     deciding_agents = np.array(deciding_agents)
