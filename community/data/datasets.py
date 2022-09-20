@@ -186,22 +186,38 @@ class SymbolsDataset(Dataset) :
         self.symbols = self.get_symbols(data_config['symbol_type'])
         self.symbol_size = self.symbols[0].shape[0]
         self.n_symbols = data_config['n_symbols']
+        self.double_data = data_config['double_data']
         
         if plot :        
             fig, axs = plt.subplots(1, 2)
             for ax, sym in zip(axs, self.symbols) : 
                 ax.imshow(sym)
             plt.show()
+        self.fixed_symbol_number = True
 
         #Permutation of ways to assign symbols, for each label
-        symbol_assignments = [np.zeros(self.n_symbols, dtype=int) for _ in range(self.n_symbols + 1)]
-        for l, s_assign in enumerate(symbol_assignments) : 
-            s_assign[:l] = 1    
-            symbol_assignments[l] = list(set(permutations(s_assign)))
         
+        """    
+            symbol_assignments = [[] for _ in range(self.n_symbols + 1)]
+            for l1, _ in enumerate(symbol_assignments) : 
+                for l2 in range(l1, self.n_symbols + 1) :
+                    s_assign = (np.zeros(self.n_symbols, dtype=int))
+                    s_assign[:l1] = 1
+                    s_assign[l1:l2] = -1
+                    symbol_assignments[l1].append(list(set(permutations(s_assign))))
+            
+            #flatten
+            symbol_assignments = [[s for s_assign in s_assigns for s in s_assign] for s_assigns in symbol_assignments]
+
+        else  :
+            symbol_assignments = [np.zeros(self.n_symbols, dtype=int) for _ in range(self.n_symbols + 1)]
+            for l, s_assign in enumerate(symbol_assignments) : 
+                s_assign[:l] = 1    
+                symbol_assignments[l] = list(set(permutations(s_assign)))
+            
         self.symbol_assignments = symbol_assignments
         self.symbol_assignments_len = [len(s) for s in self.symbol_assignments]
-
+        """
         #Set this to True to regenerate random symbol assignments at each call of __getitem__
         self.regenerate = False
 
@@ -211,7 +227,7 @@ class SymbolsDataset(Dataset) :
 
         if s_type == '0' : 
 
-            symbols = ( np.zeros((5, 5)), np.zeros((5, 5)) )
+            symbols =  [np.zeros((5, 5)), np.zeros((5, 5)) ]
         
             for i in range(5) : 
                 for j in range(5) : 
@@ -226,11 +242,11 @@ class SymbolsDataset(Dataset) :
             X = np.array([[1, 0, 1], [0, 1, 0], [1, 0, 1]])
             C = np.array([[0, 1, 0], [1, 1, 1], [0, 1, 0]])
 
-            symbols = X, C
+            symbols = [X, C]
 
         elif 'random' in s_type : 
             s_size = int(s_type.split('_')[-1])
-            symbols = ( np.random.randint(0, 2, size=(s_size, s_size)), np.random.randint(0, 2, size=(s_size, s_size)) )
+            symbols = [np.random.randint(0, 2, size=(s_size, s_size)), np.random.randint(0, 2, size=(s_size, s_size)) ]
 
         else : 
             raise NotImplementedError(' Provide symbol type in [0, 1, "random_{size}"] ')
@@ -268,14 +284,12 @@ class SymbolsDataset(Dataset) :
 
         return x_final
 
-    def get_symbol_data(self, data_size, nb_steps,  n_symbols, symbol_type, input_size, static, inv) : 
+    def get_symbol_positions(self, data_size, nb_steps,  n_symbols, symbol_size, input_size, static) : 
 
-        symbol_size = self.symbol_size
-        
         assert np.remainder(input_size, symbol_size) == 0
         n_grid = input_size//symbol_size 
 
-        assert n_symbols <= n_grid
+        assert n_symbols <= n_grid**2
 
         if static : 
             squares = list(range((n_grid)**2))
@@ -296,29 +310,45 @@ class SymbolsDataset(Dataset) :
         if not self.data_config['static'] : 
             centers = np.concatenate((centers, centers[::-1]))
 
-        #probas = self.get_probabilities(n_symbols+1)
-        probas = np.ones(n_symbols + 1) / (n_symbols + 1)
+        return centers
 
-        labels = np.random.multinomial(1, probas, size=(data_size)).argmax(-1)
-
-        grids = self.place_symbols_from_centers(centers, labels, data_size, input_size, symbol_size, inv)
+    def get_random_symbol_assignement(self, label) : 
+        assignments = np.zeros(self.n_symbols, dtype=int)
         
-        return torch.from_numpy(grids).transpose(0, 1), torch.from_numpy(labels), torch.from_numpy(centers).transpose(0, 1) #, torch.from_numpy(jitter)
+        try : 
+            assignments[:label] = 1
+            if not self.fixed_symbol_number : 
+                assignments[label:] = np.random.random_integers(-1, 0, self.n_symbols-label)
+            
+        except TypeError : 
+            assignments[:label[0]] = 1
+            assignments[label[0]+ label[1]:] = -1
 
-    def place_symbols_from_centers(self, centers, labels, data_size, input_size, symbol_size, inv, symbol_assigns=None) : 
+        np.random.shuffle(assignments)
+        #print(assignments)
+        return assignments
 
-        symbols = self.symbols[::-1] if inv else self.symbols
+    def place_symbols_from_centers(self, centers, labels, data_size, input_size, symbol_size, inv=False, symbol_assigns=None) : 
+
+        symbols = self.symbols
+
+        if inv : 
+            symbols = self.symbols[::-1]
+
+        if (not self.fixed_symbol_number) or (not self.double_data) : 
+            symbols.append(np.zeros_like(self.symbols[0]))
+
 
         grids = []
         def assign_square(grid, center_pos, l, d) : 
             grid[d, center_pos[0] : center_pos[0] + symbol_size, center_pos[1] : center_pos[1] + symbol_size] += symbols[l]
                 
         if symbol_assigns is None or None in symbol_assigns: 
-            symbol_assigns = [np.random.choice(self.symbol_assignments_len[l]) for l in labels]
-            symbol_assignments = [self.symbol_assignments[l][n_assign] for l, n_assign in zip(labels, symbol_assigns)]
+            #symbol_assigns = [np.random.choice(self.symbol_assignments_len[l]) for l in labels]
+            #symbol_assignments = [self.symbol_assignments[l][n_assign] for l, n_assign in zip(labels, symbol_assigns)]
+            symbol_assignments = [self.get_random_symbol_assignement(l) for l in labels]
         else : 
             symbol_assignments = symbol_assigns
-
 
         for t, center in enumerate(centers) : 
             grid = np.zeros((data_size, input_size, input_size))
@@ -370,10 +400,33 @@ class SymbolsDataset(Dataset) :
 
         return torch.tensor(out_x).int(),  torch.tensor(out_y).int()
 
+    def get_symbol_data(self, data_size, nb_steps,  n_symbols, symbol_type, input_size, static, double_data) : 
+
+        symbol_size = self.symbol_size
+
+        #probas = self.get_probabilities(n_symbols+1)
+
+        if not self.double_data : 
+            probas = np.ones((n_symbols + 1) //2) / ((n_symbols + 1) // 2)
+            labels = np.stack([np.random.multinomial(1, probas, size=(data_size)).argmax(-1) for _ in range(2)], -1) + 1 
+            centers = self.get_symbol_positions(data_size, nb_steps, n_symbols, symbol_size, input_size, static)
+            grids = self.place_symbols_from_centers(centers, labels, data_size, input_size, symbol_size)
+            
+            grids = np.stack([grids, grids])
+            centers = np.stack([centers, centers])
+
+        else : 
+            probas = np.ones(n_symbols + 1) / (n_symbols + 1)
+            labels = np.stack([np.random.multinomial(1, probas, size=(data_size)).argmax(-1) for _ in range(2)], -1) + 1
+            centers = np.stack([self.get_symbol_positions(data_size, nb_steps, n_symbols, symbol_size, input_size, static) for _ in range(2)])
+            grids = np.stack([self.place_symbols_from_centers(c, l, data_size, input_size, symbol_size, inv) for l, c, inv in zip(labels.T, centers, [True, False])])
+            
+        return torch.from_numpy(grids).transpose(0, 2), torch.from_numpy(labels), torch.from_numpy(centers).transpose(0, 2) #, torch.from_numpy(jitter)
+
     def generate_data(self) : 
 
-        datas = self.get_symbol_data(**self.data_config, inv=False), self.get_symbol_data(**self.data_config, inv=True)
-        data = [torch.stack((d1, d2), axis=1) for d1, d2 in zip(*datas)]
+        data =  self.get_symbol_data(**self.data_config)
+
         return data
     
     def __len__(self) : 
@@ -382,7 +435,7 @@ class SymbolsDataset(Dataset) :
     def __getitem__(self, index: Any, inv=False, symbol_assigns=[None, None]):
 
         if not self.regenerate : 
-            return self.data[0][index].transpose(0, 1), self.data[1][index]
+            return self.data[0][index], self.data[1][index] - 1
         else : 
             centers, labels = self.data[-1][index].unsqueeze(2), self.data[1][index]
             new_data = []
@@ -394,7 +447,7 @@ class SymbolsDataset(Dataset) :
                                                                 symbol_assigns=[s_a])[:, 0, ...])
                                                                 
             
-            return torch.from_numpy(np.stack(new_data)).transpose(0, 1), labels
+            return torch.from_numpy(np.stack(new_data)).transpose(0, 1), labels - 1
 
 def get_datasets_alphabet(root, batch_size=256, use_cuda=True, fix_asym=False, n_classes=10, split_classes=True) :
         

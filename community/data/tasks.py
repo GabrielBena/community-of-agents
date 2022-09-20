@@ -81,10 +81,19 @@ def get_task_target(target, task='parity_digits_10', temporal_target=False) :
                 new_target = target[:, 0] != target[:, 1]
 
         elif task == 'none' : 
-            new_target = target.transpose(0, 1)
+            new_target = target
+
+        if 'opposite' in tasks : 
+            if new_target is not None : 
+                new_target = n_classes - new_target - 1
+            else: 
+                new_target = n_classes - target - 1
 
         if 'sum' in tasks : 
-            new_target = target.sum(-1)
+            if new_target is not None : 
+                new_target = new_target.sum(-1)
+            else: 
+                new_target = target.sum(-1)
 
         try : 
             task = int(tasks[-1])
@@ -97,6 +106,9 @@ def get_task_target(target, task='parity_digits_10', temporal_target=False) :
             
         if new_target is None : 
             raise ValueError('Task recognized, try digit number ("0", "1"), "parity", "parity_digits", "parity_digits_100" or "sum" ')
+
+        if len(new_target.shape) == 2 : 
+            new_target = new_target.T
                     
         return new_target
 #------ Continual Learning Tasks ------ : 

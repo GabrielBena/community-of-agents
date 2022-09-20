@@ -51,7 +51,7 @@ def readout_retrain(community, loaders, n_classes=10, deepR_params_dict={},
 
         single_losses  = [[] for target in range(2)]
         single_accs = [[] for target in range(2)]
-        for target in range(2) :
+        for target, task in enumerate(['none', 'opposite']) :
 
             f_community = copy.deepcopy(community)
             for f_agent in f_community.agents : 
@@ -84,7 +84,7 @@ def readout_retrain(community, loaders, n_classes=10, deepR_params_dict={},
                 'check_gradients' : False, 
                 'reg_factor' : 0.,
                 'train_connections' : False,
-                'decision_params' : ('last', 'both') ,
+                'decision_params' : ('0', 'both') ,
                 'stopping_acc' : min_acc ,
                 'early_stop' :  True,
                 'deepR_params_dict' : deepR_params_dict,

@@ -154,7 +154,10 @@ def get_pearson_metrics(community, loaders, fixed_mode='label', symbols=False, u
             corrs_0 = [v_pearsonr(s, s[perm(s)] )[0] for s in states_0]
             corrs_1 = [v_pearsonr(s, s[perm(s)] )[0] for s in states_1]
 
-            cors = [np.array([c.mean() for c in corrs_0]) , np.array([c.mean() for c in corrs_1])]
+            cors = np.array([np.array([c.mean() for c in corrs_0]) , np.array([c.mean() for c in corrs_1])])
+            if (np.isnan(cors)).any() : 
+                return (corrs_0, corrs_1), (states_0, states_1), (datas, label, fixed_data)
+
             correlations[target_digit].append(cors)
             
     correlations = np.array(correlations).transpose(0, 2, 1, 3)

@@ -48,7 +48,7 @@ def plot_grid(imgs, labels=None, row_title=None, figsize=None, save_loc=None,col
         plt.savefig(save_loc)
     plt.show()
 
-def create_gifs(data, target=None, name='gif', input_size=30, task=None) : 
+def create_gifs(data, target=None, name='gif', input_size=30, task=None, double=True) : 
 
     if task : target = get_task_target(target, task)
     
@@ -61,7 +61,7 @@ def create_gifs(data, target=None, name='gif', input_size=30, task=None) :
 
     img_list = lambda i : data[..., i, :, :].cpu().data.numpy()*255
 
-    def create_gif(img_list, l, w, name) : 
+    def create_gif(img_list, l, w, name, double=True) : 
             
         images_list = [Image.fromarray(img.reshape(w, l)).resize((256, 256)) for img in img_list]
         images_list = images_list # + images_list[::-1] # loop back beginning
@@ -78,6 +78,9 @@ def create_gifs(data, target=None, name='gif', input_size=30, task=None) :
     else : 
         target = target.cpu().data.numpy()
 
-    [create_gif(img_list(i), input_size, 2*input_size, 'gifs/' + f'{name}_{i}_{target[i]}') for i in range(min(10, len(target))) ];
+    if double : 
+        [create_gif(img_list(i), input_size, 2*input_size, 'gifs/' + f'{name}_{i}_{target[i]}') for i in range(min(10, len(target))) ];
+    else : 
+        [create_gif(img_list(i), input_size, input_size, 'gifs/' + f'{name}_{i}_{target[i]}') for i in range(min(10, len(target))) ];
 
     
