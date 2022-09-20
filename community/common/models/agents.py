@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.nn.init as init
+from copy import deepcopy
 
 class LeakyRNN(nn.RNNCell) : 
     
@@ -50,6 +51,7 @@ class Agent(nn.Module):
                  train_in_out=(True, False), 
                  cell_type=nn.RNN, 
                  use_bottleneck=False, 
+                 dual_readout=False,
                  dropout=0.):
 
         super().__init__()
@@ -79,6 +81,10 @@ class Agent(nn.Module):
         
         self.readout.weight.requires_grad = train_in_out[1]
         self.readout.bias.requires_grad = train_in_out[1]
+
+        self.dual_readout = dual_readout
+        if dual_readout : 
+            self.readout2 = deepcopy(self.readout)
         
         self.cell_params('weight_ih_l0').requires_grad = train_in_out[0]
         self.cell_params('bias_ih_l0').requires_grad = train_in_out[0]
@@ -122,7 +128,13 @@ class Agent(nn.Module):
             output = self.bottleneck(output)
             
         if self.use_readout : 
-            output = self.readout(output)
+            output1 = self.readout(output)
+            if self.dual_readout : 
+                output2 = self.readout2(output)
+                output = torch.cat((output1, output2))
+            else : 
+                output = output1[0]
+
             if softmax  : 
                 output = F.log_softmax(output, dim=-1)
         

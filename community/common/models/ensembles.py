@@ -111,7 +111,7 @@ class Community(nn.Module) :
                 
             #Store states and outputs of agent
             states.append(state)
-            output = torch.cat(output)            
+            output = torch.stack(output)            
             outputs.append(output)
             if t>0 : 
                 try : 

@@ -30,6 +30,7 @@ def init_community(agents_params_dict, connections_params_dict, device=torch.dev
         cell_type = agents_params_dict['cell_type']
         use_bottleneck = agents_params_dict['use_bottleneck']
         ag_dropout = agents_params_dict['ag_dropout'] 
+        dual_readout = agents_params_dict['dual_readout']
     else : 
         n_agents, n_in, n_ins, n_hidden, n_layers, n_out, train_in_out, use_readout, cell_type, use_bottleneck, dropout = agents_params_dict
 
@@ -45,8 +46,9 @@ def init_community(agents_params_dict, connections_params_dict, device=torch.dev
 
     if n_ins is None : 
         agents = [Agent(n_in, n_hidden, n_layers, n_out, str(n),
-                use_readout, train_in_out, cell_type, use_bottleneck, ag_dropout) for n in range(n_agents)]
-
+                use_readout, train_in_out, cell_type,
+                use_bottleneck, dual_readout,
+                ag_dropout) for n in range(n_agents)]
     else: 
         agents = [Agent(n_in, n_hidden, n_layers, n_out, str(n),
                     use_readout, train_in_out, cell_type, use_bottleneck, ag_dropout) for n, n_in in enumerate(n_ins)]
