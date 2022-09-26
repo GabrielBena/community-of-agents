@@ -1,3 +1,4 @@
+from unittest.loader import VALID_MODULE_NAME
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -14,7 +15,9 @@ class Community(nn.Module) :
         agents : list of agents composing the community
         sparse_connections : (n_agents x n_agents) matrix specifying the sparsity of the connections in-between agents
     """
-    def __init__(self, agents, sparse_connections, use_deepR=True, com_dropout=0., binarize=False):
+    def __init__(self, agents, sparse_connections,
+                 common_readout=False, comms_start='1',
+                 use_deepR=True, com_dropout=0., binarize=False):
         super().__init__()
         self.agents = nn.ModuleList()
        
@@ -27,7 +30,12 @@ class Community(nn.Module) :
         self.binarize = binarize
         self.init_connections()
         self.is_community = True
-        
+
+        self.common_readout = common_readout
+        if self.common_readout : 
+            self.readout = nn.Linear(np.sum([ag.dims[-2] for ag in self.agents]), self.agents[0].dims[-1])
+        self.comms_starts = comms_start
+
     # Initializes connections in_between agents with the given sparsity matrix
     def init_connections(self) : 
         
@@ -70,7 +78,20 @@ class Community(nn.Module) :
         #Split_data checks if the data is provided on a per-agent manner or in a one-to-all manner. 
         #data can be a double list of len n_timesteps x n_agents or a tensor with second dimension n_agents
         split_data = ((type(x) is torch.Tensor and len(x.shape)>3) or type(x) is list)            
-        
+        nb_steps = len(x)
+
+        try : 
+            min_t = int(self.comms_start)
+        except ValueError : 
+            if self.comms_start == 'start' : 
+                min_t = 0
+            elif self.comms_start == 'mid' : 
+                min_t == nb_steps // 2
+            elif self.comms_start == 'last' : 
+                min_t = nb_steps- 1
+            else : 
+                raise NotImplementedError
+
         for t, x_t in enumerate(x) : 
             if split_data:
                 assert len(x_t) == len(self.agents), 'If data is provided per agent, make sure second dimension matches number of agents'
@@ -87,7 +108,8 @@ class Community(nn.Module) :
                     inputs = x_t.clone()
                     
                 #Receive sparse connections from other agents 
-                if t > 0 : 
+                
+                if t > min_t : 
                     inputs_connect = 0
                     for ag2 in self.agents :
                         j = int(ag2.tag)
@@ -111,13 +133,17 @@ class Community(nn.Module) :
                 
             #Store states and outputs of agent
             states.append(state)
-            output = torch.stack(output)            
+            if not self.common_readout : 
+                output = torch.stack(output)     
+            else :
+                output = self.readout(torch.cat(state, -1))       
             outputs.append(output)
-            if t>0 : 
+
+            if t>min_t : 
                 try : 
                     connections.append(torch.stack(connection))
                 except : 
-                    connections.append(torch.tensor(connections))
+                    connections.append(torch.tensor(connection))
             
         outputs = torch.stack(outputs)
         connections = torch.stack(connections)
