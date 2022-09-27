@@ -7,6 +7,7 @@ import numpy as np
 from .connections import MaskedLinear, Sparse_Connect
 from .agents import Agent
 from ...utils.model import get_output_shape
+from copy import deepcopy
 
 class Community(nn.Module) : 
     """
@@ -16,7 +17,7 @@ class Community(nn.Module) :
         sparse_connections : (n_agents x n_agents) matrix specifying the sparsity of the connections in-between agents
     """
     def __init__(self, agents, sparse_connections,
-                 common_readout=False, comms_start='1',
+                 common_readout=False, comms_start='1', dual_readout=False,
                  use_deepR=True, com_dropout=0., binarize=False):
         super().__init__()
         self.agents = nn.ModuleList()
@@ -32,8 +33,12 @@ class Community(nn.Module) :
         self.is_community = True
 
         self.common_readout = common_readout
+        self.dual_readout = dual_readout
         if self.common_readout : 
             self.readout = nn.Linear(np.sum([ag.dims[-2] for ag in self.agents]), self.agents[0].dims[-1])
+            if self.dual_readout : 
+                self.readouts = [self.readout, deepcopy(self.readout)]
+            
         self.comms_starts = comms_start
 
     # Initializes connections in_between agents with the given sparsity matrix
@@ -136,7 +141,10 @@ class Community(nn.Module) :
             if not self.common_readout : 
                 output = torch.stack(output)     
             else :
-                output = self.readout(torch.cat(state, -1))       
+                if self.dual_readout : 
+                    output = torch.stack([r(torch.cat(state, -1)) for r in self.readouts])
+                else : 
+                    output = self.readout(torch.cat(state, -1))       
             outputs.append(output)
 
             if t>min_t : 
