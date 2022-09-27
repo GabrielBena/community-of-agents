@@ -22,13 +22,15 @@ from deepR.models import step_connections
 
 #------ Training and Testing functions ------
 
-def get_loss_and_target(output, target, joint_training=False) : 
+def get_loss(output, t_target) : 
 
     """
-    3 possibilities : 
+    4 possibilities : 
+        -Single target, single decision
         -Single target for both agents (joint training)
         -Double target for single decision (take_min_loss)
         -Double target for both agents (take_avg_loss)
+
     """
     """
     if len(output.shape)==2 : 
@@ -61,7 +63,7 @@ def get_loss_and_target(output, target, joint_training=False) :
 
     if take_min_loss : 
         target = torch.where(~min_idxs.bool(), target[0], target[1])
-    """
+    
 
     try : 
         loss = F.cross_entropy(output, target, reduction='none').mean()
@@ -78,8 +80,44 @@ def get_loss_and_target(output, target, joint_training=False) :
         loss = torch.stack([F.cross_entropy(o, t, reduction='none') for o, t in zip(output, target)]).T.mean()
 
     #print(output.shape, target.shape, take_min_loss)
+    """
+    n_target = len(t_target.shape)
+    n_decisions = output.shape[:-2]
+
+    if len(n_decisions) == 1 : 
+        n_decisions = n_decisions[0]
+    elif len(n_decisions) == 0 : 
+        n_decisions = 1
+
+    if n_target == n_decisions == 1 : 
+        loss = F.cross_entropy(output, t_target, reduction='none')
+        output = output.unsqueeze(0)
+
+    elif n_target == 1  and n_decisions != 1: 
+        t_target = t_target.unsqueeze(0).expand(output.shape[:-1])
+        loss = torch.stack([F.cross_entropy(o, t, reduction='none') for o, t in zip(output, t_target)]).T
+
+    elif n_target != 1  and n_decisions == 1: 
+        loss = torch.stack([F.cross_entropy(output, t, reduction='none') for t in t_target]).T
     
-    return output, target, loss
+    elif n_target == n_decisions : 
+        loss = torch.stack([F.cross_entropy(o, t, reduction='none') for o, t in zip(output, t_target)]).T
+
+    else : 
+        res = [get_loss(o, t_target) for o in output]
+        loss, t_target = torch.stack([r[0] for r in res]).T, torch.stack([r[1] for r in res])
+
+    return loss.mean(), t_target, output
+
+def binary_conn(target, ag) : 
+    n_classes = len(target.unique())
+    n_bits = np.ceil(np.log2(n_classes)).astype(int)
+    encoding = []
+    encoded_target = target[:, ag].clone().detach()
+    for d in range(n_bits-1, -1, -1) : 
+        encoding.append(torch.div(encoded_target, 2**d, rounding_mode='floor'))
+        encoded_target -= torch.div(encoded_target, 2**d, rounding_mode='floor')*2**d
+    return torch.stack(encoding, -1)
 
 def train_community(model, train_loader, test_loader, optimizers, schedulers=None,
                     config=None, trials=(True, True), joint_training=False,
@@ -117,6 +155,7 @@ def train_community(model, train_loader, test_loader, optimizers, schedulers=Non
     early_stop = config['early_stop']
     deepR_params_dict = config['deepR_params_dict']
     symbols = config['data_type'] == 'symbols'
+    force_connections = config['force_connections']
     #--------------
 
     reg_loss = reg_factor>0.
@@ -146,6 +185,11 @@ def train_community(model, train_loader, test_loader, optimizers, schedulers=Non
     if use_tqdm : 
         tqdm_f = tqdm_n if notebook else tqdm
         pbar = tqdm_f(pbar, position=position, leave=None, desc='Train Epoch:')
+
+    #dummy fwd for shapes
+    data, target = next(iter(train_loader))
+    data, target =  process_data(data, target, task, conv_com, symbols=True)
+    out, states, fconns = model(data.to(device))
             
     for epoch in pbar : 
         if training : 
@@ -160,17 +204,25 @@ def train_community(model, train_loader, test_loader, optimizers, schedulers=Non
                 #Forward pass
 
                 #Task Selection
-                data, target = process_data(data, target, task, conv_com, symbols=symbols)
+                data, t_target = process_data(data, target, task, conv_com, symbols=symbols)
 
                 optimizer_agents.zero_grad()
                 if optimizer_connections : optimizer_connections.zero_grad()
 
-                output, *_ = model(data)
-                output, deciding_ags = get_decision(output, *decision_params, target=target)
+                if force_connections : 
+                    conns = fconns[-1].detach().unsqueeze(0)
+                    for ag in range(2) : 
+                        conns[:, ag, :, model.nonzero_received[ag]] = binary_conn(target, 1-ag).float()
+                    conns[conns == 0] = -1
+                else : 
+                    conns=None
+
+                output, *_ = model(data, conns)
+                output, deciding_ags = get_decision(output, *decision_params, target=t_target)
 
                 #if deciding_ags is not None and deciding_ags.shape[0]==train_loader.batch_size: deciding_agents.append(deciding_ags.cpu().data.numpy())
                 
-                output, target, loss = get_loss_and_target(output, target, joint_training)
+                loss, t_target, output = get_loss(output, t_target)
 
                 if reg_loss : 
                     reg = F.mse_loss(deciding_ags.float().mean(), torch.full_like(deciding_ags.float().mean(), 0.5))
@@ -178,14 +230,14 @@ def train_community(model, train_loader, test_loader, optimizers, schedulers=Non
 
                 pred = output.argmax(dim=-1, keepdim=True)  # get the index of the max log-probability
 
-                correct = pred.eq(target.view_as(pred))
+                correct = pred.eq(t_target.view_as(pred))
 
                 if output.shape[0] == 1 : # not joint_training : 
                     correct = correct.sum().cpu().data.item()
-                    train_accs.append(correct/target.numel())
+                    train_accs.append(correct/t_target.numel())
                 else : 
                     correct = correct.flatten(start_dim=1).sum(1).cpu().data.numpy()
-                    train_accs.append(correct/target[0].numel())
+                    train_accs.append(correct/t_target[0].numel())
                 
                 loss.backward()
 
@@ -215,7 +267,12 @@ def train_community(model, train_loader, test_loader, optimizers, schedulers=Non
                     pbar.set_description(desc(descs))
             
         if testing : 
-            descs[1], loss, acc, deciding_ags = test_community(model, device, test_loader, decision_params=decision_params, task=task, joint_training=joint_training, symbols=symbols)  
+            descs[1], loss, acc, deciding_ags = test_community(model, device, test_loader,
+                                                               decision_params=decision_params,
+                                                               task=task,
+                                                               joint_training=joint_training,
+                                                               symbols=symbols,
+                                                               force_connections=force_connections)  
                                                  
             if loss < best_loss : 
                 best_loss = loss
@@ -267,7 +324,14 @@ def train_community(model, train_loader, test_loader, optimizers, schedulers=Non
 
     return results
                    
-def test_community(model, device, test_loader, decision_params=('last', 'max'), task='parity_digits', verbose=False, seed=None, joint_training=False, symbols=False):
+def test_community(model, device, test_loader,
+                   decision_params=('last', 'max'),
+                   task='parity_digits',
+                   verbose=False,
+                   seed=None,
+                   joint_training=False,
+                   symbols=False, 
+                   force_connections=False):
     """
     Testing function for community of agents
     """
@@ -279,6 +343,10 @@ def test_community(model, device, test_loader, decision_params=('last', 'max'), 
     deciding_agents = []
     if seed is not None : 
         torch.manual_seed(seed)
+
+    data, target = next(iter(test_loader))
+    data, target =  process_data(data, target, task, conv_com, symbols=symbols)
+    out, states, fconns = model(data.to(device))
     with torch.no_grad():
         for data, target in test_loader:
 
@@ -287,24 +355,31 @@ def test_community(model, device, test_loader, decision_params=('last', 'max'), 
             else : 
                 data, target = data.to(device), target.to(device)
                             
-            data, target = data, target = process_data(data, target, task, conv_com, symbols=symbols)
+            data, t_target = process_data(data, target, task, conv_com, symbols=symbols)
+            if force_connections : 
+                conns = fconns[-1].detach().unsqueeze(0)
+                for ag in range(2) : 
+                    conns[:, ag, :, model.nonzero_received[ag]] = binary_conn(target, 1-ag).float()
+                conns[conns == 0] = -1
+            else : 
+                conns=None
 
-            output, *_ = model(data)
-            output, deciding_ags = get_decision(output, *decision_params, target=target)
+            output, *_ = model(data, conns)
+            output, deciding_ags = get_decision(output, *decision_params, target=t_target)
             if deciding_ags is not None and deciding_ags.shape[0]==test_loader.batch_size: deciding_agents.append(deciding_ags.cpu().data.numpy())
             
-            output, target, loss = get_loss_and_target(output, target, joint_training)
+            loss, t_target, output = get_loss(output, t_target)
 
             test_loss += loss
             pred = output.argmax(dim=-1, keepdim=True)  # get the index of the max log-probability
 
-            c = pred.eq(target.view_as(pred))
+            c = pred.eq(t_target.view_as(pred))
             if output.shape[0]==1 : #not joint_training : 
                 correct += c.sum().cpu().data.item()
-                acc += c.sum().cpu().data.item()/target.numel()
+                acc += c.sum().cpu().data.item()/t_target.numel()
             else : 
                 correct += c.flatten(start_dim=1).sum(1).cpu().data.numpy()
-                acc += c.flatten(start_dim=1).sum(1).cpu().data.numpy()/target[0].numel()
+                acc += c.flatten(start_dim=1).sum(1).cpu().data.numpy()/t_target[0].numel()
 
     test_loss /= len(test_loader)
     acc /= len(test_loader)
@@ -312,7 +387,7 @@ def test_community(model, device, test_loader, decision_params=('last', 'max'), 
     deciding_agents = np.array(deciding_agents)
     
     desc = str(' | Test set: Loss: {:.3f}, Accuracy: {}/{} ({}%), Mean decider: {:.2f}'.format(
-            test_loss, np.sum(correct), (len(test_loader.dataset)*(target.shape[0])),
+            test_loss, np.sum(correct), (len(test_loader.dataset)*(t_target.shape[0])),
             (np.round(100*a) for a in acc) if type(acc) is list else np.round(100*acc),
             deciding_agents.mean()))
     
