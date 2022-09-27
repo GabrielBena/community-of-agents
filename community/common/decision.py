@@ -34,6 +34,7 @@ def max_decision(outputs) :
 
 def get_decision(outputs, temporal_decision='last', agent_decision='0', target=None):
 
+    n_steps = len(outputs)
     try : 
         deciding_ts = int(temporal_decision)
         outputs = outputs[deciding_ts]
@@ -47,6 +48,8 @@ def get_decision(outputs, temporal_decision='last', agent_decision='0', target=N
             outputs = torch.mean(outputs, axis=0)
         elif temporal_decision == None : 
             outputs = outputs
+        elif temporal_decision == 'mid' : 
+            outputs = outputs[n_steps//2 - 1]
         else : 
             raise ValueError('temporal decision not recognized, try "last", "sum" or "mean", or time_step of decision ("0", "-1" ) ')
         
