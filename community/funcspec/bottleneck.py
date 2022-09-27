@@ -20,7 +20,7 @@ from community.utils.wandb_utils import get_wandb_artifact, mkdir_or_save_torch
 # ------ Bottleneck Metric ------ : 
 
 def readout_retrain(community, loaders, n_classes=10, deepR_params_dict={},
-                    n_epochs=3, n_tests=3, train_all_param=False,
+                    n_epochs=3, n_tests=3, train_all_param=False, force_connections=False,
                     use_tqdm=False, device=torch.device('cuda'), symbols=False) : 
     """
     Retrains the bottleneck-readout connections of each sub-network for each sub-task and stores performance.
@@ -51,7 +51,7 @@ def readout_retrain(community, loaders, n_classes=10, deepR_params_dict={},
 
         single_losses  = [[] for target in range(2)]
         single_accs = [[] for target in range(2)]
-        for target, task in enumerate(['none', 'opposite']) :
+        for target in range(2) :
 
             f_community = copy.deepcopy(community)
             for f_agent in f_community.agents : 
@@ -59,7 +59,10 @@ def readout_retrain(community, loaders, n_classes=10, deepR_params_dict={},
                     f_agent.readout = nn.Linear(f_agent.bottleneck.out_features, n_classes)
                 else : 
                     f_agent.readout = nn.Linear(f_agent.dims[-2], n_classes)
+                
+                f_agent.dual_readout = False
                 f_agent.to(device)
+                f_community.use_common_readout = False
 
             for name, p in f_community.named_parameters() : 
                 if 'readout' in name :#and str(agent) in name:
@@ -77,28 +80,31 @@ def readout_retrain(community, loaders, n_classes=10, deepR_params_dict={},
             except AttributeError : 
                 min_acc = None
 
-            training_dict = {
+            training_dicts = [{
                 'n_epochs' : n_epochs, 
                 'task' : str(target),
                 'global_rewire' : False, 
                 'check_gradients' : False, 
                 'reg_factor' : 0.,
                 'train_connections' : False,
-                'decision_params' : ('0', 'both') ,
+                'decision_params' : (ts, 'both') ,
                 'stopping_acc' : min_acc ,
                 'early_stop' :  True,
                 'deepR_params_dict' : deepR_params_dict,
-                'data_type' : 'symbols' if symbols else None
-            }
-            train_out = train_community(f_community, *loaders, optimizers,
+                'data_type' : 'symbols' if symbols else None,
+                'force_connections' : force_connections
+            } for ts in ['mid', 'last'] ]
+
+            train_outs = [train_community(f_community, *loaders, optimizers,
                         schedulers=schedulers, config=training_dict,
                         trials = (True, True), joint_training=True,
                         use_tqdm=position+1 if use_tqdm else False,
-                        device=device)
+                        device=device) for training_dict in training_dicts]
 
-            test_losses, test_accs= train_out['test_losses'], train_out['test_accs']
+            test_losses = np.array([train_out['test_losses'] for train_out in train_outs]) #before and after comms x n_agents
+            test_accs = np.array([train_out['test_accs'] for train_out in train_outs]) #before and after comms x n_agents
 
-            single_accs[target] = test_accs.max(0)
+            single_accs[target] = test_accs.max(1)
         
         single_accs_total.append(np.array(single_accs))
             

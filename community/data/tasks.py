@@ -80,7 +80,7 @@ def get_task_target(target, task='parity_digits_10', temporal_target=False) :
             elif 'equal' in tasks : 
                 new_target = target[:, 0] != target[:, 1]
 
-        elif task == 'none' : 
+        elif task == 'none' or task == 'both' : 
             new_target = target
 
         if 'opposite' in tasks : 

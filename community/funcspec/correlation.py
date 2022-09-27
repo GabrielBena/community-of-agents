@@ -15,13 +15,16 @@ from community.data.tasks import get_digits, rotation_conflict_task
 from community.data.process import process_data, temporal_data
 from community.common.init import init_community
 
-def fixed_information_data(data, target, fixed, fixed_mode='label') : 
+def fixed_information_data(data, target, fixed, fixed_mode='label', permute_other=True) : 
     data = data.clone()
     # Return a modified version of data sample, where one quality is fixed (digit label, or parity, etc)
     digits = get_digits(target)
     bs = digits[0].shape[0]
     n_classes = len(digits[0].unique())    
-    data[:, 1-fixed, ...] = data[:, 1-fixed, torch.randperm(bs), ...]
+
+    if permute_other : 
+        data[:, 1-fixed, ...] = data[:, 1-fixed, torch.randperm(bs), ...]
+
     if fixed_mode == 'label':
         d_idxs = [torch.where(digits[fixed] == d)[0] for d in range(n_classes)]
     elif fixed_mode == 'parity' : 
@@ -114,7 +117,8 @@ def get_correlation(community, data) :
 
     return cor
 
-def get_pearson_metrics(community, loaders, fixed_mode='label', symbols=False, use_tqdm=False, device=torch.device('cuda')) : 
+def get_pearson_metrics(community, loaders, fixed_mode='label', double_data=True, 
+                        symbols=False, use_tqdm=False, device=torch.device('cuda')) : 
 
     double_test_loader = loaders[1]
     
@@ -131,37 +135,48 @@ def get_pearson_metrics(community, loaders, fixed_mode='label', symbols=False, u
         pbar = tqdm_f(pbar, position=position, desc='Correlation Metric Trials', leave=None)
 
     correlations = [[] for digit in range(2)]
+    base_correlations = []
 
-    for datas, label in pbar: 
+    for (datas, label), _ in zip(pbar, range(100)): 
 
         if not symbols :
              datas = temporal_data(datas).to(device)
         else :
-            datas = process_data(datas, label, 'none', False, True)[0].to(device)
+            datas = process_data(datas, label, 'none', False, True)[0].to(device)      
+        
+        n_steps = len(datas)
+        chosen_steps = [n_steps//2 - 1, -1]
+
+        perm = lambda s : randperm_no_fixed(s.shape[0])
+
+        base_states = community(datas)[1][:, :, 0, ...].transpose(0, 1).cpu().data.numpy()
+        base_corrs = np.array([[v_pearsonr(s, s[perm(s)])[0].mean() for s in [s_ag[t] for t in chosen_steps]] for s_ag in base_states]) # n_agents x n_timesteps
         
         for target_digit in range(2) :  
 
-            fixed_data = fixed_information_data(datas, label, fixed=target_digit, fixed_mode=fixed_mode)
+            fixed_data = fixed_information_data(datas, label, fixed=target_digit, fixed_mode=fixed_mode, permute_other=double_data)
+            if (0 in [d.shape[2] for d in fixed_data]) : 
+                break
  
             outs = [community(f) for f in fixed_data]
             states = [o[1] for o in outs]
 
-            states_0 = [s[-1][0][0].cpu().data.numpy() for s in states]
-            states_1 = [s[-1][1][0].cpu().data.numpy() for s in states]
+            states_0 = [s[:, 0, 0].cpu().data.numpy() for s in states]
+            states_1 = [s[:, 1, 0].cpu().data.numpy() for s in states]
 
-            perm = lambda s : randperm_no_fixed(s.shape[0])
+            corrs_0 = np.array( [[v_pearsonr(s, s[perm(s)] )[0].mean() for s in [st[t] for t in chosen_steps]] for st in states_0] ).transpose(1, 0) # n_timesteps x n_classes 
+            corrs_1 = np.array( [[v_pearsonr(s, s[perm(s)] )[0].mean() for s in [st[t] for t in chosen_steps]] for st in states_1] ).transpose(1, 0)
 
-            corrs_0 = [v_pearsonr(s, s[perm(s)] )[0] for s in states_0]
-            corrs_1 = [v_pearsonr(s, s[perm(s)] )[0] for s in states_1]
-
-            cors = np.array([np.array([c.mean() for c in corrs_0]) , np.array([c.mean() for c in corrs_1])])
-            if (np.isnan(cors)).any() : 
+            corrs = np.stack([corrs_0, corrs_1]) # n_agents x n_classes x n_timesteps
+            if (np.isnan(corrs)).any() : 
                 return (corrs_0, corrs_1), (states_0, states_1), (datas, label, fixed_data)
 
-            correlations[target_digit].append(cors)
+            correlations[target_digit].append(corrs) # n_batches x n_agents x n_classes x n_timesteps
+        base_correlations.append(base_corrs)
             
-    correlations = np.array(correlations).transpose(0, 2, 1, 3)
-    return correlations
+    correlations = np.stack([np.stack(c, -1) for c in correlations], 0) # n_targets x n_agents x n_timesteps x n_classes x n_batches
+    base_correlations = np.stack(base_correlations, -1) # n_agents x n_timesteps x n_batches
+    return correlations, base_correlations
 
 def compute_correlation_metric(p_cons, loaders, save_name, device=torch.device('cuda'), config=None) : 
 
