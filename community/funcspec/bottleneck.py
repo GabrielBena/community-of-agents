@@ -62,7 +62,7 @@ def readout_retrain(community, loaders, n_classes=10, deepR_params_dict={},
                 
                 f_agent.dual_readout = False
                 f_agent.to(device)
-                f_community.use_common_readout = False
+            f_community.use_common_readout = False
 
             for name, p in f_community.named_parameters() : 
                 if 'readout' in name :#and str(agent) in name:

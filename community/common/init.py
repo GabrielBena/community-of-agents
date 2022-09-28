@@ -24,7 +24,7 @@ def init_community(model_dict, device=torch.device('cuda')) :
     n_agents = agents_params_dict['n_agents']
     n_in = agents_params_dict['n_in']
     n_ins = agents_params_dict['n_ins']
-    n_hidden = agents_params_dict['n_hid']
+    n_hidden = agents_params_dict['n_hidden']
     n_layers = agents_params_dict['n_layer']
     n_out = agents_params_dict['n_out']
     train_in_out = agents_params_dict['train_in_out']
@@ -35,12 +35,14 @@ def init_community(model_dict, device=torch.device('cuda')) :
     dual_readout = agents_params_dict['dual_readout']
     
     use_deepR = connections_params_dict['use_deepR']
-    com_dropout = connections_params_dict['com_dropout']
+    comms_dropout = connections_params_dict['comms_dropout']
     binarize = connections_params_dict['binarize']
     p_connect = connections_params_dict['sparsity']
+    comms_start = connections_params_dict['comms_start']
 
     common_readout = model_dict['common_readout']
-    comms_start = model_dict['communication_start']
+    dual_readout = model_dict['dual_readout']
+    
 
     if type(cell_type) is tuple : 
         cell_type = cell_type[0]
@@ -57,8 +59,11 @@ def init_community(model_dict, device=torch.device('cuda')) :
                     use_readout, train_in_out, cell_type, use_bottleneck, ag_dropout) for n, n_in in enumerate(n_ins)]
 
     sparse_connections = (np.ones((n_agents, n_agents)) - np.eye(n_agents))*p_connect    
-    community = Community(agents, sparse_connections, com_dropout, comms_start,
-                         use_deepR, com_dropout, binarize).to(device)
+    community = Community(agents, sparse_connections,
+                          common_readout, dual_readout,
+                          use_deepR, binarize,
+                          comms_start, comms_dropout,
+                         ).to(device)
     
     return community
 

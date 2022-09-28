@@ -144,8 +144,16 @@ def get_pearson_metrics(community, loaders, fixed_mode='label', double_data=True
         else :
             datas = process_data(datas, label, 'none', False, True)[0].to(device)      
         
-        n_steps = len(datas)
-        chosen_steps = [n_steps//2 - 1, -1]
+        nb_steps = len(datas)
+        if community.comms_start == 'start' : 
+            min_t = 1
+        elif community.comms_start == 'mid' : 
+            min_t = nb_steps // 2
+        elif community.comms_start == 'last' : 
+            min_t = nb_steps- 1
+        else : 
+            raise NotImplementedError
+        chosen_steps = [min_t - 1, -1]
 
         perm = lambda s : randperm_no_fixed(s.shape[0])
 
@@ -176,7 +184,16 @@ def get_pearson_metrics(community, loaders, fixed_mode='label', double_data=True
             
     correlations = np.stack([np.stack(c, -1) for c in correlations], 0) # n_targets x n_agents x n_timesteps x n_classes x n_batches
     base_correlations = np.stack(base_correlations, -1) # n_agents x n_timesteps x n_batches
-    return correlations, base_correlations
+
+    return process_correlations(correlations, base_correlations)
+
+def process_correlations(correlations, base_correlations) : 
+
+    mean_corrs = correlations.mean(-1).mean(-1)
+    base_corrs = base_correlations.mean(-1)
+    relative_corrs = np.stack( [ c/b for c, b in zip(mean_corrs.T, base_corrs) ] )
+
+    return mean_corrs, relative_corrs, base_corrs
 
 def compute_correlation_metric(p_cons, loaders, save_name, device=torch.device('cuda'), config=None) : 
 

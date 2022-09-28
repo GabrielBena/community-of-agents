@@ -17,8 +17,10 @@ class Community(nn.Module) :
         sparse_connections : (n_agents x n_agents) matrix specifying the sparsity of the connections in-between agents
     """
     def __init__(self, agents, sparse_connections,
-                 common_readout=False, comms_start='1', dual_readout=False,
-                 use_deepR=True, com_dropout=0., binarize=False):
+                 common_readout=False, dual_readout=False, 
+                 use_deepR=True, binarize=False,
+                 comms_start='1', comms_dropout=0.):
+
         super().__init__()
         self.agents = nn.ModuleList()
        
@@ -27,19 +29,21 @@ class Community(nn.Module) :
         self.n_agents = len(agents)
         self.sparse_connections = sparse_connections
         self.use_deepR = use_deepR
-        self.com_dropout = com_dropout
+        self.comms_dropout = comms_dropout
         self.binarize = binarize
         self.init_connections()
         self.is_community = True
 
-        self.common_readout = common_readout
+        self.use_common_readout = common_readout
         self.dual_readout = dual_readout
-        if self.common_readout : 
+
+        if common_readout : 
             self.readout = nn.Linear(np.sum([ag.dims[-2] for ag in self.agents]), self.agents[0].dims[-1])
             if self.dual_readout : 
-                self.readouts = [self.readout, deepcopy(self.readout)]
+                self.readouts = nn.ModuleList([self.readout, deepcopy(self.readout)])
+
             
-        self.comms_starts = comms_start
+        self.comms_start = comms_start
 
     # Initializes connections in_between agents with the given sparsity matrix
     def init_connections(self) : 
@@ -67,15 +71,15 @@ class Community(nn.Module) :
                         dims = [n_in, n_out]
                         sparsity_list = [p_con]
                         if self.use_deepR : 
-                            connection = Sparse_Connect(dims, sparsity_list, self.com_dropout, self.binarize)
+                            connection = Sparse_Connect(dims, sparsity_list, self.comms_dropout, self.binarize)
                         else : 
-                            connection = MaskedLinear(*dims, p_con, dropout=self.com_dropout, binarize=self.binarize)
+                            connection = MaskedLinear(*dims, p_con, dropout=self.comms_dropout, binarize=self.binarize)
                         self.tags[i, j] = ag1.tag+ag2.tag
                         self.connections[self.tags[i, j]] = connection
                         self.connected[i, j] = 1
 
     #Forward function of the community
-    def forward(self, x):
+    def forward(self, x, forced_comms=None):
         outputs = []
         states = []
         connections =  []
@@ -89,9 +93,9 @@ class Community(nn.Module) :
             min_t = int(self.comms_start)
         except ValueError : 
             if self.comms_start == 'start' : 
-                min_t = 0
+                min_t = 1
             elif self.comms_start == 'mid' : 
-                min_t == nb_steps // 2
+                min_t = nb_steps // 2
             elif self.comms_start == 'last' : 
                 min_t = nb_steps- 1
             else : 
@@ -114,35 +118,39 @@ class Community(nn.Module) :
                     
                 #Receive sparse connections from other agents 
                 
-                if t > min_t : 
-                    inputs_connect = 0
-                    for ag2 in self.agents :
-                        j = int(ag2.tag)
-                        if self.connected[j, i]==1: 
-                            #State-to-state connections j->i
-                            sparse_out = self.connections[ag2.tag+ag1.tag](states[t-1][j])
-                            inputs_connect += sparse_out[0]
+                inputs_connect = 0
+                
+                if t >= min_t : 
+                    if forced_comms is None : 
+                        for ag2 in self.agents :
+                            j = int(ag2.tag)
+                            if self.connected[j, i]==1: 
+                                #State-to-state connections j->i
+                                sparse_out = self.connections[ag2.tag+ag1.tag](states[t-1][j])
+                                inputs_connect += sparse_out[0]
 
-                            #Output-to-Input connections j->i
-                            #sparse_out = self.connections[self.tags[j, i]](outputs[n-1][j])
-                            #inputs += sparse_out[0]
+                                #Output-to-Input connections j->i
+                                #sparse_out = self.connections[self.tags[j, i]](outputs[n-1][j])
+                                #inputs += sparse_out[0]
+                    else : 
+                        inputs_connect = forced_comms[:, ag1]
                             
                     connection[i] = inputs_connect
-                    out, h = ag1(inputs, states[t-1][i], inputs_connect)
+                    #out, h = ag1(inputs, states[t-1][i], inputs_connect)
                     
-                else : 
-                    out, h = ag1(inputs)
+                out, h = ag1(inputs, state[i], inputs_connect)
                     
                 output[i] = out
                 state[i] = h
                 
             #Store states and outputs of agent
-            states.append(state)
-            if not self.common_readout : 
+            states.append(torch.cat(state, 0))
+
+            if not self.use_common_readout : 
                 output = torch.stack(output)     
             else :
                 if self.dual_readout : 
-                    output = torch.stack([r(torch.cat(state, -1)) for r in self.readouts])
+                    output = torch.stack([r(torch.cat(state, -1))[0] for r in self.readouts])
                 else : 
                     output = self.readout(torch.cat(state, -1))       
             outputs.append(output)
@@ -155,7 +163,8 @@ class Community(nn.Module) :
             
         outputs = torch.stack(outputs)
         connections = torch.stack(connections)
-        
+        states = torch.stack(states)
+
         return outputs, states, connections
     
     @property
