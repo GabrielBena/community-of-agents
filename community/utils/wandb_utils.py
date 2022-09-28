@@ -1,6 +1,7 @@
 import torch
 import wandb
 from pathlib import Path
+from .configs import get_new_config
 
 #------ WandB Utils ------
 
@@ -55,16 +56,6 @@ def get_wandb_artifact(config=None, project='Spec_vs_Sparsity', name='correlatio
         pass
     return torch.load(wanted_artifact.file()), wanted_artifacts, runs
 
-def get_new_config(config, key_prefix='config') : 
-    new_config = {}
-    for k1, v1 in config.items() : 
-        if type(v1) is dict : 
-            sub_config = get_new_config(v1, k1)
-            new_config.update({key_prefix + '.' + k : v for k,v in sub_config.items()})
-        else : 
-            new_config[key_prefix + '.' + k1] = v1
-    return new_config
-
 
 def mkdir_or_save_torch(to_save, save_name, save_path) : 
     try : 
@@ -75,20 +66,3 @@ def mkdir_or_save_torch(to_save, save_name, save_path) :
         torch.save(to_save, save_path + save_name)
 
 
-def get_training_dict(config)  : 
-
-    training_dict = {
-        'n_epochs' : config['training']['n_epochs'], 
-        'task' : config['task'],
-        'global_rewire' : config['model_params']['connections_params']['global_rewire'], 
-        'check_gradients' : False, 
-        'reg_factor' : 0.,
-        'train_connections' : True,
-        'decision_params' : config['training']['decision_params'],
-        'stopping_acc' : config['training']['stopping_acc'] ,
-        'early_stop' : config['training']['early_stop'] ,
-        'deepR_params_dict' : config['optimization']['connections'],
-        'data_type' : config['datasets']['data_type'] 
-    }
-
-    return training_dict

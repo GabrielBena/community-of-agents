@@ -12,7 +12,8 @@ import matplotlib.pyplot as plt
 
 from .init import init_community, init_optimizers
 from ..utils.others import check_grad, is_notebook
-from ..utils.wandb_utils import get_training_dict, mkdir_or_save_torch
+from ..utils.wandb_utils import mkdir_or_save_torch
+from ..utils.configs import get_training_dict
 
 from .models.ensembles import ConvCommunity
 from .decision import get_decision
@@ -264,7 +265,7 @@ def train_community(model, train_loader, test_loader, optimizers, schedulers=Non
                         nb_new_con))
 
                 if use_tqdm: 
-                    pbar.set_description(desc(descs))
+                     pbar.set_description(desc(descs))
             
         if testing : 
             descs[1], loss, acc, deciding_ags = test_community(model, device, test_loader,
