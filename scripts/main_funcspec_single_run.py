@@ -1,10 +1,12 @@
-from multiprocessing import connection
 from os import mkdir
-from community.utils.wandb_utils import mkdir_or_save_torch
+from turtle import update
+from community.utils.configs import find_and_change
+from community.utils.wandb_utils import mkdir_or_save_torch, update_dict
 import torch
 import numpy as np
 import torch.nn as nn
 from torchvision import *
+import pyaml
 
 from community.data.datasets import get_datasets_alphabet, get_datasets_symbols
 from community.funcspec.single_model_loop import train_and_compute_metrics
@@ -14,6 +16,8 @@ from tqdm import tqdm
 #warnings.filterwarnings('ignore')
 
 if __name__ == "__main__": 
+
+    test_run = False
 
     use_cuda = True
     device = torch.device("cuda" if use_cuda else "cpu")
@@ -32,10 +36,9 @@ if __name__ == "__main__":
                     }
                     
     if symbol_config['static'] :
-        symbol_config['nb_steps'] = 2
-        symbol_config['data_size'] = [d*2 for d in symbol_config['data_size']]
+        symbol_config['nb_steps'] = 6
+        symbol_config['data_size'] = [d * 2 if not test_run else d//5 for d in symbol_config['data_size']]
 
-    
     if not symbol_config['double_data'] : 
             n_classes //= 2
 
@@ -65,18 +68,19 @@ if __name__ == "__main__":
                         )
         loaders = all_loaders[['multi', 'double_d',  'double_l', 'single_d' 'single_l'].index(dataset_config['data_type'])]
         dataset_config['input_size'] = 784
-    
+
     agents_params_dict = {'n_agents' : 2,
                          'n_in' : dataset_config['input_size'],
                          'n_ins' : None,
-                         'n_hid' : 15,
-                         'n_layer' : 2,
+                         'n_hidden' : 15,
+                         'n_layer' : 1,
                          'n_out' : dataset_config['n_classes'],
                          'train_in_out': (True, True),
                          'use_readout': True,
                          'cell_type': str(nn.RNN),
                          'use_bottleneck': False,
-                         'ag_dropout': 0.0}
+                         'ag_dropout': 0.0, 
+                         'ag_dual_readout' : False}
     
     p_masks = [0.1]
     
@@ -86,20 +90,20 @@ if __name__ == "__main__":
     l1, gdnoise, lr, gamma, cooling = 1e-5, 1e-3, 1e-3, 0.95, 0.95
     deepR_params_dict = {'l1' : l1, 'gdnoise' : gdnoise, 'lr' : lr, 'gamma' : gamma, 'cooling' : cooling}
 
-    p_cons_params = (1/agents_params_dict['n_hid']**2, 0.999, 10)
-    #p_cons_params = (0, 1., 10)
-
     connections_params_dict = {'use_deepR' : False, 
                                'global_rewire' : False,
-                               'com_dropout' : 0., 
-                               'sparsity' : p_cons_params[0], 
-                               'binarize' : True
+                               'comms_dropout' : 0., 
+                               'sparsity' : 0, 
+                               'binarize' : True, 
+                               'comms_start' : 'mid',
     }
 
     config = {
         'model_params' : {
             'agents_params' : agents_params_dict, 
-            'connections_params' : connections_params_dict            
+            'connections_params' : connections_params_dict, 
+            'common_readout' : True, 
+            'common_dual_readout' : True         
         }, 
         'datasets' : dataset_config,
         'optimization' : {
@@ -108,60 +112,50 @@ if __name__ == "__main__":
         }, 
         'training' : {
             'decision_params' : ('last', 'both'),
-            'n_epochs' : 25, 
-            'n_tests' : 1, 
+            'n_epochs' : 30 if not test_run else 1, 
             'inverse_task' : False, 
             'stopping_acc' : 0.95,
-            'early_stop' : False
-        },       
-        'task' : 'max_count',
-        'p_cons' : p_cons_params,
-        'do_training' : True
+            'early_stop' : False,
+            'force_connections' : False
+        },
+        'varying_params' : {
+        }, 
+
+        'task' : 'both',
+        'metrics_only' : False, 
+        'n_tests' : 1, 
     }
 
-    try : 
-        p_cons = (np.geomspace(p_cons_params[0], p_cons_params[1], p_cons_params[2]) * agents_params_dict['n_hid']**2).round()
-    except ValueError : 
-        p_cons = (np.linspace(p_cons_params[0], p_cons_params[1], p_cons_params[2]) * agents_params_dict['n_hid']**2).round()
 
-    p_cons = np.unique(p_cons / agents_params_dict['n_hid']**2)
-    com_dropouts = p_cons*config['model_params']['connections_params']['com_dropout']
-    com_dropouts[0] = 0.
-
-    #p_cons = [0.1]
-
-    # WAndB tracking : 
+    with open('latest_config.yml', 'w') as config_file : 
+        pyaml.dump(config, config_file)
+    
     wandb.init(project='funcspec', entity='gbena', config=config)
     run_dir = wandb.run.dir + '/'
 
     config['save_paths'] = {'training' : run_dir + 'training_results', 
                       'metrics' : run_dir + 'metric_results', 
     }
-    
-    wandb.config.update(config)
 
-    wandb.define_metric('p_connection')
-    wandb.define_metric('n_hidden')
+    # WAndB tracking :     
+    varying_params = wandb.config['varying_params']
 
-    #metric_names = ['Correlation', 'Masks', 'Bottleneck']
+    for param_name, param in varying_params.items() : 
+        wandb.define_metric(param_name)
+        if param is not None : 
+            find_and_change(config, param_name, param)
 
-    metric_names = ['Correlation', 'Bottleneck']
-    metric_results = {metric : {} for metric in metric_names}
-    training_results, all_results = {}, {}
+    if config['task'] == 'both' : 
+        if config['model_params']['common_readout'] :
+            config['model_params']['common_dual_readout'] = True
+            config['model_params']['agents_params']['ag_dual_readout'] = False
+        else : 
+            config['model_params']['common_dual_readout'] = False
+            config['model_params']['agents_params']['ag_dual_readout'] = True
 
-    pbar = tqdm(p_cons, position=0, leave=None)
-    for p, p_con in enumerate(pbar) :
+    #config = update_dict(config, wandb.config)
 
-        pbar.set_description(f'Community Sparsity ({p_con}) ') 
-
-        config['model_params']['connections_params']['com_dropout'] = com_dropouts[p]
-        config['model_params']['connections_params']['sparsity'] = p_con
-
-        metrics, train_out, results = train_and_compute_metrics(config, loaders, device)
-        training_results[p_con] = train_out
-        all_results[p_con] = results
-        for metric in metric_names : 
-            metric_results[metric][p_con] = metrics[metric]
+    metric_results, training_results, all_results = train_and_compute_metrics(config, loaders, device)
 
     for name, file in zip(['training_results', 'metric_results', 'all_results'], [training_results, metric_results, all_results]) : 
         mkdir_or_save_torch(file, name, run_dir)
@@ -169,8 +163,6 @@ if __name__ == "__main__":
         artifact.add_file(run_dir + name)
         wandb.log_artifact(artifact)
 
-    #wandb.log_artifact(run_dir + 'training_results', name='training_results')
-    #wandb.log_artifact(run_dir + 'metric_results', name='metric_results')
 
 
 

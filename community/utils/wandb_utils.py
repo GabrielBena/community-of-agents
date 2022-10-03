@@ -66,3 +66,14 @@ def mkdir_or_save_torch(to_save, save_name, save_path) :
         torch.save(to_save, save_path + save_name)
 
 
+def update_dict(config, new_config) : 
+    
+    for k, v in new_config.items() : 
+        if type(v) is dict : 
+            config[k] = update_dict(config[k], v)
+        else : 
+            config[k] = v
+            
+    return config
+
+

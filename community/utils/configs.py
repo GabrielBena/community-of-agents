@@ -13,21 +13,20 @@ def get_training_dict(config)  :
         'early_stop' : config['training']['early_stop'] ,
         'deepR_params_dict' : config['optimization']['connections'],
         'data_type' : config['datasets']['data_type'] , 
-        'force_connections' : config['training']['force_connections']
+        'force_connections' : config['training']['force_connections'],
+        'sparsity' : config['model_params']['connections_params']['sparsity']
     }
 
     return training_dict
 
-def find_and_change(config, v_param, param_to_change=None) : 
-    if param_to_change is None : 
-        param_to_change = config['varying_param']
-
-    for k, v in config.items() : 
-        if type(v) is dict : 
-            find_and_change(v, v_param, param_to_change)
+def find_and_change(config, param_name, param_value) : 
+    
+    for key, value in config.items() : 
+        if type(value) is dict : 
+            find_and_change(value, param_name, param_value)
         else : 
-            if k == param_to_change : 
-                config[param_to_change] = v_param
+            if key == param_name : 
+                config[key] = param_value
 
 def find_varying_param(config, param_to_change=None) : 
 
@@ -38,8 +37,8 @@ def find_varying_param(config, param_to_change=None) :
         if type(v) is dict : 
             return find_varying_param(v, param_to_change)
         else : 
-            if k == param_to_change : 
-                return config[param_to_change]
+            if k == param_to_change and v is not None: 
+                return v
 
 def get_new_config(config, key_prefix='config') : 
     new_config = {}
