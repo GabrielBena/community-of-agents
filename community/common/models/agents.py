@@ -84,7 +84,9 @@ class Agent(nn.Module):
 
         self.dual_readout = dual_readout
         if dual_readout : 
-            self.readout2 = deepcopy(self.readout)
+            self.readout = nn.ModuleList([self.readout, deepcopy(self.readout)])
+        else : 
+            self.readout = nn.ModuleList([self.readout])
         
         self.cell_params('weight_ih_l0').requires_grad = train_in_out[0]
         self.cell_params('bias_ih_l0').requires_grad = train_in_out[0]
@@ -128,13 +130,9 @@ class Agent(nn.Module):
             output = self.bottleneck(output)
             
         if self.use_readout : 
-            output1 = self.readout(output)
-            if self.dual_readout : 
-                output2 = self.readout2(output)
-                output = torch.cat((output1, output2))
-            else : 
-                output = output1[0]
 
+            output = torch.cat([r(output) for r in self.readout])
+            
             if softmax  : 
                 output = F.log_softmax(output, dim=-1)
         
