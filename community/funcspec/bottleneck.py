@@ -47,68 +47,69 @@ def readout_retrain(community, loaders, n_classes=10, deepR_params_dict={},
         pbar = tqdm_f(pbar, position=position, desc='Bottleneck Metric Trials : ', leave=None)
 
     single_accs_total = []
+
     for test in pbar : 
 
         single_losses  = [[] for target in range(2)]
         single_accs = [[] for target in range(2)]
-        for target in range(2) :
+        #for target in range(2) :
 
-            f_community = copy.deepcopy(community)
-            for f_agent in f_community.agents : 
-                if f_agent.use_bottleneck : 
-                    f_agent.readout = nn.Linear(f_agent.bottleneck.out_features, n_classes)
-                else : 
-                    f_agent.readout = nn.Linear(f_agent.dims[-2], n_classes)
-                
-                f_agent.dual_readout = False
-                f_agent.to(device)
-            f_community.use_common_readout = False
-
-            for name, p in f_community.named_parameters() : 
-                if 'readout' in name :#and str(agent) in name:
-                    p.requires_grad = True
-                else : 
-                    p.requires_grad = train_all_param
-        
-            lr_ag, gamma = 1e-2, 0.9
-            params_dict = {'lr' : lr_ag, 'gamma' : gamma}
+        f_community = copy.deepcopy(community)
+        for f_agent in f_community.agents : 
+            if f_agent.use_bottleneck : 
+                f_agent.readout = nn.ModuleList([nn.Linear(f_agent.bottleneck.out_features, n_classes) for _ in range(2)])
+            else : 
+                f_agent.readout = nn.ModuleList([nn.Linear(f_agent.dims[-2], n_classes) for _ in range(2)])
             
-            optimizers, schedulers = init_optimizers(f_community, params_dict, deepR_params_dict)
+            f_agent.dual_readout = True
+            f_agent.to(device)
+        f_community.use_common_readout = False
 
-            try : 
-                min_acc = community.best_acc * 0.95
-            except AttributeError : 
-                min_acc = None
-
-            training_dicts = [{
-                'n_epochs' : n_epochs, 
-                'task' : str(target),
-                'global_rewire' : False, 
-                'check_gradients' : False, 
-                'reg_factor' : 0.,
-                'train_connections' : False,
-                'decision_params' : (ts, 'both') ,
-                'stopping_acc' : min_acc ,
-                'early_stop' :  True,
-                'deepR_params_dict' : deepR_params_dict,
-                'data_type' : 'symbols' if symbols else None,
-                'force_connections' : force_connections
-            } for ts in ['mid', 'last'] ]
-
-            train_outs = [train_community(f_community, *loaders, optimizers,
-                        schedulers=schedulers, config=training_dict,
-                        trials = (True, True), joint_training=True,
-                        use_tqdm=position+1 if use_tqdm else False,
-                        device=device) for training_dict in training_dicts]
-
-            test_losses = np.array([train_out['test_losses'] for train_out in train_outs]) #before and after comms x n_agents
-            test_accs = np.array([train_out['test_accs'] for train_out in train_outs]) #before and after comms x n_agents
-
-            single_accs[target] = test_accs.max(1)
+        for name, p in f_community.named_parameters() : 
+            if 'readout' in name :#and str(agent) in name:
+                p.requires_grad = True
+            else : 
+                p.requires_grad = train_all_param
+    
+        lr_ag, gamma = 1e-3, 0.9
+        params_dict = {'lr' : lr_ag, 'gamma' : gamma}
         
-        single_accs_total.append(np.array(single_accs))
+        optimizers, schedulers = init_optimizers(f_community, params_dict, deepR_params_dict)
+
+        try : 
+            min_acc = community.best_acc * 0.95
+        except AttributeError : 
+            min_acc = None
+
+        training_dicts = [{
+            'n_epochs' : n_epochs, 
+            'task' : 'both',
+            'global_rewire' : False, 
+            'check_gradients' : False, 
+            'reg_factor' : 0.,
+            'train_connections' : False,
+            'decision_params' : (ts, 'both') ,
+            'stopping_acc' : None ,
+            'early_stop' :  False,
+            'deepR_params_dict' : deepR_params_dict,
+            'data_type' : 'symbols' if symbols else None,
+            'force_connections' : force_connections
+        } for ts in ['0', 'mid-', 'last'] ]
+
+        train_outs = [train_community(f_community, *loaders, optimizers,
+                    schedulers=schedulers, config=training_dict,
+                    trials = (True, True), joint_training=True,
+                    use_tqdm=position if use_tqdm else False,
+                    device=device) for training_dict in training_dicts]
+
+        test_losses = np.stack([train_out['test_losses'] for train_out in train_outs], -1) # n_epochs x n_agents x timesteps
+        test_accs = np.stack([train_out['test_accs'] for train_out in train_outs], -1) # n_epochs x n_agents x n_targets x timesteps 
+
+        single_accs = test_accs.max(0) # n_agents x timesteps 
+    
+    single_accs_total.append(np.stack(single_accs, 1)) # n_agents x n_targets x timesteps 
             
-    return {'accs' : np.array(single_accs_total)}
+    return {'accs' : np.stack(single_accs_total, -1)} # n_agents x n_targets x n_timesteps x n_tests
 
 def compute_bottleneck_metrics(p_cons, loaders, save_name, device=torch.device('cuda'), config=None) : 
     """
