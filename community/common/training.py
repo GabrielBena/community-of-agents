@@ -24,64 +24,6 @@ from deepR.models import step_connections
 #------ Training and Testing functions ------
 
 def get_loss(output, t_target) : 
-
-    """
-    4 possibilities : 
-        -Single target, single decision
-        -Single target for both agents (joint training)
-        -Double target for single decision (take_min_loss)
-        -Double target for both agents (take_avg_loss)
-
-    """
-    """
-    if len(output.shape)==2 : 
-        output = output.unsqueeze(0)     
-    if len(target.shape)==1 : 
-        target = target.unsqueeze(0)
-    
-    if joint_training : 
-        target = target.expand([2] + list(target.shape[1:]))
-        take_min_loss = False
-    elif target.transpose(0, 1).shape == output.shape[:-1] : 
-        target = target.transpose(0, 1)
-        take_min_loss = False
-    elif target.shape[0] != output.shape[0] : 
-        take_min_loss = True
-    else : 
-        take_min_loss = False
-
-    target = target.contiguous()
-
-    assert target.shape == output.shape[:-1] or joint_training, print('Target and output shapes not compatible :', target.shape, output.shape)
-
-    factors = [1, 1]
-
-    if take_min_loss : 
-        loss, min_idxs = torch.stack([F.cross_entropy(output[0], tgt, reduction='none') for tgt in target]).min(0)
-        loss = loss.mean()
-    else  : 
-        loss = torch.stack([F.cross_entropy(out, tgt)*f for (out, tgt, f) in zip(output, target, factors)]).mean()
-
-    if take_min_loss : 
-        target = torch.where(~min_idxs.bool(), target[0], target[1])
-    
-
-    try : 
-        loss = F.cross_entropy(output, target, reduction='none').mean()
-        #if task == 'equal_count' : 
-        #loss[t_target == 0] *= 2
-        output = output.unsqueeze(0)
-    except RuntimeError :        
-        #loss = F.cross_entropy(output[0], t_target[:, 0], reduction='none')
-        loss = torch.stack([F.cross_entropy(o, t, reduction='none') for o, t in zip(output, target)]).T.mean()
-        #if task == 'equal_count' : 
-            #loss[t_target.T == 0] *= 2
-    except ValueError : 
-        target = target.unsqueeze(0).expand(output.shape[:-1])
-        loss = torch.stack([F.cross_entropy(o, t, reduction='none') for o, t in zip(output, target)]).T.mean()
-
-    #print(output.shape, target.shape, take_min_loss)
-    """
     n_target = len(t_target.shape)
     n_decisions = output.shape[:-2]
 
@@ -148,7 +90,7 @@ def train_community(model, train_loader, test_loader, optimizers, schedulers=Non
     n_epochs = config['n_epochs']
     task = config['task']
     reg_factor = config['reg_factor']
-    train_connections = config['train_connections']
+    train_connections = config['train_connections'] and config['sparsity'] > 0
     check_gradients = config['check_gradients']
     global_rewire = config['global_rewire']
     decision_params = config['decision_params']
@@ -233,13 +175,20 @@ def train_community(model, train_loader, test_loader, optimizers, schedulers=Non
 
                 correct = pred.eq(t_target.view_as(pred))
 
+                """
                 if output.shape[0] == 1 : # not joint_training : 
                     correct = correct.sum().cpu().data.item()
                     train_accs.append(correct/t_target.numel())
                 else : 
-                    correct = correct.flatten(start_dim=1).sum(1).cpu().data.numpy()
+                    correct = correct.flatten(start_dim=-2).sum(-1).cpu().data.numpy()
                     train_accs.append(correct/t_target[0].numel())
-                
+                """
+
+                pred = output.argmax(dim=-1)
+                correct = pred.eq(t_target.view_as(pred))
+                acc = (correct.sum(-1)*np.prod(t_target.shape[:-1]) / t_target.numel()).cpu().data.numpy()
+                train_accs.append(acc)
+
                 loss.backward()
 
                 if check_gradients : 
@@ -251,18 +200,20 @@ def train_community(model, train_loader, test_loader, optimizers, schedulers=Non
                 optimizer_agents.step()
 
                 #Apply gradient for sparse connections and rewire
+                """
                 if model.is_community and train_connections: 
                     nb_new_con = step_connections(model, optimizer_connections, global_rewire, thetas_list,
                                                   sparsity_list, deepR_params_dict=deepR_params_dict)
                 else : 
-                    nb_new_con = 0
-
+                    
+                """
+                nb_new_con = 0
                 acc = train_accs[-1]
-                descs[0] = str('Train Epoch: {} [{}/{} ({:.0f}%)] Loss: {:.3f}, Accuracy: {}%, New Cons: {}'.format(
+                descs[0] = str('Train Epoch: {} [{}/{} ({:.0f}%)] Loss: {:.3f}, Accuracy: {}%'.format(
                         epoch, batch_idx * train_loader.batch_size, len(train_loader.dataset),
                         100. * batch_idx / len(train_loader), loss.item(),
-                        (np.round(100*a) for a in acc) if type(acc) is list else np.round(100*acc),
-                        nb_new_con))
+                        np.round(100 * acc).mean() if type(acc) is not float else np.round(100*acc),
+                        ))
 
                 if use_tqdm: 
                      pbar.set_description(desc(descs))
@@ -357,6 +308,7 @@ def test_community(model, device, test_loader,
                 data, target = data.to(device), target.to(device)
                             
             data, t_target = process_data(data, target, task, conv_com, symbols=symbols)
+            
             if force_connections : 
                 conns = fconns[-1].detach().unsqueeze(0)
                 for ag in range(2) : 
@@ -374,23 +326,32 @@ def test_community(model, device, test_loader,
             test_loss += loss
             pred = output.argmax(dim=-1, keepdim=True)  # get the index of the max log-probability
 
+            """
             c = pred.eq(t_target.view_as(pred))
             if output.shape[0]==1 : #not joint_training : 
                 correct += c.sum().cpu().data.item()
                 acc += c.sum().cpu().data.item()/t_target.numel()
             else : 
-                correct += c.flatten(start_dim=1).sum(1).cpu().data.numpy()
-                acc += c.flatten(start_dim=1).sum(1).cpu().data.numpy()/t_target[0].numel()
+                correct += c.flatten(start_dim=-2).sum(-1).cpu().data.numpy()
+                acc += c.flatten(start_dim=-2).sum(-1).cpu().data.numpy()/t_target[0].numel()
+            """
+            pred = output.argmax(dim=-1)
+            c = pred.eq(t_target.view_as(pred))
+            test_acc = (c.sum(-1)*np.prod(t_target.shape[:-1]) / t_target.numel()).cpu().data.numpy()
+            
+            correct += c
+            acc += test_acc
+
 
     test_loss /= len(test_loader)
     acc /= len(test_loader)
 
     deciding_agents = np.array(deciding_agents)
     
-    desc = str(' | Test set: Loss: {:.3f}, Accuracy: {}/{} ({}%), Mean decider: {:.2f}'.format(
-            test_loss, np.sum(correct), (len(test_loader.dataset)*(t_target.shape[0])),
-            (np.round(100*a) for a in acc) if type(acc) is list else np.round(100*acc),
-            deciding_agents.mean()))
+    desc = str(' | Test set: Loss: {:.3f}, Accuracy: {}%'.format(
+            test_loss,
+            np.round(100 * acc).mean() if type(acc) is not float else np.round(100*acc),
+            ))
     
     if verbose : print(desc)
         
