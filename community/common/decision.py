@@ -48,8 +48,10 @@ def get_decision(outputs, temporal_decision='last', agent_decision='0', target=N
             outputs = torch.mean(outputs, axis=0)
         elif temporal_decision == None : 
             outputs = outputs
-        elif temporal_decision == 'mid' : 
+        elif temporal_decision == 'mid-' : 
             outputs = outputs[n_steps//2 - 1]
+        elif 'mid' in temporal_decision: 
+            outputs = outputs[n_steps//2]
         else : 
             raise ValueError('temporal decision not recognized, try "last", "sum" or "mean", or time_step of decision ("0", "-1" ) ')
         
