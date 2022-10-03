@@ -144,16 +144,7 @@ def get_pearson_metrics(community, loaders, fixed_mode='label', double_data=True
         else :
             datas = process_data(datas, label, 'none', False, True)[0].to(device)      
         
-        nb_steps = len(datas)
-        if community.comms_start == 'start' : 
-            min_t = 1
-        elif community.comms_start == 'mid' : 
-            min_t = nb_steps // 2
-        elif community.comms_start == 'last' : 
-            min_t = nb_steps- 1
-        else : 
-            raise NotImplementedError
-        chosen_steps = [min_t - 1, -1]
+        chosen_steps = [0, community.min_t_comms - 1, -1]
 
         perm = lambda s : randperm_no_fixed(s.shape[0])
 
@@ -180,18 +171,20 @@ def get_pearson_metrics(community, loaders, fixed_mode='label', double_data=True
                 return (corrs_0, corrs_1), (states_0, states_1), (datas, label, fixed_data)
 
             correlations[target_digit].append(corrs) # n_batches x n_agents x n_classes x n_timesteps
+
         base_correlations.append(base_corrs)
             
-    correlations = np.stack([np.stack(c, -1) for c in correlations], 0) # n_targets x n_agents x n_timesteps x n_classes x n_batches
+    correlations = np.stack([np.stack(c, -1) for c in correlations], 1) # n_agents x n_targets x n_timesteps x n_classes x n_batches
     base_correlations = np.stack(base_correlations, -1) # n_agents x n_timesteps x n_batches
 
-    return process_correlations(correlations, base_correlations)
+    mean_corrs, relative_corrs, base_corrs = process_correlations(correlations, base_correlations)
+    return {'mean_corrs' : mean_corrs, 'relative_corrs' : relative_corrs, 'base_corrs' : base_corrs}
 
 def process_correlations(correlations, base_correlations) : 
 
-    mean_corrs = correlations.mean(-1).mean(-1)
-    base_corrs = base_correlations.mean(-1)
-    relative_corrs = np.stack( [ c/b for c, b in zip(mean_corrs.T, base_corrs) ] )
+    mean_corrs = correlations.mean(-1).mean(-1) # n_agents x n_targets x n_timesteps
+    base_corrs = base_correlations.mean(-1) # n_agents x n_timesteps
+    relative_corrs = np.array( [[ c/b for c in corr] for corr, b in zip(mean_corrs, base_corrs) ] ) # n_agents x n_targets x n_timesteps
 
     return mean_corrs, relative_corrs, base_corrs
 
