@@ -22,15 +22,16 @@ class Community(nn.Module) :
                  comms_start='1', comms_dropout=0.):
 
         super().__init__()
-        self.agents = nn.ModuleList()
-       
-        for ag in agents : 
-            self.agents.append(ag)
+
+        self.agents = nn.ModuleList(agents)
         self.n_agents = len(agents)
+        self.n_layers = agents[0].cell.num_layers
+
         self.sparse_connections = sparse_connections
         self.use_deepR = use_deepR
         self.comms_dropout = comms_dropout
         self.binarize = binarize
+
         self.init_connections()
         self.is_community = True
 
@@ -38,11 +39,11 @@ class Community(nn.Module) :
         self.dual_readout = dual_readout
 
         if common_readout : 
-            self.readout = nn.Linear(np.sum([ag.dims[-2] for ag in self.agents]), self.agents[0].dims[-1])
+            readout = [nn.Linear(np.sum([ag.dims[-2] for ag in self.agents]), self.agents[0].dims[-1])]
             if self.dual_readout : 
-                self.readouts = nn.ModuleList([self.readout, deepcopy(self.readout)])
+                readout.append(deepcopy(readout[0]))
+            self.readout = nn.ModuleList(readout)
 
-            
         self.comms_start = comms_start
 
     # Initializes connections in_between agents with the given sparsity matrix
@@ -80,9 +81,6 @@ class Community(nn.Module) :
 
     #Forward function of the community
     def forward(self, x, forced_comms=None):
-        outputs = []
-        states = []
-        connections =  []
         
         #Split_data checks if the data is provided on a per-agent manner or in a one-to-all manner. 
         #data can be a double list of len n_timesteps x n_agents or a tensor with second dimension n_agents
@@ -90,25 +88,25 @@ class Community(nn.Module) :
         nb_steps = len(x)
 
         try : 
-            min_t = int(self.comms_start)
+            self.min_t_comms = int(self.comms_start)
         except ValueError : 
             if self.comms_start == 'start' : 
-                min_t = 1
+                self.min_t_comms = 1
             elif self.comms_start == 'mid' : 
-                min_t = nb_steps // 2
+                self.min_t_comms = nb_steps // 2
             elif self.comms_start == 'last' : 
-                min_t = nb_steps- 1
+                self.min_t_comms = nb_steps- 1
             else : 
                 raise NotImplementedError
+
+            outputs = [[] for ag in self.agents] if not self.use_common_readout else []
+            states = [[None] for ag in self.agents]
+            connections =  [[] for ag in self.agents]
 
         for t, x_t in enumerate(x) : 
             if split_data:
                 assert len(x_t) == len(self.agents), 'If data is provided per agent, make sure second dimension matches number of agents'
-                
-            output = [None for ag in self.agents]
-            state = [None for ag in self.agents]
-            connection = [None for ag in self.agents]
-            
+
             for ag1 in self.agents :
                 i = int(ag1.tag)
                 if split_data : 
@@ -120,13 +118,13 @@ class Community(nn.Module) :
                 
                 inputs_connect = 0
                 
-                if t >= min_t : 
+                if t >= self.min_t_comms : 
                     if forced_comms is None : 
                         for ag2 in self.agents :
                             j = int(ag2.tag)
                             if self.connected[j, i]==1: 
                                 #State-to-state connections j->i
-                                sparse_out = self.connections[ag2.tag+ag1.tag](states[t-1][j])
+                                sparse_out = self.connections[ag2.tag+ag1.tag](states[j][t-1])
                                 inputs_connect += sparse_out[0]
 
                                 #Output-to-Input connections j->i
@@ -134,36 +132,35 @@ class Community(nn.Module) :
                                 #inputs += sparse_out[0]
                     else : 
                         inputs_connect = forced_comms[:, ag1]
-                            
-                    connection[i] = inputs_connect
+
                     #out, h = ag1(inputs, states[t-1][i], inputs_connect)
                     
-                out, h = ag1(inputs, state[i], inputs_connect)
+                out, h = ag1(inputs, states[i][t-1], inputs_connect)
                     
-                output[i] = out
-                state[i] = h
-                
+                if not self.use_common_readout : 
+                    outputs[i].append(out)
+
+                states[i].append(h)
+                connections[i].append(inputs_connect)
             #Store states and outputs of agent
-            states.append(torch.cat(state, 0))
 
-            if not self.use_common_readout : 
-                output = torch.stack(output)     
-            else :
-                if self.dual_readout : 
-                    output = torch.stack([r(torch.cat(state, -1))[0] for r in self.readouts])
-                else : 
-                    output = self.readout(torch.cat(state, -1))       
-            outputs.append(output)
-
-            if t>min_t : 
-                try : 
-                    connections.append(torch.stack(connection))
-                except : 
-                    connections.append(torch.tensor(connection))
+            if self.use_common_readout : 
+                out = torch.stack([r(torch.cat([s[-1] for s in states], -1))[0] for r in self.readout])
+                outputs.append(out)
             
-        outputs = torch.stack(outputs)
-        connections = torch.stack(connections)
-        states = torch.stack(states)
+        if not self.use_common_readout : 
+            outputs = torch.stack([torch.stack(o) for o in outputs], 1)
+        else : 
+            outputs = torch.stack(outputs, 0)
+            
+        if self.n_layers > 1 : 
+            states = torch.stack([torch.stack([s[-1] for s in st[1:]]) for st in states], 1)
+        else  :
+            states = torch.stack([torch.cat(s[1:]) for s in states], 1)
+        try : 
+            connections = torch.stack([torch.stack(c[self.min_t_comms:]) for c in connections], 1)
+        except TypeError : 
+            connections = torch.tensor(connections)
 
         return outputs, states, connections
     
