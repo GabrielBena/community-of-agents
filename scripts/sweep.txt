@@ -1,0 +1,4 @@
+wandb agent gbena/funcspec/48r7r4ae
+wandb agent gbena/funcspec/48r7r4ae
+wandb agent gbena/funcspec/48r7r4ae
+wandb agent gbena/funcspec/48r7r4ae
