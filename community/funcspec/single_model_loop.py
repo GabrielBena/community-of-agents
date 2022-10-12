@@ -161,12 +161,14 @@ def compute_all_metrics(trained_coms, loaders, config, device):
         metric_name: metric for metric, metric_name in zip(all_results, metric_names)
     }
 
-    define_and_log(metric_results, wandb.config)
+    metric_data, metric_log = define_and_log(
+        metric_results, wandb.config, community.best_acc
+    )
 
-    return metric_results, all_metric_results
+    return metric_data, metric_log, all_metric_results
 
 
-def define_and_log(metrics, config):
+def define_and_log(metrics, config, best_acc):
 
     diff_metric = lambda metric: (metric[0] - metric[1]) / (metric[0] + metric[1])
     global_diff_metric = (
@@ -184,6 +186,9 @@ def define_and_log(metrics, config):
 
         metric_data.setdefault("Step", [])
         metric_data["Step"].append(step)
+
+        metric_data.setdefault("best_acc", [])
+        metric_data["best_acc"].append(best_acc)
 
         for v_param_name, v_param in config["varying_params"].items():
             metric_data.setdefault(v_param_name, [])
@@ -214,6 +219,7 @@ def define_and_log(metrics, config):
             metric_data.setdefault(metric_name + "_global_diff", [])
             metric_data[metric_name + "_global_diff"].append(community_diff_metric)
 
+    return metric_log, metric_data
     wandb.log(metric_log)
     table = wandb.Table(dataframe=pd.DataFrame.from_dict(metric_data))
     wandb.log({"Metric Results": table})
@@ -278,8 +284,8 @@ def train_and_compute_metrics(config, loaders, device):
 
     # ------ Metrics ------
 
-    metric_results, all_metric_results = compute_all_metrics(
+    metric_data, metric_log, all_metric_results = compute_all_metrics(
         trained_coms, loaders, config, device
     )
 
-    return metric_results, train_outs, all_metric_results
+    return metric_data, metric_log, train_outs, all_metric_results

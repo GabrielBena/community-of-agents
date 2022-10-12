@@ -92,7 +92,7 @@ def readout_retrain(
         f_community.use_common_readout = False
 
         for name, p in f_community.named_parameters():
-            if "readout" in name and "agents.0" in name:
+            if "readout" in name:  # and "agents.0" in name:
 
                 p.requires_grad = True
             else:
