@@ -315,17 +315,18 @@ class SymbolsDataset(Dataset):
 
         self.data_config = data_config
 
-        self.symbols = self.get_symbols(data_config["symbol_type"])
+        self.symbols = self.get_symbols()
         self.symbol_size = self.symbols[0].shape[0]
         self.n_symbols = data_config["n_symbols"]
         self.double_data = data_config["double_data"]
 
         if plot:
-            fig, axs = plt.subplots(1, 2)
+            fig, axs = plt.subplots(1, len(self.symbols))
             for ax, sym in zip(axs, self.symbols):
                 ax.imshow(sym)
             plt.show()
-        self.fixed_symbol_number = True
+
+        self.fixed_symbol_number = False
 
         # Permutation of ways to assign symbols, for each label
 
@@ -355,14 +356,18 @@ class SymbolsDataset(Dataset):
 
         self.data = self.generate_data()
 
-    def get_symbols(self, s_type=0):
+    def get_symbols(self):
+
+        s_type = self.data_config["symbol_type"]
+        n_diff = self.data_config["n_diff_symbols"]
 
         if s_type == "0":
 
-            symbols = [np.zeros((5, 5)), np.zeros((5, 5))]
+            symbols = [np.zeros((5, 5)) for n in range(2)]
 
             for i in range(5):
                 for j in range(5):
+
                     if (i + j) % 4 == 2 or (i - j) % 4 == 2:
                         symbols[1][i, j] = 1
 
@@ -377,15 +382,35 @@ class SymbolsDataset(Dataset):
             symbols = [X, C]
 
         elif "random" in s_type:
-            s_size = int(s_type.split("_")[-1])
+            s_size = int(s_type.split("_")[-1]) - 1
             symbols = [
-                np.random.randint(0, 2, size=(s_size, s_size)),
-                np.random.randint(0, 2, size=(s_size, s_size)),
+                np.random.randint(0, 2, size=(s_size, s_size)) for n in range(n_diff)
             ]
+
+        elif "mod" in s_type:
+            s_size = int(s_type.split("_")[-1])
+            symbols = [np.zeros((s_size + 1, s_size + 1)) for n in range(n_diff)]
+            step = s_size // n_diff
+
+            # self.data_config["symbol_size"] += 1
+
+            for i in range(s_size):
+                for j in range(s_size):
+                    for n in range(n_diff):
+
+                        if (
+                            (i + j) % (s_size - 1) == n or (i - j) % (s_size - 1) == n
+                        ) and n % 2 == 0:
+                            symbols[n][i, j] = 1
+
+                        if (
+                            i % (s_size - 1) == n - 1 or j % (s_size - 1) == n - 1
+                        ) and n % 2 == 1:
+                            symbols[n][i, j] = 1
 
         else:
             raise NotImplementedError(
-                ' Provide symbol type in [0, 1, "random_{size}"] '
+                ' Provide symbol type in [0, 1, "random_{size}", "mod_{size}"] '
             )
 
         return symbols
@@ -485,10 +510,17 @@ class SymbolsDataset(Dataset):
                 assignments[label:] = np.random.random_integers(
                     -1, 0, self.n_symbols - label
                 )
-
         except TypeError:
-            assignments[: label[0]] = 1
-            assignments[label[0] + label[1] :] = -1
+
+            # assign 1st label
+            assignments[: label[0]] = 0
+            for l in range(1, len(label)):
+
+                # assign other labels
+                assignments[label[:l].sum() : label[: l + 1].sum()] = l
+
+            # remaining are set at -1 (no symbol)
+            assignments[label.sum() :] = -1
 
         np.random.shuffle(assignments)
         # print(assignments)
@@ -590,6 +622,7 @@ class SymbolsDataset(Dataset):
         input_size,
         static,
         double_data,
+        n_diff_symbols,
     ):
 
         symbol_size = self.symbol_size
@@ -597,12 +630,14 @@ class SymbolsDataset(Dataset):
         # probas = self.get_probabilities(n_symbols+1)
 
         if not self.double_data:
-            probas = np.ones((n_symbols + 1) // 2) / ((n_symbols + 1) // 2)
+            probas = np.ones((n_symbols + 1) // n_diff_symbols) / (
+                (n_symbols + 1) // n_diff_symbols
+            )
             labels = (
                 np.stack(
                     [
                         np.random.multinomial(1, probas, size=(data_size)).argmax(-1)
-                        for _ in range(2)
+                        for _ in range(n_diff_symbols)
                     ],
                     -1,
                 )
@@ -615,8 +650,11 @@ class SymbolsDataset(Dataset):
                 centers, labels, data_size, input_size, symbol_size
             )
 
-            grids = np.stack([grids, grids])
-            centers = np.stack([centers, centers])
+            return (
+                torch.from_numpy(grids).transpose(0, 1),
+                torch.from_numpy(labels),
+                torch.from_numpy(centers).transpose(0, 1),
+            )  # , torch.from_numpy(jitter)
 
         else:
             probas = np.ones(n_symbols + 1) / (n_symbols + 1)
@@ -647,11 +685,11 @@ class SymbolsDataset(Dataset):
                 ]
             )
 
-        return (
-            torch.from_numpy(grids).transpose(0, 2),
-            torch.from_numpy(labels),
-            torch.from_numpy(centers).transpose(0, 2),
-        )  # , torch.from_numpy(jitter)
+            return (
+                torch.from_numpy(grids).transpose(0, 2),
+                torch.from_numpy(labels),
+                torch.from_numpy(centers).transpose(0, 2),
+            )  # , torch.from_numpy(jitter)
 
     def generate_data(self):
 
@@ -806,7 +844,7 @@ def get_datasets_symbols(
         {k: v[1] if i == 0 else v for i, (k, v) in enumerate(data_config.items())},
     )
     datasets = [SymbolsDataset(d, plot=plot) for d in data_configs]
-    datasets[1].symbols = datasets[0].symbols
+    # datasets[1].symbols = datasets[0].symbols
     dataloaders = [
         torch.utils.data.DataLoader(d, **k) for d, k in zip(datasets, kwargs)
     ]
