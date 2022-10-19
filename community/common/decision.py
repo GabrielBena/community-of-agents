@@ -2,99 +2,124 @@ import torch
 import numpy as np
 import torch.nn.functional as F
 
-#------Decision Making Functions ------: 
+# ------Decision Making Functions ------:
 
-def random_decision(outputs, p=0.5) : 
+
+def random_decision(outputs, p=0.5):
     batchs = outputs.shape[1]
     device = outputs.device
-    deciding_agents = torch.rand(batchs).to(device)<p
-    mask = torch.einsum('ab, a -> ab', torch.ones_like(outputs[0]), deciding_agents).bool()
+    deciding_agents = torch.rand(batchs).to(device) < p
+    mask = torch.einsum(
+        "ab, a -> ab", torch.ones_like(outputs[0]), deciding_agents
+    ).bool()
     outputs = torch.where(mask, outputs[0, ...], outputs[1, ...])
     return outputs, deciding_agents
 
-def max_decision_2(outputs) :
+
+def max_decision_2(outputs):
     n_agents = outputs.shape[0]
-    max_out = lambda i : torch.max(torch.abs(outputs[i,...]), axis=-1)
-    max_outs, deciding_ags = torch.max(torch.stack([max_out(i)[0] for i in range(n_agents)]), axis=0)
-    mask = torch.einsum('bc, b -> bc', torch.ones_like(outputs[0]), deciding_ags).bool()
+    max_out = lambda i: torch.max(torch.abs(outputs[i, ...]), axis=-1)
+    max_outs, deciding_ags = torch.max(
+        torch.stack([max_out(i)[0] for i in range(n_agents)]), axis=0
+    )
+    mask = torch.einsum("bc, b -> bc", torch.ones_like(outputs[0]), deciding_ags).bool()
     outputs = torch.where(mask, outputs[1], outputs[0])
-    
+
     return outputs, deciding_ags
 
-def max_decision(outputs) : 
+
+def max_decision(outputs):
     device = outputs.device
     n_agents = outputs.shape[0]
-    max_out = lambda i : torch.max(outputs[i,...], axis=-1)
-    _, deciding_ags = torch.max(torch.stack([max_out(i)[0] for i in range(n_agents)]), axis=0)
+    max_out = lambda i: torch.max(outputs[i, ...], axis=-1)
+    _, deciding_ags = torch.max(
+        torch.stack([max_out(i)[0] for i in range(n_agents)]), axis=0
+    )
     mask_1 = deciding_ags.unsqueeze(0).unsqueeze(-1).expand_as(outputs)
-    mask_2 = torch.einsum('b, bcx -> bcx', torch.arange(n_agents).to(device), torch.ones_like(outputs))
-    mask = (mask_1 == mask_2)
+    mask_2 = torch.einsum(
+        "b, bcx -> bcx", torch.arange(n_agents).to(device), torch.ones_like(outputs)
+    )
+    mask = mask_1 == mask_2
 
-    return (outputs*mask).sum(0), deciding_ags
+    return (outputs * mask).sum(0), deciding_ags
 
-def get_decision(outputs, temporal_decision='last', agent_decision='0', target=None):
+
+def get_decision(outputs, temporal_decision="last", agent_decision="0", target=None):
 
     n_steps = len(outputs)
-    try : 
+    try:
         deciding_ts = int(temporal_decision)
         outputs = outputs[deciding_ts]
-    except ValueError : 
-            
-        if temporal_decision == 'last' : 
+    except ValueError:
+
+        if temporal_decision == "last":
             outputs = outputs[-1]
-        elif temporal_decision == 'sum' : 
+        elif temporal_decision == "sum":
             outputs = torch.sum(outputs, axis=0)
-        elif temporal_decision == 'mean' :
+        elif temporal_decision == "mean":
             outputs = torch.mean(outputs, axis=0)
-        elif temporal_decision == None : 
+        elif temporal_decision == None:
             outputs = outputs
-        elif temporal_decision == 'mid-' : 
-            outputs = outputs[n_steps//2 - 1]
-        elif 'mid' in temporal_decision: 
-            outputs = outputs[n_steps//2]
-        else : 
-            raise ValueError('temporal decision not recognized, try "last", "sum" or "mean", or time_step of decision ("0", "-1" ) ')
-        
-    if len(outputs.shape) == 2 : 
+        elif temporal_decision == "mid-":
+            outputs = outputs[n_steps // 2 - 1]
+        elif "mid" in temporal_decision:
+            outputs = outputs[n_steps // 2]
+        else:
+            raise ValueError(
+                'temporal decision not recognized, try "last", "sum" or "mean", or time_step of decision ("0", "-1" ) '
+            )
+
+    if len(outputs.shape) == 2:
         return outputs, None
-    
-    try : 
+
+    try:
         deciding_ags = int(agent_decision)
         outputs = outputs[deciding_ags]
-        deciding_ags = torch.ones(outputs.shape[0])*deciding_ags
-        
-    except ValueError : 
-            
-        if agent_decision == 'max' : 
-            if outputs.shape[0] == 2 : 
+        deciding_ags = torch.ones(outputs.shape[0]) * deciding_ags
+
+    except ValueError:
+
+        if agent_decision == "max":
+            if outputs.shape[0] == 2:
                 outputs, deciding_ags = max_decision_2(outputs)
-            else : 
+            else:
                 outputs, deciding_ags = max_decision(outputs)
-            
-        elif agent_decision == 'random'  : 
+
+        elif agent_decision == "random":
             outputs, deciding_ags = random_decision(outputs)
-            
-        elif agent_decision == 'sum' : 
+
+        elif agent_decision == "sum":
             outputs = outputs.sum(0)
             deciding_ags = None
-        
-        elif agent_decision == 'combine' : 
-            outputs = torch.cat([torch.stack([outputs[1, :, i] + outputs[0, :, j] for i in range(10)], dim=-1) for j in range(10)], dim=-1)
-            deciding_ags = None
-        
-        elif agent_decision == 'both' : 
+
+        elif agent_decision == "combine":
+            outputs = torch.cat(
+                [
+                    torch.stack(
+                        [outputs[1, :, i] + outputs[0, :, j] for i in range(10)], dim=-1
+                    )
+                    for j in range(10)
+                ],
+                dim=-1,
+            )
             deciding_ags = None
 
-        elif agent_decision == 'loss' : 
-            assert target is not None, 'provide target for decision based on min loss'
-            loss, min_idxs = torch.stack([F.cross_entropy(out, target, reduction='none') for out in outputs]).min(0)
+        elif agent_decision == "both" or agent_decision == "all":
+            deciding_ags = None
+
+        elif agent_decision == "loss":
+            assert target is not None, "provide target for decision based on min loss"
+            loss, min_idxs = torch.stack(
+                [F.cross_entropy(out, target, reduction="none") for out in outputs]
+            ).min(0)
             min_idxs = min_idxs.unsqueeze(-1).expand_as(outputs[0])
             outputs = torch.where(~min_idxs.bool(), outputs[0], outputs[1])
             deciding_ags = min_idxs
             return outputs, deciding_ags
-            
-        else : 
-            raise ValueError('Deciding agent not recognized, try agent number ("0", "1"), "max", "random", "both" or "parity" ')
-            
-        
+
+        else:
+            raise ValueError(
+                'Deciding agent not recognized, try agent number ("0", "1"), "max", "random", "both" or "parity" '
+            )
+
     return outputs, deciding_ags
