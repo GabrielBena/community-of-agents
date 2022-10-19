@@ -54,6 +54,12 @@ def get_task_target(target, task="parity_digits_10", temporal_target=False):
 
         return get_task_target(target, task, n_classes, False).unique(dim=0)
 
+    elif type(task) is list:
+        try:
+            return torch.stack([get_task_target(target, t) for t in task])
+        except:
+            return [get_task_target(target, t) for t in task]
+
     else:
 
         new_target = None
@@ -99,7 +105,7 @@ def get_task_target(target, task="parity_digits_10", temporal_target=False):
             elif "equal" in tasks:
                 new_target = target[:, 0] != target[:, 1]
 
-        elif task == "none" or task == "both":
+        elif task in ["none", "both", "all"]:
             new_target = target
 
         if "opposite" in tasks:
