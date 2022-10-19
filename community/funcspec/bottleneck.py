@@ -23,6 +23,8 @@ def readout_retrain(
     community,
     loaders,
     n_classes=10,
+    n_agents=2,
+    n_digits=2,
     deepR_params_dict={},
     n_epochs=3,
     n_tests=3,
@@ -66,8 +68,8 @@ def readout_retrain(
 
     for training_timestep in pbar:
 
-        single_losses = [[] for target in range(2)]
-        single_accs = [[] for target in range(2)]
+        single_losses = [[] for target in range(n_agents)]
+        single_accs = [[] for target in range(n_agents)]
         # for target in range(2) :
 
         f_community = copy.deepcopy(community)
@@ -78,15 +80,15 @@ def readout_retrain(
                 f_agent.readout = nn.ModuleList(
                     [
                         nn.Linear(f_agent.bottleneck.out_features, n_classes)
-                        for _ in range(2)
+                        for _ in range(n_digits)
                     ]
                 )
             else:
                 f_agent.readout = nn.ModuleList(
-                    [nn.Linear(f_agent.dims[-2], n_classes) for _ in range(2)]
+                    [nn.Linear(f_agent.dims[-2], n_classes) for _ in range(n_digits)]
                 )
 
-            f_agent.dual_readout = True
+            f_agent.n_readouts = n_digits
             f_agent.to(device)
 
         f_community.use_common_readout = False
@@ -112,7 +114,7 @@ def readout_retrain(
 
         training_dict = {
             "n_epochs": n_epochs,
-            "task": "both",
+            "task": "all",
             "global_rewire": False,
             "check_gradients": False,
             "reg_factor": 0.0,

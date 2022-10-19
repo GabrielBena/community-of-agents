@@ -16,12 +16,17 @@ from community.data.process import process_data, temporal_data
 from community.common.init import init_community
 
 
-def fixed_information_data(data, target, fixed, fixed_mode="label", permute_other=True):
+def fixed_information_data(
+    data, target, fixed, fixed_mode="label", permute_other=True, n_agents=2
+):
     data = data.clone()
     # Return a modified version of data sample, where one quality is fixed (digit label, or parity, etc)
     digits = get_digits(target)
     bs = digits[0].shape[0]
     n_classes = len(digits[0].unique())
+
+    if len(data.shape) == 3:
+        data = torch.stack([data for _ in range(n_agents)], 1)
 
     if permute_other:
         data[:, 1 - fixed, ...] = data[:, 1 - fixed, torch.randperm(bs), ...]
@@ -36,6 +41,13 @@ def fixed_information_data(data, target, fixed, fixed_mode="label", permute_othe
     datas = [[data[:, j, idx, :] for idx in d_idxs] for j in range(2)]
 
     new_data = [torch.stack([d1, d2], axis=1) for d1, d2 in zip(*datas)]
+
+    """
+    if 0 in [d.shape[2] for d in new_data]:
+        return fixed_information_data(
+            data, target, fixed, fixed_mode, permute_other, n_agents
+        )
+    """
 
     return new_data
 
@@ -200,6 +212,7 @@ def get_pearson_metrics(
                 fixed=target_digit,
                 fixed_mode=fixed_mode,
                 permute_other=double_data,
+                n_agents=community.n_agents,
             )
             if 0 in [d.shape[2] for d in fixed_data]:
                 break
@@ -245,21 +258,30 @@ def get_pearson_metrics(
 
         base_correlations.append(base_corrs)
 
-    correlations = np.stack(
-        [np.stack(c, -1) for c in correlations], 1
-    )  # n_agents x n_targets x n_timesteps x n_classes x n_batches
-    base_correlations = np.stack(
-        base_correlations, -1
-    )  # n_agents x n_timesteps x n_batches
+    try:
+        correlations = np.stack(
+            [np.stack(c, -1) for c in correlations], 1
+        )  # n_agents x n_targets x n_timesteps x n_classes x n_batches
+        base_correlations = np.stack(
+            base_correlations, -1
+        )  # n_agents x n_timesteps x n_batches
 
-    mean_corrs, relative_corrs, base_corrs = process_correlations(
-        correlations, base_correlations
-    )
-    return {
-        "mean_corrs": mean_corrs,
-        "relative_corrs": relative_corrs,
-        "base_corrs": base_corrs,
-    }
+        mean_corrs, relative_corrs, base_corrs = process_correlations(
+            correlations, base_correlations
+        )
+
+        return {
+            "mean_corrs": mean_corrs,
+            "relative_corrs": relative_corrs,
+            "base_corrs": base_corrs,
+        }
+    except ValueError:
+
+        return {
+            "mean_corrs": 0,
+            "relative_corrs": 0,
+            "base_corrs": 0,
+        }
 
 
 def process_correlations(correlations, base_correlations):

@@ -2,6 +2,8 @@ from re import S
 import wandb
 import torch
 import pandas as pd
+import numpy as np
+import numpy.linalg as LA
 
 from community.funcspec.masks import train_and_get_mask_metric
 from community.funcspec.bottleneck import readout_retrain
@@ -9,7 +11,6 @@ from community.funcspec.correlation import get_pearson_metrics
 from community.common.training import train_community
 from community.common.init import init_community, init_optimizers
 from community.utils.configs import get_training_dict, find_varying_param
-import numpy as np
 import copy
 from time import sleep
 
@@ -196,28 +197,46 @@ def define_and_log(metrics, config, best_acc):
 
         for metric_name, metric in metrics.items():
 
-            step_single_metrics = metric[..., step]
-            ag_diff_metrics = []
+            try:
 
-            for ag in range(2):
-                ag_single_metrics = step_single_metrics[ag]
-                ag_diff_metric = diff_metric(ag_single_metrics)
-                metric_log[
-                    f"metric_{metric_name}_diff_ag_{ag}_step_{step}"
-                ] = ag_diff_metric
-                for task in range(2):
+                step_single_metrics = metric[..., step]
+                ag_diff_metrics = []
+
+                metric_data.setdefault(metric_name + "_det", [])
+                metric_data[metric_name + "_det"].append(
+                    np.abs(LA.det(step_single_metrics))
+                )
+
+                for norm in [1, 2, "fro"]:
+
+                    metric_data.setdefault(metric_name + f"_det_norm_{norm}", [])
+                    metric_data[metric_name + f"_det_norm_{norm}"].append(
+                        np.abs(LA.det(step_single_metrics))
+                        / LA.norm(step_single_metrics, norm)
+                    )
+
+                for ag in range(2):
+                    ag_single_metrics = step_single_metrics[ag]
+                    ag_diff_metric = diff_metric(ag_single_metrics)
                     metric_log[
-                        f"metric_{metric_name}_ag_{ag}_dig_{task}_step_{step}"
-                    ] = ag_single_metrics[task]
-                ag_diff_metrics.append(ag_diff_metric)
+                        f"metric_{metric_name}_diff_ag_{ag}_step_{step}"
+                    ] = ag_diff_metric
+                    for task in range(2):
+                        metric_log[
+                            f"metric_{metric_name}_ag_{ag}_dig_{task}_step_{step}"
+                        ] = ag_single_metrics[task]
+                    ag_diff_metrics.append(ag_diff_metric)
 
-            community_diff_metric = global_diff_metric(step_single_metrics)
-            metric_log[
-                f"metric_{metric_name}_global_diff_step_{step}"
-            ] = community_diff_metric
+                community_diff_metric = global_diff_metric(step_single_metrics)
+                metric_log[
+                    f"metric_{metric_name}_global_diff_step_{step}"
+                ] = community_diff_metric
 
-            metric_data.setdefault(metric_name + "_global_diff", [])
-            metric_data[metric_name + "_global_diff"].append(community_diff_metric)
+                metric_data.setdefault(metric_name + "_global_diff", [])
+                metric_data[metric_name + "_global_diff"].append(community_diff_metric)
+
+            except TypeError:
+                continue
 
     return metric_log, metric_data
     wandb.log(metric_log)
