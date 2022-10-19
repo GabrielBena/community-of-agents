@@ -1,8 +1,5 @@
 import wandb
 from community.utils.wandb_utils import get_wandb_artifact, get_wandb_runs
-import numpy as np
-import torch
-import matplotlib.pyplot as plt
 import pandas as pd
 from tqdm import tqdm
 import json
@@ -62,7 +59,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "-p1",
         "--sweep_path",
-        default="gbena/funcspec/xartyp2h",
+        default="gbena/funcspec/j3uqaib0",
         help="path of sweep to use",
     )
 
