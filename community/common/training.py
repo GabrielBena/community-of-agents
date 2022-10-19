@@ -25,13 +25,19 @@ from deepR.models import step_connections
 
 
 def get_loss(output, t_target):
-    n_target = len(t_target.shape)
+
+    n_target = t_target.shape[:-1]
     n_decisions = output.shape[:-2]
 
     if len(n_decisions) == 1:
         n_decisions = n_decisions[0]
     elif len(n_decisions) == 0:
         n_decisions = 1
+
+    if len(n_target) == 1:
+        n_target = n_target[0]
+    elif len(n_target) == 0:
+        n_target = 1
 
     if n_target == n_decisions == 1:
         loss = F.cross_entropy(output, t_target, reduction="none")
@@ -49,9 +55,19 @@ def get_loss(output, t_target):
         ).T
 
     elif n_target == n_decisions:
-        loss = torch.stack(
-            [F.cross_entropy(o, t, reduction="none") for o, t in zip(output, t_target)]
-        ).T
+        try:
+            loss = torch.stack(
+                [
+                    F.cross_entropy(o, t, reduction="none")
+                    for o, t in zip(output, t_target)
+                ]
+            ).T
+        except RuntimeError:
+
+            res = [get_loss(o, t) for o, t in zip(output, t_target)]
+            loss, t_target = torch.stack([r[0] for r in res]).T, torch.stack(
+                [r[1] for r in res]
+            )
 
     else:
         res = [get_loss(o, t_target) for o in output]
@@ -59,6 +75,7 @@ def get_loss(output, t_target):
             [r[1] for r in res]
         )
 
+    return loss.mean(), t_target, output
     return loss.mean(), t_target, output
 
 
@@ -168,6 +185,7 @@ def train_community(
 
             model.train()
             for batch_idx, (data, target) in enumerate(train_loader):
+
                 if type(data) is list:
                     data, target = [d.to(device) for d in data], target.to(device)
                 else:
@@ -424,7 +442,7 @@ def test_community(
     deciding_agents = np.array(deciding_agents)
 
     desc = str(
-        " | Test set: Loss: {:.3f}, Accuracy: {}%".format(
+        " | Test set: Loss: {:.3f}, Accuracy: {:.3f}%".format(
             test_loss,
             np.round(100 * acc).mean()
             if type(acc) is not float
