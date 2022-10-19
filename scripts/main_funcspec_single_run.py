@@ -5,7 +5,6 @@ import torch.nn as nn
 from torchvision import *
 import pyaml
 import pandas as pd
-import numpy as np
 
 from community.data.datasets import get_datasets_alphabet, get_datasets_symbols
 from community.funcspec.single_model_loop import train_and_compute_metrics
@@ -36,6 +35,7 @@ if __name__ == "__main__":
         "static": True,
         "symbol_type": "0",
         "double_data": False,
+        "n_diff_symbols": 2,
     }
 
     if symbol_config["static"]:
@@ -59,25 +59,9 @@ if __name__ == "__main__":
     }
 
     if dataset_config["data_type"] == "symbols":
-        loaders, datasets = get_datasets_symbols(
-            symbol_config, dataset_config["batch_size"], dataset_config["use_cuda"]
-        )
 
         dataset_config["input_size"] = symbol_config["input_size"] ** 2
     else:
-        all_loaders = get_datasets_alphabet(
-            "data/",
-            dataset_config["batch_size"],
-            dataset_config["use_cuda"],
-            dataset_config["fix_asym"],
-            dataset_config["permute_dataset"],
-            dataset_config["seed"],
-        )
-        loaders = all_loaders[
-            ["multi", "double_d", "double_l", "single_d" "single_l"].index(
-                dataset_config["data_type"]
-            )
-        ]
         dataset_config["input_size"] = 784
 
     agents_params_dict = {
@@ -144,7 +128,8 @@ if __name__ == "__main__":
         "varying_params": {},
         "task": "both",
         "metrics_only": False,
-        "n_tests": 5,
+        "n_tests": 5 if not test_run else 10,
+        "test_run": test_run,
     }
     if config["task"] == "both":
         if config["model_params"]["common_readout"]:
@@ -174,7 +159,27 @@ if __name__ == "__main__":
             find_and_change(config, param_name, param)
 
     metric_logs, metric_datas, training_results = [], [], []
+
     for test in range(config["n_tests"]):
+
+        if dataset_config["data_type"] == "symbols":
+            loaders, datasets = get_datasets_symbols(
+                symbol_config, dataset_config["batch_size"], dataset_config["use_cuda"]
+            )
+        else:
+            all_loaders = get_datasets_alphabet(
+                "data/",
+                dataset_config["batch_size"],
+                dataset_config["use_cuda"],
+                dataset_config["fix_asym"],
+                dataset_config["permute_dataset"],
+                dataset_config["seed"],
+            )
+            loaders = all_loaders[
+                ["multi", "double_d", "double_l", "single_d" "single_l"].index(
+                    dataset_config["data_type"]
+                )
+            ]
 
         # config = update_dict(config, wandb.config)
 
