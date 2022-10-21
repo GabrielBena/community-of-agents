@@ -69,12 +69,11 @@ if __name__ == "__main__":
         "n_hidden": 15,
         "n_layers": 1,
         "n_out": dataset_config["n_classes"],
+        "n_readouts": 1,
         "train_in_out": (True, True),
-        "use_readout": True,
         "cell_type": str(nn.RNN),
         "use_bottleneck": False,
         "ag_dropout": 0.0,
-        "ag_dual_readout": False,
     }
 
     p_masks = [0.1]
@@ -103,10 +102,10 @@ if __name__ == "__main__":
     model_params_dict = {
         "agents_params": agents_params_dict,
         "connections_params": connections_params_dict,
-        "common_readout": True,
-        "common_dual_readout": True,
         "n_agents": 2,
         "n_ins": None,
+        "n_readouts": 1,
+        "readout_from": None,
     }
 
     config = {
@@ -131,13 +130,15 @@ if __name__ == "__main__":
         "n_tests": 5 if not test_run else 10,
         "test_run": test_run,
     }
-    if config["task"] == "both":
-        if config["model_params"]["common_readout"]:
-            config["model_params"]["common_dual_readout"] = True
-            config["model_params"]["agents_params"]["ag_dual_readout"] = False
+    if config["task"] in ["both", "all", "none"]:
+        common_readout = config["model_params"]["n_readouts"] is not None
+
+        if common_readout:
+            config["model_params"]["n_readouts"] = 2
+            config["model_params"]["agents_params"]["n_readouts"] = None
         else:
-            config["model_params"]["common_dual_readout"] = False
-            config["model_params"]["agents_params"]["ag_dual_readout"] = True
+            config["model_params"]["n_readouts"] = None
+            config["model_params"]["agents_params"]["n_readouts"] = 2
 
     with open("latest_config.yml", "w") as config_file:
         pyaml.dump(config, config_file)
