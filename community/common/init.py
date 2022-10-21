@@ -20,8 +20,8 @@ def init_community(model_dict, device=torch.device("cuda")):
     agents_params_dict = model_dict["agents_params"]
     connections_params_dict = model_dict["connections_params"]
 
-    common_readout = model_dict["common_readout"]
-    dual_readout = model_dict["common_dual_readout"]
+    n_readouts = model_dict["n_readouts"]
+    readout_from = model_dict["readout_from"]
     n_ins = model_dict["n_ins"]
     n_agents = model_dict["n_agents"]
 
@@ -39,8 +39,8 @@ def init_community(model_dict, device=torch.device("cuda")):
 
     community = Community(
         agents,
-        common_readout=common_readout,
-        dual_readout=dual_readout,
+        n_readouts=n_readouts,
+        readout_from=readout_from,
         **connections_params_dict
     ).to(device)
 

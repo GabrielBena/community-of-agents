@@ -63,11 +63,10 @@ class Agent(nn.Module):
         n_layers,
         n_out,
         tag,
-        use_readout=True,
-        train_in_out=(True, False),
+        n_readouts=1,
+        train_in_out=(True, True),
         cell_type=nn.RNN,
         use_bottleneck=False,
-        ag_dual_readout=False,
         ag_dropout=0.0,
     ):
 
@@ -91,25 +90,27 @@ class Agent(nn.Module):
         self.use_bottleneck = use_bottleneck
         self.dropout = nn.Dropout(ag_dropout) if ag_dropout > 0 else None
 
-        self.use_readout = use_readout
         if self.use_bottleneck:
             if n_out == 100:
                 n_bot = 10
             else:
                 n_bot = 5
-            self.bottleneck = nn.Linear(n_hidden, n_bot)
-            self.readout = nn.Linear(n_bot, n_out)
+            bottleneck = [nn.Linear(n_hidden, n_bot)]
+            readout = [nn.Linear(n_bot, n_out)]
         else:
-            self.readout = nn.Linear(n_hidden, n_out)
+            readout = [nn.Linear(n_hidden, n_out)]
 
-        self.readout.weight.requires_grad = train_in_out[1]
-        self.readout.bias.requires_grad = train_in_out[1]
+        readout[0].weight.requires_grad = train_in_out[1]
+        readout[0].bias.requires_grad = train_in_out[1]
 
-        self.dual_readout = ag_dual_readout
-        if ag_dual_readout:
-            self.readout = nn.ModuleList([self.readout, deepcopy(self.readout)])
-        else:
-            self.readout = nn.ModuleList([self.readout])
+        self.use_readout = n_readouts is not None
+        if self.use_readout:
+
+            self.multi_readout = n_readouts > 1
+            if self.dual_readout:
+                readout.extend([deepcopy(readout[0]) for _ in range(n_readouts - 1)])
+
+            self.readout = nn.ModuleList(readout)
 
         self.cell_params("weight_ih_l0").requires_grad = train_in_out[0]
         self.cell_params("bias_ih_l0").requires_grad = train_in_out[0]
@@ -158,11 +159,10 @@ class Agent(nn.Module):
             output = self.bottleneck(output)
 
         if self.use_readout:
-
             output = torch.cat([r(output) for r in self.readout])
 
-            if softmax:
-                output = F.log_softmax(output, dim=-1)
+        if softmax:
+            output = F.log_softmax(output, dim=-1)
 
         return output, h
 

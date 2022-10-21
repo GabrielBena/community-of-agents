@@ -88,10 +88,12 @@ def readout_retrain(
                     [nn.Linear(f_agent.dims[-2], n_classes) for _ in range(n_digits)]
                 )
 
+            f_agent.use_readout = True
             f_agent.n_readouts = n_digits
             f_agent.to(device)
 
         f_community.use_common_readout = False
+        f_community.readout = None
 
         for name, p in f_community.named_parameters():
             if "readout" in name:  # and "agents.0" in name:

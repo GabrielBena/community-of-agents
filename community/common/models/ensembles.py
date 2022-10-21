@@ -22,8 +22,8 @@ class Community(nn.Module):
         self,
         agents,
         sparsity,
-        common_readout=False,
-        dual_readout=False,
+        n_readouts=1,
+        readout_from=None,
         use_deepR=True,
         binarize=False,
         comms_start="1",
@@ -51,18 +51,68 @@ class Community(nn.Module):
         self.init_connections()
         self.is_community = True
 
-        self.use_common_readout = common_readout
-        self.dual_readout = dual_readout
+        self.use_common_readout = n_readouts is not None
 
-        if common_readout:
-            readout = [
-                nn.Linear(
-                    np.sum([ag.dims[-2] for ag in self.agents]), self.agents[0].dims[-1]
+        self.multi_readout = type(n_readouts) is list or n_readouts > 1
+
+        if readout_from is None:
+            if type(n_readouts) is list:
+                readout_from = [list(range(self.n_agents)) for r in n_readouts]
+            else:
+                readout_from = [list(range(self.n_agents)) for r in range(n_readouts)]
+        else:
+            if type(n_readouts) is list:
+                assert len(readout_from) == len(
+                    n_readouts
+                ), f"Provide correct readout scheme {n_readouts, readout_from}"
+            else:
+                assert (
+                    len(readout_from) == n_readouts
+                ), f"Provide correct readout scheme {n_readouts, readout_from}"
+
+        self.readout_from = readout_from
+        self.gather = lambda l, rf: [l[i] for i in rf]
+
+        def get_readout(n_readout, readout_from):
+
+            if type(n_readout) is list:
+
+                return nn.ModuleList(
+                    [get_readout(nr, rf) for nr, rf in zip(n_readouts, readout_from)]
                 )
-            ]
-            if self.dual_readout:
-                readout.append(deepcopy(readout[0]))
-            self.readout = nn.ModuleList(readout)
+
+            else:
+                try:
+                    readout = [
+                        nn.Linear(
+                            np.sum(
+                                [ag.dims[-2] for ag in self.gather(self.agents, rf)]
+                            ),
+                            self.agents[0].dims[-1],
+                        )
+                        for rf in readout_from
+                    ]
+                except TypeError:
+                    readout = [
+                        nn.Linear(
+                            np.sum(
+                                [
+                                    ag.dims[-2]
+                                    for ag in self.gather(self.agents, readout_from)
+                                ]
+                            ),
+                            self.agents[0].dims[-1],
+                        )
+                        for _ in range(n_readout)
+                    ]
+
+                readout = nn.ModuleList(readout)
+
+                return readout
+
+        if self.use_common_readout:
+
+            self.readout = get_readout(n_readouts, readout_from)
 
         self.comms_start = comms_start
 
@@ -101,7 +151,7 @@ class Community(nn.Module):
                                 *dims,
                                 p_con,
                                 dropout=self.comms_dropout,
-                                binarize=self.binarize
+                                binarize=self.binarize,
                             )
                         self.tags[i, j] = ag1.tag + ag2.tag
                         self.connections[self.tags[i, j]] = connection
@@ -177,8 +227,21 @@ class Community(nn.Module):
             # Store states and outputs of agent
 
             if self.use_common_readout:
+
+                def readout_process(readout, input):
+                    try:
+                        out = torch.stack([r(input)[0] for r in readout])
+                    except TypeError:
+                        out = readout(input)[0]
+                    return out
+
                 out = torch.stack(
-                    [r(torch.cat([s[-1] for s in states], -1))[0] for r in self.readout]
+                    [
+                        readout_process(
+                            r, torch.cat([s[-1] for s in self.gather(states, rf)], -1)
+                        )
+                        for r, rf in zip(self.readout, self.readout_from)
+                    ]
                 )
                 outputs.append(out)
 

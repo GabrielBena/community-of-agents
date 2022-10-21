@@ -207,12 +207,11 @@ def define_and_log(metrics, config, best_acc):
                     np.abs(LA.det(step_single_metrics))
                 )
 
-                for norm in [1, 2, "fro"]:
+                for norm in [1, 2, "fro", "nuc"]:
 
-                    metric_data.setdefault(metric_name + f"_det_norm_{norm}", [])
-                    metric_data[metric_name + f"_det_norm_{norm}"].append(
-                        np.abs(LA.det(step_single_metrics))
-                        / LA.norm(step_single_metrics, norm)
+                    metric_data.setdefault(metric_name + f"_norm_{norm}", [])
+                    metric_data[metric_name + f"_norm_{norm}"].append(
+                        LA.norm(step_single_metrics, norm)
                     )
 
                 for ag in range(2):
@@ -239,6 +238,7 @@ def define_and_log(metrics, config, best_acc):
                 continue
 
     return metric_log, metric_data
+
     wandb.log(metric_log)
     table = wandb.Table(dataframe=pd.DataFrame.from_dict(metric_data))
     wandb.log({"Metric Results": table})
