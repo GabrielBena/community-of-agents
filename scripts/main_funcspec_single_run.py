@@ -21,7 +21,7 @@ if __name__ == "__main__":
         print("Debugging Mode is activated ! Only doing mock training")
 
     use_cuda = True
-    device = torch.device("cuda" if use_cuda else "cpu")
+    device = torch.device("cuda" if use_cuda and torch.cuda.is_available() else "cpu")
 
     # n_classes = np.random.choice([2, 5, 10])
     n_classes = 50

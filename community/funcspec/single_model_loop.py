@@ -182,6 +182,7 @@ def define_and_log(metrics, config, best_acc):
 
     metric_data = {}
     metric_log = {}
+    metric_data_arrays = {}
 
     for step in range(1, 3):
 
