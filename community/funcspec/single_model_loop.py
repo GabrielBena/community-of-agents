@@ -25,6 +25,8 @@ def init_and_train(config, loaders, device):
     deepR_params_dict = config["optimization"]["connections"]
     params_dict = config["optimization"]["agents"]
 
+    use_tqdm = config["use_tqdm"]
+
     for v_param_name, v_param in wandb.config["varying_params"].items():
         if use_wandb:
             wandb.log({v_param_name: v_param})
@@ -60,7 +62,7 @@ def init_and_train(config, loaders, device):
                 schedulers,
                 config=training_dict,
                 device=device,
-                use_tqdm=1,
+                use_tqdm=1 if use_tqdm else False,
             )
 
             test_accs = train_out["test_accs"]
@@ -110,6 +112,7 @@ def compute_all_metrics(trained_coms, loaders, config, device):
     chosen_timesteps = config["metrics"]["chosen_timesteps"]
 
     metric_names = ["mean_corr", "bottleneck"]
+    use_tqdm = config["use_tqdm"]
 
     community = trained_coms["Without Bottleneck"]
     # print('Correlations')
@@ -117,7 +120,7 @@ def compute_all_metrics(trained_coms, loaders, config, device):
         community,
         loaders,
         device=device,
-        use_tqdm=1,
+        use_tqdm=1 if use_tqdm else False,
         symbols=symbols,
         chosen_timesteps=chosen_timesteps,
     )
@@ -139,9 +142,9 @@ def compute_all_metrics(trained_coms, loaders, config, device):
         n_classes,
         deepR_params_dict=deepR_params_dict,
         n_tests=1,
-        n_epochs=3,
+        n_epochs=5,
         device=device,
-        use_tqdm=1,
+        use_tqdm=1 if use_tqdm else False,
         symbols=symbols,
         chosen_timesteps=chosen_timesteps,
     )
@@ -153,20 +156,14 @@ def compute_all_metrics(trained_coms, loaders, config, device):
     # all_results = [correlations_results, masks_results, bottleneck_results]
 
     metrics = [mean_corrs, bottleneck_metric]
-    all_results = [correlations_results, bottleneck_results]
 
     metric_results = {
         metric_name: metric for metric, metric_name in zip(metrics, metric_names)
     }
-    all_metric_results = {
-        metric_name: metric for metric, metric_name in zip(all_results, metric_names)
-    }
 
-    metric_data, metric_log = define_and_log(
-        metric_results, wandb.config, community.best_acc
-    )
+    metric_data = define_and_log(metric_results, wandb.config, community.best_acc)
 
-    return metric_data, metric_log, all_metric_results
+    return metric_data, metric_results
 
 
 def define_and_log(metrics, config, best_acc):
@@ -181,8 +178,6 @@ def define_and_log(metrics, config, best_acc):
     """
 
     metric_data = {}
-    metric_log = {}
-    metric_data_arrays = {}
 
     for step in range(1, 3):
 
@@ -199,9 +194,7 @@ def define_and_log(metrics, config, best_acc):
         for metric_name, metric in metrics.items():
 
             try:
-
                 step_single_metrics = metric[..., step]
-                ag_diff_metrics = []
 
                 metric_data.setdefault(metric_name + "_det", [])
                 metric_data[metric_name + "_det"].append(
@@ -215,22 +208,7 @@ def define_and_log(metrics, config, best_acc):
                         LA.norm(step_single_metrics, norm)
                     )
 
-                for ag in range(2):
-                    ag_single_metrics = step_single_metrics[ag]
-                    ag_diff_metric = diff_metric(ag_single_metrics)
-                    metric_log[
-                        f"metric_{metric_name}_diff_ag_{ag}_step_{step}"
-                    ] = ag_diff_metric
-                    for task in range(2):
-                        metric_log[
-                            f"metric_{metric_name}_ag_{ag}_dig_{task}_step_{step}"
-                        ] = ag_single_metrics[task]
-                    ag_diff_metrics.append(ag_diff_metric)
-
                 community_diff_metric = global_diff_metric(step_single_metrics)
-                metric_log[
-                    f"metric_{metric_name}_global_diff_step_{step}"
-                ] = community_diff_metric
 
                 metric_data.setdefault(metric_name + "_global_diff", [])
                 metric_data[metric_name + "_global_diff"].append(community_diff_metric)
@@ -238,62 +216,7 @@ def define_and_log(metrics, config, best_acc):
             except TypeError:
                 continue
 
-    return metric_log, metric_data
-
-    wandb.log(metric_log)
-    table = wandb.Table(dataframe=pd.DataFrame.from_dict(metric_data))
-    wandb.log({"Metric Results": table})
-
-    """
-    metric_data = {}
-
-    for ag in range(2) : 
-        metric_data.setdefault('Agent', [])
-        for step in range(3) : 
-            metric_data.setdefault('Step', [])
-            for target in range(2) : 
-                metric_data.setdefault('Target', [])
-
-                metric_data['Agent'].append(ag)
-                metric_data['Step'].append(step)
-                metric_data['Target'].append(target)
-
-                for v_param_name, v_param in config['varying_params'].items() :
-                    metric_data.setdefault(v_param_name, [])
-                    metric_data[v_param_name].append(v_param)
-
-                for metric_name, metric in metrics.items() : 
-                    metric_data.setdefault(metric_name, [])
-                    try : 
-                        metric_data[metric_name].append(metric[ag, target, step])
-                    except IndexError : 
-                            metric_data[metric_name].append(metric[ag, step])
-   
-    metric_data_diff = {}
-    for ag in range(2) : 
-        metric_data_diff.setdefault('Agent', [])
-        for step in range(3) : 
-            metric_data_diff.setdefault('Step', [])
-
-            metric_data_diff['Agent'].append(ag)
-            metric_data_diff['Step'].append(step)
-
-            for v_param_name, v_param in config['varying_params'].items() :
-                metric_data_diff.setdefault(v_param_name, [])
-                metric_data_diff[v_param_name].append(v_param)
-
-            for metric_name, metric in metrics.items() : 
-                metric_data_diff.setdefault(metric_name + '_diff', [])
-                try : 
-                    metric_data_diff[metric_name+ '_diff'].append(diff_metric(metric[ag, :, step]))
-                except IndexError : 
-                    metric_data_diff.pop(metric_name+ '_diff', None)
-
-    """
-
-    # table_diff = wandb.Table(dataframe = pd.DataFrame.from_dict(metric_data_diff))
-
-    # wandb.log({'Metric Results Diff' : table_diff})
+    return metric_data
 
 
 def train_and_compute_metrics(config, loaders, device):
@@ -304,8 +227,8 @@ def train_and_compute_metrics(config, loaders, device):
 
     # ------ Metrics ------
 
-    metric_data, metric_log, all_metric_results = compute_all_metrics(
+    metric_data, metric_results = compute_all_metrics(
         trained_coms, loaders, config, device
     )
 
-    return metric_data, metric_log, train_outs, all_metric_results
+    return metric_data, train_outs, metric_results

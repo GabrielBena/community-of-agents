@@ -5,17 +5,23 @@ import torch.nn as nn
 from torchvision import *
 import pyaml
 import pandas as pd
+import numpy as np
 
 from community.data.datasets import get_datasets_alphabet, get_datasets_symbols
 from community.funcspec.single_model_loop import train_and_compute_metrics
 import wandb
+
+from tqdm import tqdm
+from tqdm.notebook import tqdm as tqdm_n
+from community.utils.others import is_notebook
+
 
 # warnings.filterwarnings('ignore')
 
 if __name__ == "__main__":
 
     # Use for debugging
-    test_run = False
+    test_run = True
 
     if test_run:
         print("Debugging Mode is activated ! Only doing mock training")
@@ -130,6 +136,7 @@ if __name__ == "__main__":
         "metrics_only": False,
         "n_tests": 5 if not test_run else 2,
         "test_run": test_run,
+        "use_tqdm": True,
     }
 
     if config["task"] in ["both", "all", "none"]:
@@ -145,7 +152,7 @@ if __name__ == "__main__":
     with open("latest_config.yml", "w") as config_file:
         pyaml.dump(config, config_file)
 
-    wandb.init(project="funcspec", entity="gbena", config=config)
+    wandb.init(project="funcspec_V2", entity="m2snn", config=config)
     run_dir = wandb.run.dir + "/"
 
     config["save_paths"] = {
@@ -161,9 +168,13 @@ if __name__ == "__main__":
         if param is not None:
             find_and_change(config, param_name, param)
 
-    metric_logs, metric_datas, training_results = [], [], []
+    metric_results, metric_datas, training_results = {}, [], []
 
-    for test in range(config["n_tests"]):
+    pbar = range(config["n_tests"])
+    if config["use_tqdm"]:
+        pbar = tqdm(pbar, desc="Trials : ")
+
+    for test in pbar:
 
         if dataset_config["data_type"] == "symbols":
             loaders, datasets = get_datasets_symbols(
@@ -186,31 +197,36 @@ if __name__ == "__main__":
 
         # config = update_dict(config, wandb.config)
 
-        (
-            metric_data,
-            metric_log,
-            train_outs,
-            all_metric_results,
-        ) = train_and_compute_metrics(config, loaders, device)
+        (metric_data, train_outs, metric_result) = train_and_compute_metrics(
+            config, loaders, device
+        )
 
-        metric_logs.append(metric_data)
-        metric_datas.append(metric_log)
+        metric_datas.append(metric_data)
         training_results.append(train_outs)
 
+        for m_name, metric in metric_result.items():
+            metric_results.setdefault(m_name, [])
+            metric_results[m_name].append(metric)
+
     final_data = pd.concat([pd.DataFrame.from_dict(d) for d in metric_datas])
-    table = wandb.Table(dataframe=final_data)
-    wandb.log({"Metric Results": table})
+    data_table = wandb.Table(dataframe=final_data)
+    wandb.log({"Metric Results": data_table})
 
-    bottleneck_global_diff = final_data['bottleneck_global_diff'].mean()
+    metric_results = {k: np.stack(v, -1) for k, v in metric_results.items()}
 
+    bottleneck_global_diff = final_data["bottleneck_global_diff"].mean()
+    best_test_acc = final_data["best_acc"].mean()
+    final_log = {
+        "bottleneck_global_diff": bottleneck_global_diff,
+        "best_test_acc": best_test_acc,
+    }
 
-    # final_log = {m: np.mean([d[m] for d in metric_logs]) for m in metric_log.keys()}
-    # print(final_log)
-    # wandb.log(final_log)
+    print(final_log)
+    wandb.log(final_log)
 
     for name, file in zip(
-        ["training_results", "all_results"],
-        [training_results],
+        ["training_results", "metric_results"],
+        [training_results, metric_results],
     ):
         mkdir_or_save_torch(file, name, run_dir)
         artifact = wandb.Artifact(name=name, type="dict")

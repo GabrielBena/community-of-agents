@@ -41,12 +41,12 @@ def get_all_data_and_save(sweep_path, save_path, max_size=None):
     if max_size is None:
         max_size = len(runs)
 
-    pandas = [
+    dfs = [
         get_pandas_from_json(get_correct_artifact(run), run)
         for run, i in zip(runs, tqdm(range(max_size)))
     ]
-    if pandas is not None:
-        total_data = pd.concat(pandas)
+    if dfs is not None:
+        total_data = pd.concat(dfs)
 
     return total_data
 
@@ -59,7 +59,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "-p1",
         "--sweep_path",
-        default="gbena/funcspec/j3uqaib0",
+        default="gbena/funcspec/mjw4dzu9",
         help="path of sweep to use",
     )
 
