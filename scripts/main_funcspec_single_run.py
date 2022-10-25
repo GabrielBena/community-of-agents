@@ -22,6 +22,7 @@ if __name__ == "__main__":
 
     use_cuda = True
     device = torch.device("cuda" if use_cuda and torch.cuda.is_available() else "cpu")
+    print(f"Training on {device}")
 
     # n_classes = np.random.choice([2, 5, 10])
     n_classes = 50
@@ -127,9 +128,10 @@ if __name__ == "__main__":
         "varying_params": {},
         "task": "both",
         "metrics_only": False,
-        "n_tests": 5 if not test_run else 10,
+        "n_tests": 5 if not test_run else 2,
         "test_run": test_run,
     }
+
     if config["task"] in ["both", "all", "none"]:
         common_readout = config["model_params"]["n_readouts"] is not None
 
@@ -198,6 +200,9 @@ if __name__ == "__main__":
     final_data = pd.concat([pd.DataFrame.from_dict(d) for d in metric_datas])
     table = wandb.Table(dataframe=final_data)
     wandb.log({"Metric Results": table})
+
+    bottleneck_global_diff = final_data['bottleneck_global_diff'].mean()
+
 
     # final_log = {m: np.mean([d[m] for d in metric_logs]) for m in metric_log.keys()}
     # print(final_log)
