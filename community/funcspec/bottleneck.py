@@ -27,7 +27,6 @@ def readout_retrain(
     n_digits=2,
     deepR_params_dict={},
     n_epochs=3,
-    n_tests=3,
     train_all_param=False,
     force_connections=False,
     use_tqdm=False,

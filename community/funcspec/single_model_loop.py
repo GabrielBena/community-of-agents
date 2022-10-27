@@ -42,11 +42,7 @@ def init_and_train(config, loaders, device):
 
         agents_params_dict["use_bottleneck"] = use_bottleneck
         community = init_community(config["model_params"], device)
-        print(
-            community.nb_connections,
-            community.agents[0].dims,
-            community.use_common_readout,
-        )
+
         optimizers, schedulers = init_optimizers(
             community, params_dict, deepR_params_dict
         )
@@ -111,10 +107,14 @@ def compute_all_metrics(trained_coms, loaders, config, device):
     n_classes = config["datasets"]["n_classes"]
     chosen_timesteps = config["metrics"]["chosen_timesteps"]
 
-    metric_names = ["mean_corr", "bottleneck"]
+    n_agents = config["model_params"]["n_agents"]
+    n_digits = config["datasets"]["symbol_config"]["n_diff_symbols"]
+
     use_tqdm = config["use_tqdm"]
 
     community = trained_coms["Without Bottleneck"]
+
+    """
     # print('Correlations')
     correlations_results = get_pearson_metrics(
         community,
@@ -127,7 +127,7 @@ def compute_all_metrics(trained_coms, loaders, config, device):
     mean_corrs, relative_corrs, base_corrs = list(
         correlations_results.values()
     )  # n_agents x n_targets x n_timesteps
-
+    """
     # print('Weight Masks')
     # masks_metric = {}
     # masks_results = train_and_get_mask_metric(community, 0.1, loaders, device=device, n_tests=1, n_epochs=1, use_tqdm=1, use_optimal_sparsity=True, symbols=symbols)
@@ -140,9 +140,10 @@ def compute_all_metrics(trained_coms, loaders, config, device):
         community,
         loaders,
         n_classes,
+        n_agents,
+        n_digits,
         deepR_params_dict=deepR_params_dict,
-        n_tests=1,
-        n_epochs=5,
+        n_epochs=4,
         device=device,
         use_tqdm=1 if use_tqdm else False,
         symbols=symbols,
@@ -155,7 +156,8 @@ def compute_all_metrics(trained_coms, loaders, config, device):
     # metric_names = ['Correlation', 'Masks', 'Bottleneck']
     # all_results = [correlations_results, masks_results, bottleneck_results]
 
-    metrics = [mean_corrs, bottleneck_metric]
+    metric_names = ["bottleneck"]
+    metrics = [bottleneck_metric]
 
     metric_results = {
         metric_name: metric for metric, metric_name in zip(metrics, metric_names)
@@ -172,10 +174,6 @@ def define_and_log(metrics, config, best_acc):
     global_diff_metric = (
         lambda metric: np.abs(diff_metric(metric[0]) - diff_metric(metric[1])) / 2
     )
-    """
-    for varying_param in config['varying_params'].keys() : 
-        wandb.define_metric('metric_*', step_metric=varying_param)
-    """
 
     metric_data = {}
 
@@ -208,10 +206,13 @@ def define_and_log(metrics, config, best_acc):
                         LA.norm(step_single_metrics, norm)
                     )
 
-                community_diff_metric = global_diff_metric(step_single_metrics)
+                if step_single_metrics.shape[0] == 2:
+                    community_diff_metric = global_diff_metric(step_single_metrics)
 
-                metric_data.setdefault(metric_name + "_global_diff", [])
-                metric_data[metric_name + "_global_diff"].append(community_diff_metric)
+                    metric_data.setdefault(metric_name + "_global_diff", [])
+                    metric_data[metric_name + "_global_diff"].append(
+                        community_diff_metric
+                    )
 
             except TypeError:
                 continue

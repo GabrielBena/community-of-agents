@@ -1,12 +1,14 @@
 import wandb
 from community.utils.wandb_utils import get_wandb_artifact, get_wandb_runs
 import pandas as pd
-from tqdm import tqdm
+from tqdm import tqdm, trange
 import json
 import argparse
+import multiprocessing as mp
 
 
 def get_correct_artifact(run, wanted_name="MetricResults"):
+
     try:
         artifact = [
             a
@@ -15,36 +17,48 @@ def get_correct_artifact(run, wanted_name="MetricResults"):
         ][0]
     except IndexError:
         artifact = None
-    return artifact
+
+    return artifact, run.name
 
 
-def get_pandas_from_json(artifact, run):
+def get_pandas_from_json(art):
+
+    artifact, name = art
     if artifact is None:
         return None
     else:
         with open(artifact.file(), "r") as j:
             contents = json.loads(j.read())
             data = pd.DataFrame(contents["data"], columns=contents["columns"])
-        names = [run.name] * len(contents["data"])
+
+        names = [name] * len(contents["data"])
         data["name"] = names
 
         return data
 
 
+def get_df(run):
+    return get_pandas_from_json(get_correct_artifact(*run))
+
+
 def get_all_data_and_save(sweep_path, save_path, max_size=None):
 
-    ## Get Results
     api = wandb.Api(timeout=None)
     sweep = api.sweep(sweep_path)
     runs = sweep.runs
 
+    pool = mp.Pool(mp.cpu_count())
+
+    ## Get Results
+
     if max_size is None:
         max_size = len(runs)
 
-    dfs = [
-        get_pandas_from_json(get_correct_artifact(run), run)
-        for run, i in zip(runs, tqdm(range(max_size)))
-    ]
+    arts = [get_correct_artifact(run[0]) for run in zip(runs, tqdm(range(max_size)))]
+    dfs = pool.map(get_pandas_from_json, tqdm(arts))
+
+    # dfs = pool.map(get_df, zip(tqdm(range(max_size)), [sweep_path] * max_size))
+
     if dfs is not None:
         total_data = pd.concat(dfs)
 
@@ -59,7 +73,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "-p1",
         "--sweep_path",
-        default="gbena/funcspec/mjw4dzu9",
+        default="m2snn/funcspec_V2/1ldo81ej",
         help="path of sweep to use",
     )
 

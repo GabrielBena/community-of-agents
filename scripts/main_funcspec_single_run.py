@@ -21,7 +21,7 @@ from community.utils.others import is_notebook
 if __name__ == "__main__":
 
     # Use for debugging
-    test_run = True
+    test_run = False
 
     if test_run:
         print("Debugging Mode is activated ! Only doing mock training")
@@ -34,15 +34,17 @@ if __name__ == "__main__":
     n_classes = 50
     print(f"Training for {n_classes} classes")
 
+    n_agents = 3
+
     symbol_config = {
         "data_size": [30000, 5000],
         "nb_steps": 50,
         "n_symbols": n_classes - 1,
-        "input_size": 50,
+        "input_size": 60,
         "static": True,
-        "symbol_type": "0",
+        "symbol_type": "mod_5",
         "double_data": False,
-        "n_diff_symbols": 2,
+        "n_diff_symbols": n_agents,
     }
 
     if symbol_config["static"]:
@@ -51,8 +53,7 @@ if __name__ == "__main__":
             d if not test_run else d // 5 for d in symbol_config["data_size"]
         ]
 
-    if not symbol_config["double_data"]:
-        n_classes //= 2
+    n_classes //= symbol_config["n_diff_symbols"]
 
     dataset_config = {
         "batch_size": 256,
@@ -109,7 +110,7 @@ if __name__ == "__main__":
     model_params_dict = {
         "agents_params": agents_params_dict,
         "connections_params": connections_params_dict,
-        "n_agents": 2,
+        "n_agents": n_agents,
         "n_ins": None,
         "n_readouts": 1,
         "readout_from": None,
@@ -139,15 +140,39 @@ if __name__ == "__main__":
         "use_tqdm": True,
     }
 
-    if config["task"] in ["both", "all", "none"]:
+    if n_agents == 2:
+
+        if config["task"] in ["both", "all", "none"]:
+
+            common_readout = config["model_params"]["n_readouts"] is not None
+
+            if common_readout:
+                config["model_params"]["n_readouts"] = 2
+                config["model_params"]["agents_params"]["n_readouts"] = None
+            else:
+                config["model_params"]["n_readouts"] = None
+                config["model_params"]["agents_params"]["n_readouts"] = 2
+
+    elif n_agents == 3:
+
         common_readout = config["model_params"]["n_readouts"] is not None
 
-        if common_readout:
-            config["model_params"]["n_readouts"] = 2
-            config["model_params"]["agents_params"]["n_readouts"] = None
+        if config["task"] in ["both", "all", "none"]:
+            if common_readout:
+                config["model_params"]["n_readouts"] = 3
+                config["model_params"]["agents_params"]["n_readouts"] = None
+            else:
+                config["model_params"]["n_readouts"] = None
+                config["model_params"]["agents_params"]["n_readouts"] = 3
         else:
-            config["model_params"]["n_readouts"] = None
-            config["model_params"]["agents_params"]["n_readouts"] = 2
+            if common_readout:
+                config["model_params"]["n_readouts"] = 2
+                config["model_params"]["agents_params"]["n_readouts"] = None
+                config["model_params"]["readout_from"] = [[0, 1], [1, 2], [0, 2]]
+
+            else:
+                config["model_params"]["n_readouts"] = None
+                config["model_params"]["agents_params"]["n_readouts"] = 2
 
     with open("latest_config.yml", "w") as config_file:
         pyaml.dump(config, config_file)
@@ -214,12 +239,19 @@ if __name__ == "__main__":
 
     metric_results = {k: np.stack(v, -1) for k, v in metric_results.items()}
 
-    bottleneck_global_diff = final_data["bottleneck_global_diff"].mean()
+    final_log = {}
+
+    try:
+        bottleneck_global_diff = final_data["bottleneck_global_diff"].mean()
+        final_log["bottleneck_global_diff"] = bottleneck_global_diff
+    except KeyError:
+        pass
+
     best_test_acc = final_data["best_acc"].mean()
-    final_log = {
-        "bottleneck_global_diff": bottleneck_global_diff,
-        "best_test_acc": best_test_acc,
-    }
+    final_log["best_test_acc"] = best_test_acc
+
+    bottleneck_det = final_data["bottleneck_det"].mean()
+    final_log["bottleneck_det"] = bottleneck_det
 
     print(final_log)
     wandb.log(final_log)
