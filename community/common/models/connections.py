@@ -67,6 +67,10 @@ class MaskedLinear(nn.Linear):
 
         self.is_deepR_connect = False
 
+    @property
+    def w(self):
+        return self.weight * self.w_mask
+
     def forward(self, input: torch.Tensor) -> torch.Tensor:
         # print(input.count_nonzero() / input.numel())
         h = F.linear(input, self.weight * self.w_mask, self.bias)

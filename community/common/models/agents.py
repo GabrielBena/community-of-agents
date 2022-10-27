@@ -107,7 +107,7 @@ class Agent(nn.Module):
         if self.use_readout:
 
             self.multi_readout = n_readouts > 1
-            if self.dual_readout:
+            if self.multi_readout:
                 readout.extend([deepcopy(readout[0]) for _ in range(n_readouts - 1)])
 
             self.readout = nn.ModuleList(readout)
