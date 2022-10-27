@@ -328,29 +328,6 @@ class SymbolsDataset(Dataset):
 
         self.fixed_symbol_number = False
 
-        # Permutation of ways to assign symbols, for each label
-
-        """    
-            symbol_assignments = [[] for _ in range(self.n_symbols + 1)]
-            for l1, _ in enumerate(symbol_assignments) : 
-                for l2 in range(l1, self.n_symbols + 1) :
-                    s_assign = (np.zeros(self.n_symbols, dtype=int))
-                    s_assign[:l1] = 1
-                    s_assign[l1:l2] = -1
-                    symbol_assignments[l1].append(list(set(permutations(s_assign))))
-            
-            #flatten
-            symbol_assignments = [[s for s_assign in s_assigns for s in s_assign] for s_assigns in symbol_assignments]
-
-        else  :
-            symbol_assignments = [np.zeros(self.n_symbols, dtype=int) for _ in range(self.n_symbols + 1)]
-            for l, s_assign in enumerate(symbol_assignments) : 
-                s_assign[:l] = 1    
-                symbol_assignments[l] = list(set(permutations(s_assign)))
-            
-        self.symbol_assignments = symbol_assignments
-        self.symbol_assignments_len = [len(s) for s in self.symbol_assignments]
-        """
         # Set this to True to regenerate random symbol assignments at each call of __getitem__
         self.regenerate = False
 
@@ -463,7 +440,7 @@ class SymbolsDataset(Dataset):
             positions = np.stack(
                 [
                     np.random.choice(squares, n_symbols, replace=False)
-                    for _ in tqdm(range(data_size), desc="Generating Data")
+                    for _ in range(data_size)
                 ]
             )
             centers = np.stack(
@@ -492,7 +469,7 @@ class SymbolsDataset(Dataset):
                         ).T
                         for _ in range(n_symbols)
                     ]
-                    for _ in tqdm(range(data_size), desc="Generating Data")
+                    for _ in range(data_size)
                 ]
             ).transpose(2, 0, 1, -1)
 
@@ -657,7 +634,9 @@ class SymbolsDataset(Dataset):
             )  # , torch.from_numpy(jitter)
 
         else:
-            probas = np.ones(n_symbols + 1) / (n_symbols + 1)
+            probas = np.ones((n_symbols + 1) // n_diff_symbols) / (
+                (n_symbols + 1) // n_diff_symbols
+            )
             labels = (
                 np.stack(
                     [

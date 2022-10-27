@@ -1,11 +1,7 @@
 import numpy as np
 import torch
+from torch._C import _LegacyVariableBase
 import torchvision.transforms.functional as TF
-
-
-def get_digits(target, n_classes=10):
-
-    return target[..., 0], target[..., 1]
 
 
 def rotation_conflict_task(datas, digits, n_angles=4):
@@ -39,6 +35,9 @@ def rotation_conflict_task(datas, digits, n_angles=4):
     return rotated_datas, target, angle_values
 
 
+get_digits = lambda target: target.T
+
+
 def get_task_target(target, task="parity_digits_10", temporal_target=False):
     """
     Returns target for different possible tasks
@@ -57,7 +56,7 @@ def get_task_target(target, task="parity_digits_10", temporal_target=False):
     elif type(task) is list:
         try:
             return torch.stack([get_task_target(target, t) for t in task])
-        except:
+        except ValueError:
             return [get_task_target(target, t) for t in task]
 
     else:
@@ -69,20 +68,19 @@ def get_task_target(target, task="parity_digits_10", temporal_target=False):
 
         if "inv" in tasks:
             new_target = target.flip(-1)
-            digits = digits_0, digits_1 = get_digits(new_target, n_classes)
-        else:
-            digits = digits_0, digits_1 = get_digits(target, n_classes)
 
-        parity = (digits_0 + digits_1) % 2  # 0 when same parity
-        target_100 = digits_0 * 10 + digits_1
+        digits = target.T
+
+        parity = (digits.sum(0)) % 2  # 0 when same parity
+        target_100 = torch.stack([t * (10**i) for (i, t) in enumerate(digits)])
 
         if "parity" in tasks:
             if "digits" in tasks:
-                new_target = torch.where(parity.bool(), digits_0, digits_1)
+                new_target = torch.where(parity.bool(), digits[0], digits[1])
             elif "both" in tasks:
                 new_target = torch.stack(
-                    torch.where(parity.bool(), digits_0, digits_1),
-                    torch.where(parity.bool(), digits_1, digits_0),
+                    torch.where(parity.bool(), digits[0], digits[1]),
+                    torch.where(parity.bool(), digits[1], digits[0]),
                 )
             else:
                 new_target = parity
@@ -127,7 +125,7 @@ def get_task_target(target, task="parity_digits_10", temporal_target=False):
             new_target = new_target[..., task]
 
         except ValueError:
-            "continue"
+            pass
 
         if new_target is None:
             raise ValueError(

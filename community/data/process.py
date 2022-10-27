@@ -79,7 +79,14 @@ def flatten_double_data(data):
 
 
 def process_data(
-    data, target, task, conv_com=False, symbols=False, varying_temporal=False, n_steps=2
+    data,
+    target,
+    task,
+    conv_com=False,
+    symbols=False,
+    varying_temporal=False,
+    n_steps=2,
+    device=torch.device("cuda"),
 ):
 
     if symbols:
@@ -109,4 +116,4 @@ def process_data(
 
     target = get_task_target(target, task, temporal_target=(len(target.shape) > 2))
 
-    return data, target
+    return data.to(device), target.to(device)
