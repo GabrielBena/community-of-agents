@@ -137,7 +137,7 @@ if __name__ == "__main__":
         "metrics_only": False,
         "n_tests": 5 if not test_run else 2,
         "test_run": test_run,
-        "use_tqdm": True,
+        "use_tqdm": False,
     }
 
     if n_agents == 2:
@@ -237,7 +237,10 @@ if __name__ == "__main__":
     data_table = wandb.Table(dataframe=final_data)
     wandb.log({"Metric Results": data_table})
 
-    metric_results = {k: np.stack(v, -1) for k, v in metric_results.items()}
+    try : 
+        metric_results = {k: np.stack(v, -1) for k, v in metric_results.items()}
+    except ValueError : 
+        pass
 
     final_log = {}
 
