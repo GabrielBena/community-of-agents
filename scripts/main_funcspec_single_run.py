@@ -1,5 +1,6 @@
+from warnings import warn
 from community.data.tasks import get_factors_list, get_task_family_dict
-from community.utils.configs import find_and_change
+from community.utils.configs import configure_readouts, find_and_change
 from community.utils.wandb_utils import mkdir_or_save_torch, update_dict
 import torch
 import torch.nn as nn
@@ -30,12 +31,13 @@ if __name__ == "__main__":
     device = torch.device("cuda" if use_cuda and torch.cuda.is_available() else "cpu")
     print(f"Training on {device}")
 
-    # n_classes = np.random.choice([2, 5, 10])
-
-    n_classes = 30
-    print(f"Training for {n_classes} classes")
-
     n_agents = 3
+    n_digits = n_agents
+
+    n_classes_per_digit = 20
+    n_classes = n_classes_per_digit * n_digits
+
+    print(f"Training for {n_classes} classes")
 
     symbol_config = {
         "data_size": [30000, 5000],
@@ -45,7 +47,7 @@ if __name__ == "__main__":
         "static": True,
         "symbol_type": "mod_5",
         "common_input": True,
-        "n_diff_symbols": n_agents,
+        "n_diff_symbols": n_digits,
     }
 
     if symbol_config["static"]:
@@ -53,8 +55,6 @@ if __name__ == "__main__":
         symbol_config["data_size"] = [
             d if not test_run else d // 5 for d in symbol_config["data_size"]
         ]
-
-    n_classes_per_digit = n_classes // symbol_config["n_diff_symbols"]
 
     dataset_config = {
         "batch_size": 256,
@@ -136,66 +136,21 @@ if __name__ == "__main__":
         },
         "metrics": {"chosen_timesteps": ["0", "mid-", "last"]},
         "varying_params": {},
-        "task": "family",
+        "task": "all",  # "family",
         "metrics_only": False,
-        "n_tests": 5 if not test_run else 2,
+        "n_tests": 20 if not test_run else 2,
         "test_run": test_run,
-        "use_tqdm": True,
+        "use_tqdm": False,
     }
-
-    common_readout = config["model_params"]["common_readout"]
-
-    if n_agents == 2:
-
-        if config["task"] in ["both", "all", "none"]:
-
-            if common_readout:
-                config["model_params"]["n_readouts"] = 2
-                config["model_params"]["agents_params"]["n_readouts"] = None
-            else:
-                config["model_params"]["n_readouts"] = None
-                config["model_params"]["agents_params"]["n_readouts"] = 2
-
-    elif n_agents == 3:
-
-        if config["task"] in ["both", "all", "none"]:
-            if common_readout:
-                config["model_params"]["n_readouts"] = 3
-                config["model_params"]["agents_params"]["n_readouts"] = None
-            else:
-                config["model_params"]["n_readouts"] = None
-                config["model_params"]["agents_params"]["n_readouts"] = 3
-
-        elif config["task"] == "family":
-
-            config["model_params"]["agents_params"]["n_out"] = n_classes
-            factors = get_factors_list(symbol_config["n_diff_symbols"])
-
-            if common_readout:
-                config["model_params"]["n_readouts"] = len(factors)
-                config["model_params"]["agents_params"]["n_readouts"] = None
-                config["model_params"]["readout_from"] = None
-
-            else:
-                config["model_params"]["n_readouts"] = None
-                config["model_params"]["agents_params"]["n_readouts"] = config[
-                    "model_params"
-                ]["n_readouts"] = (3 ** symbol_config["n_diff_symbols"])
-
-        else:
-            if common_readout:
-                config["model_params"]["n_readouts"] = 2
-                config["model_params"]["agents_params"]["n_readouts"] = None
-                config["model_params"]["readout_from"] = [[0, 1], [1, 2], [0, 2]]
-
-            else:
-                config["model_params"]["n_readouts"] = None
-                config["model_params"]["agents_params"]["n_readouts"] = 2
 
     with open("latest_config.yml", "w") as config_file:
         pyaml.dump(config, config_file)
 
+    if test_run:
+        os.environ["WANDB_MODE"] = "offline"
+
     wandb.init(project="funcspec_V2", entity="m2snn", config=config)
+
     run_dir = wandb.run.dir + "/"
 
     config["save_paths"] = {
@@ -210,6 +165,11 @@ if __name__ == "__main__":
         wandb.define_metric(param_name)
         if param is not None:
             find_and_change(config, param_name, param)
+
+    if config["task"] == "shared_goals":
+        task = config["task"] = [[str(i), str((i + 1) % 3)] for i in range(n_agents)]
+
+    configure_readouts(config)
 
     metric_results, metric_datas, training_results = {}, [], []
 
