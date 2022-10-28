@@ -135,7 +135,7 @@ if __name__ == "__main__":
         "varying_params": {},
         "task": "both",
         "metrics_only": False,
-        "n_tests": 5 if not test_run else 2,
+        "n_tests": 20 if not test_run else 2,
         "test_run": test_run,
         "use_tqdm": False,
     }
