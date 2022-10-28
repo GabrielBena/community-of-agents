@@ -94,6 +94,7 @@ class Community(nn.Module):
                     nn.Linear(
                         np.sum([ag.dims[-2] for ag in self.gather(self.agents, rf)]),
                         self.agents[0].dims[-1],
+                        bias=True,
                     )
                     for rf in readout_from
                 ]
@@ -107,6 +108,7 @@ class Community(nn.Module):
                             ]
                         ),
                         self.agents[0].dims[-1],
+                        bias=True,
                     )
                     for _ in range(n_readout)
                 ]
@@ -227,22 +229,24 @@ class Community(nn.Module):
 
             if self.use_common_readout:
 
-                def readout_process(readout, input):
+                def readout_process(readout, readout_from, input):
+
                     try:
-                        out = torch.stack([r(input)[0] for r in readout])
-                    except TypeError:
-                        out = readout(input)[0]
+                        gathered_input = torch.cat(
+                            [s[-1] for s in self.gather(input, readout_from)], -1
+                        )
+                        out = readout(gathered_input)[0]
+                    except (NotImplementedError, TypeError) as e:
+                        out = torch.stack(
+                            [
+                                readout_process(r, rf, input)
+                                for r, rf in zip(readout, readout_from)
+                            ]
+                        )
+
                     return out
 
-                out = torch.stack(
-                    [
-                        readout_process(
-                            r,
-                            torch.cat([s[-1] for s in self.gather(states, rf)], -1),
-                        )
-                        for r, rf in zip(self.readout, self.readout_from)
-                    ]
-                )
+                out = readout_process(self.readout, self.readout_from, states)
                 outputs.append(out)
 
         if not self.use_common_readout:

@@ -136,7 +136,7 @@ def train_community(
     check_gradients = config["check_gradients"]
     global_rewire = config["global_rewire"]
     decision_params = config["decision_params"]
-    min_acc = config["stopping_acc"]
+    stopping_acc = config["stopping_acc"]
     early_stop = config["early_stop"]
     deepR_params_dict = config["deepR_params_dict"]
     symbols = config["data_type"] == "symbols"
@@ -290,7 +290,7 @@ def train_community(
                         len(train_loader.dataset),
                         100.0 * batch_idx / len(train_loader),
                         loss.item(),
-                        np.round(100 * acc).mean()
+                        np.round(100 * acc.mean(), 2)
                         if type(acc) is not float and not show_all_acc
                         else np.round(100 * acc),
                     )
@@ -337,19 +337,20 @@ def train_community(
             "best_state": best_state,
         }
 
-        # Stop training if loss doesn't go down or if min_acc is reached
+        # Stop training if loss doesn't go down or if stopping_acc is reached
         if epoch >= 4:
             if results["test_losses"][-4:].argmin() == 0 and early_stop:
                 # print('Stopping Training (Early Stop), loss hasn\'t improved in 4 epochs')
                 return results
-        if min_acc is not None:
+
+        if stopping_acc is not None:
             try:
-                if best_acc >= min_acc:
-                    # print(f'Stopping Training, Minimum accuracy of {min_acc} reached')
+                if best_acc >= stopping_acc:
+                    # print(f'Stopping Training, Minimum accuracy of {stopping_acc} reached')
                     return results
             except ValueError:
-                if (best_acc >= min_acc).all():
-                    # print(f'Stopping Training, Minimum accuracy of {min_acc} reached')
+                if (best_acc >= stopping_acc).all():
+                    # print(f'Stopping Training, Minimum accuracy of {stopping_acc} reached')
                     return results
 
     return results

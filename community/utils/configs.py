@@ -1,3 +1,8 @@
+from typing import Type
+from warnings import warn
+from community.data.tasks import get_factors_list
+
+
 def get_training_dict(config):
 
     training_dict = {
@@ -19,6 +24,86 @@ def get_training_dict(config):
     }
 
     return training_dict
+
+
+def configure_readouts(config):
+
+    common_readout = config["model_params"]["common_readout"]
+    n_agents = config["model_params"]["n_agents"]
+    task = config["task"]
+    n_classes = config["datasets"]["n_classes"]
+    symbol_config = config["datasets"]["symbol_config"]
+
+    if n_agents == 2:
+
+        if task in ["both", "all", "none"]:
+
+            if common_readout:
+                config["model_params"]["n_readouts"] = 2
+                config["model_params"]["agents_params"]["n_readouts"] = None
+            else:
+                config["model_params"]["n_readouts"] = None
+                config["model_params"]["agents_params"]["n_readouts"] = 2
+
+    elif n_agents == 3:
+
+        if task in ["both", "all", "none"]:
+
+            if common_readout:
+                config["model_params"]["n_readouts"] = 3
+                config["model_params"]["agents_params"]["n_readouts"] = None
+                config["model_params"]["readout_from"] = None
+            else:
+                config["model_params"]["n_readouts"] = None
+                config["model_params"]["agents_params"]["n_readouts"] = 3
+                config["model_params"]["readout_from"] = None
+
+        elif task == "family":
+
+            config["model_params"]["agents_params"]["n_out"] = n_classes
+            factors = get_factors_list(symbol_config["n_diff_symbols"])
+
+            if common_readout:
+                config["model_params"]["n_readouts"] = len(factors)
+                config["model_params"]["agents_params"]["n_readouts"] = None
+                config["model_params"]["readout_from"] = None
+
+            else:
+                config["model_params"]["n_readouts"] = None
+                config["model_params"]["agents_params"]["n_readouts"] = config[
+                    "model_params"
+                ]["n_readouts"] = (3 ** symbol_config["n_diff_symbols"])
+
+        elif type(task) is list:
+
+            def get_nested_readout(task_list, n_readouts):
+                try:
+                    return [[int(t) for t in task_list] for _ in range(n_readouts)]
+                except TypeError:
+                    return [
+                        get_nested_readout(t, n_r)
+                        for t, n_r in zip(task_list, n_readouts)
+                    ]
+
+            def get_nested_len(task_list):
+                if type(task_list[0]) is list:
+                    return [get_nested_len(t) for t in task_list]
+                else:
+                    return len(task_list)
+
+            if common_readout:
+                n_readouts = config["model_params"]["n_readouts"] = get_nested_len(task)
+                config["model_params"]["readout_from"] = get_nested_readout(
+                    task, n_readouts
+                )
+                config["model_params"]["agents_params"]["n_readouts"] = None
+
+            else:
+                config["model_params"]["n_readouts"] = None
+                config["model_params"]["agents_params"]["n_readouts"] = len(task[0])
+
+        else:
+            warn(f"can't configure readout for task {task}")
 
 
 def find_and_change(config, param_name, param_value):
