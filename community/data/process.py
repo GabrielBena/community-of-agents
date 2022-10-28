@@ -113,6 +113,4 @@ def process_data(
                 data, target, n_steps=n_steps, conv_com=conv_com, transpose_and_cat=True
             )
 
-    target = get_task_target(target, task, temporal_target=(len(target.shape) > 2))
-
     return data, target

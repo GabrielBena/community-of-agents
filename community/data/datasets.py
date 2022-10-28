@@ -318,7 +318,7 @@ class SymbolsDataset(Dataset):
         self.symbols = self.get_symbols()
         self.symbol_size = self.symbols[0].shape[0]
         self.n_symbols = data_config["n_symbols"]
-        self.double_data = data_config["double_data"]
+        self.common_input = data_config["common_input"]
 
         if plot:
             fig, axs = plt.subplots(1, len(self.symbols))
@@ -519,7 +519,7 @@ class SymbolsDataset(Dataset):
         if inv:
             symbols = self.symbols[::-1]
 
-        if (not self.fixed_symbol_number) or (not self.double_data):
+        if (not self.fixed_symbol_number) or (self.common_input):
             symbols.append(np.zeros_like(self.symbols[0]))
 
         grids = []
@@ -598,7 +598,7 @@ class SymbolsDataset(Dataset):
         symbol_type,
         input_size,
         static,
-        double_data,
+        common_input,
         n_diff_symbols,
     ):
 
@@ -606,7 +606,7 @@ class SymbolsDataset(Dataset):
 
         # probas = self.get_probabilities(n_symbols+1)
 
-        if not self.double_data:
+        if self.common_input:
             probas = np.ones((n_symbols + 1) // n_diff_symbols) / (
                 (n_symbols + 1) // n_diff_symbols
             )
@@ -629,7 +629,7 @@ class SymbolsDataset(Dataset):
 
             return (
                 torch.from_numpy(grids).transpose(0, 1),
-                torch.from_numpy(labels),
+                torch.from_numpy(labels) - 1,
                 torch.from_numpy(centers).transpose(0, 1),
             )  # , torch.from_numpy(jitter)
 
@@ -641,7 +641,7 @@ class SymbolsDataset(Dataset):
                 np.stack(
                     [
                         np.random.multinomial(1, probas, size=(data_size)).argmax(-1)
-                        for _ in range(2)
+                        for _ in range(n_diff_symbols)
                     ],
                     -1,
                 )
@@ -666,7 +666,7 @@ class SymbolsDataset(Dataset):
 
             return (
                 torch.from_numpy(grids).transpose(0, 2),
-                torch.from_numpy(labels),
+                torch.from_numpy(labels) - 1,
                 torch.from_numpy(centers).transpose(0, 2),
             )  # , torch.from_numpy(jitter)
 
@@ -682,7 +682,7 @@ class SymbolsDataset(Dataset):
     def __getitem__(self, index: Any, inv=False, symbol_assigns=[None, None]):
 
         if not self.regenerate:
-            return self.data[0][index], self.data[1][index] - 1
+            return self.data[0][index], self.data[1][index]
         else:
             centers, labels = self.data[-1][index].unsqueeze(2), self.data[1][index]
             new_data = []
@@ -701,7 +701,7 @@ class SymbolsDataset(Dataset):
                     )[:, 0, ...]
                 )
 
-            return torch.from_numpy(np.stack(new_data)).transpose(0, 1), labels - 1
+            return torch.from_numpy(np.stack(new_data)).transpose(0, 1), labels
 
 
 def get_datasets_alphabet(

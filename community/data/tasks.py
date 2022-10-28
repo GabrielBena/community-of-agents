@@ -1,6 +1,7 @@
 import numpy as np
+from sympy import factor_list
 import torch
-from torch._C import _LegacyVariableBase
+import itertools
 import torchvision.transforms.functional as TF
 
 
@@ -38,7 +39,7 @@ def rotation_conflict_task(datas, digits, n_angles=4):
 get_digits = lambda target: target.T
 
 
-def get_task_target(target, task="parity_digits_10", temporal_target=False):
+def get_task_target(target, task, n_classes, temporal_target=False):
     """
     Returns target for different possible tasks
     Args :
@@ -47,17 +48,18 @@ def get_task_target(target, task="parity_digits_10", temporal_target=False):
                digit number ("0", "1"), "parity", "parity_digits_10", "parity_digits_100" or "sum" ...
     """
 
-    n_classes = len(target.unique())
-
     if temporal_target:
 
         return get_task_target(target, task, n_classes, False).unique(dim=0)
 
     elif type(task) is list:
         try:
-            return torch.stack([get_task_target(target, t) for t in task])
+            return torch.stack([get_task_target(target, t, n_classes) for t in task])
         except ValueError:
-            return [get_task_target(target, t) for t in task]
+            return [get_task_target(target, t, n_classes) for t in task]
+
+    elif task == "family":
+        return get_task_family_dict(target, n_classes)
 
     else:
 
@@ -136,6 +138,34 @@ def get_task_target(target, task="parity_digits_10", temporal_target=False):
             new_target = new_target.T
 
         return new_target
+
+
+def get_factors_list(n_digits, device=torch.device("cpu")):
+
+    factors_list = [
+        torch.tensor(p, device=device)
+        for i, p in enumerate(itertools.product(*[[-1, 0, 1] for _ in range(n_digits)]))
+        if torch.tensor(p).sum() > 0
+    ]
+    return factors_list
+
+
+def get_task_family_dict(target, n_classes_per_dig):
+
+    n_digits = target.shape[-1]
+    device = target.device
+
+    factors_list = get_factors_list(n_digits, device)
+
+    task_family = torch.stack(
+        [
+            (target * f).sum(-1) + (f < 0).sum() * (n_classes_per_dig - 1)
+            for i, f in enumerate(factors_list)
+        ],
+        0,
+    )
+
+    return task_family, factors_list
 
 
 # ------ Continual Learning Tasks ------ :

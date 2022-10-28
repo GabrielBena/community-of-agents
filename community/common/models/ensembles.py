@@ -237,7 +237,8 @@ class Community(nn.Module):
                 out = torch.stack(
                     [
                         readout_process(
-                            r, torch.cat([s[-1] for s in self.gather(states, rf)], -1)
+                            r,
+                            torch.cat([s[-1] for s in self.gather(states, rf)], -1),
                         )
                         for r, rf in zip(self.readout, self.readout_from)
                     ]

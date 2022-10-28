@@ -1,4 +1,5 @@
 import warnings
+from community.data.tasks import get_task_family_dict
 import torch
 import numpy as np
 import torch.nn as nn
@@ -76,7 +77,6 @@ def get_loss(output, t_target):
         )
 
     return loss.mean(), t_target, output
-    return loss.mean(), t_target, output
 
 
 def binary_conn(target, ag):
@@ -141,6 +141,10 @@ def train_community(
     deepR_params_dict = config["deepR_params_dict"]
     symbols = config["data_type"] == "symbols"
     force_connections = config["force_connections"]
+
+    n_classes = config["n_classes"]
+    n_classes_per_digit = config["n_classes_per_digit"]
+
     # --------------
 
     reg_loss = reg_factor > 0.0
@@ -197,6 +201,13 @@ def train_community(
                 data, t_target = process_data(
                     data, target, task, conv_com, symbols=symbols
                 )
+
+                if task == "family":
+                    t_target, factors = get_task_family_dict(
+                        t_target, n_classes_per_digit
+                    )
+                else:
+                    t_target = get_task_target(target, task, n_classes)
 
                 optimizer_agents.zero_grad()
                 if optimizer_connections:
@@ -290,16 +301,8 @@ def train_community(
 
         if testing:
             descs[1], loss, acc, deciding_ags = test_community(
-                model,
-                device,
-                test_loader,
-                decision_params=decision_params,
-                task=task,
-                joint_training=joint_training,
-                symbols=symbols,
-                force_connections=force_connections,
+                model, device, test_loader, config
             )
-
             if loss < best_loss:
                 best_loss = loss
                 best_state = copy.deepcopy(model.state_dict())
@@ -356,17 +359,23 @@ def test_community(
     model,
     device,
     test_loader,
-    decision_params=("last", "max"),
-    task="parity_digits",
+    config,
     verbose=False,
     seed=None,
-    joint_training=False,
-    symbols=False,
-    force_connections=False,
 ):
     """
     Testing function for community of agents
     """
+
+    symbols = config["data_type"] == "symbols"
+    force_connections = config["force_connections"]
+
+    n_classes = config["n_classes"]
+    n_classes_per_digit = config["n_classes_per_digit"]
+
+    task = config["task"]
+    decision_params = config["decision_params"]
+
     model.eval()
     conv_com = type(model) is ConvCommunity
     test_loss = 0
@@ -388,6 +397,11 @@ def test_community(
                 data, target = data.to(device), target.to(device)
 
             data, t_target = process_data(data, target, task, conv_com, symbols=symbols)
+
+            if task == "family":
+                t_target, factors = get_task_family_dict(t_target, n_classes_per_digit)
+            else:
+                t_target = get_task_target(target, task, n_classes)
 
             if force_connections:
                 conns = fconns[-1].detach().unsqueeze(0)
@@ -471,7 +485,7 @@ def plot_confusion_mat(model, test_loader, config, device=torch.device("cuda")):
 
         data, target = process_data(data, target, task, conv_com, symbols=symbols)
 
-        t_target = get_task_target(target, task).to(device)
+        t_target = get_task_target(target, task, n_classes).to(device)
 
         outputs, states, conns = model(data)
         # print((outputs[-1][0] == outputs[-1][1]).all())

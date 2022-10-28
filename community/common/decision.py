@@ -104,7 +104,7 @@ def get_decision(outputs, temporal_decision="last", agent_decision="0", target=N
             )
             deciding_ags = None
 
-        elif agent_decision == "both" or agent_decision == "all":
+        elif agent_decision in ["both", "all"]:
             deciding_ags = None
 
         elif agent_decision == "loss":

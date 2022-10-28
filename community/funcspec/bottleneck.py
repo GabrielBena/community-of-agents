@@ -126,6 +126,8 @@ def readout_retrain(
             "deepR_params_dict": deepR_params_dict,
             "data_type": "symbols" if symbols else None,
             "force_connections": force_connections,
+            "n_classes": n_classes,
+            "n_classes_per_digit": n_classes,
         }
 
         train_outs.append(

@@ -1,3 +1,4 @@
+from community.data.tasks import get_factors_list, get_task_family_dict
 from community.utils.configs import find_and_change
 from community.utils.wandb_utils import mkdir_or_save_torch, update_dict
 import torch
@@ -13,7 +14,6 @@ import wandb
 
 from tqdm import tqdm
 from tqdm.notebook import tqdm as tqdm_n
-from community.utils.others import is_notebook
 
 
 # warnings.filterwarnings('ignore')
@@ -31,7 +31,8 @@ if __name__ == "__main__":
     print(f"Training on {device}")
 
     # n_classes = np.random.choice([2, 5, 10])
-    n_classes = 50
+
+    n_classes = 30
     print(f"Training for {n_classes} classes")
 
     n_agents = 3
@@ -43,7 +44,7 @@ if __name__ == "__main__":
         "input_size": 60,
         "static": True,
         "symbol_type": "mod_5",
-        "double_data": False,
+        "common_input": True,
         "n_diff_symbols": n_agents,
     }
 
@@ -53,7 +54,7 @@ if __name__ == "__main__":
             d if not test_run else d // 5 for d in symbol_config["data_size"]
         ]
 
-    n_classes //= symbol_config["n_diff_symbols"]
+    n_classes_per_digit = n_classes // symbol_config["n_diff_symbols"]
 
     dataset_config = {
         "batch_size": 256,
@@ -63,6 +64,7 @@ if __name__ == "__main__":
         "seed": None,
         "data_type": "symbols",
         "n_classes": n_classes,
+        "n_classes_per_digit": n_classes_per_digit,
         "symbol_config": symbol_config,
     }
 
@@ -76,7 +78,7 @@ if __name__ == "__main__":
         "n_in": dataset_config["input_size"],
         "n_hidden": 15,
         "n_layers": 1,
-        "n_out": dataset_config["n_classes"],
+        "n_out": n_classes_per_digit,
         "n_readouts": 1,
         "train_in_out": (True, True),
         "cell_type": str(nn.RNN),
@@ -112,6 +114,7 @@ if __name__ == "__main__":
         "connections_params": connections_params_dict,
         "n_agents": n_agents,
         "n_ins": None,
+        "common_readout": True,
         "n_readouts": 1,
         "readout_from": None,
     }
@@ -124,7 +127,7 @@ if __name__ == "__main__":
             "connections": deepR_params_dict,
         },
         "training": {
-            "decision_params": ("last", "both"),
+            "decision_params": ("last", "all"),
             "n_epochs": 30 if not test_run else 1,
             "inverse_task": False,
             "stopping_acc": 0.95,
@@ -133,18 +136,18 @@ if __name__ == "__main__":
         },
         "metrics": {"chosen_timesteps": ["0", "mid-", "last"]},
         "varying_params": {},
-        "task": "both",
+        "task": "family",
         "metrics_only": False,
-        "n_tests": 20 if not test_run else 2,
+        "n_tests": 5 if not test_run else 2,
         "test_run": test_run,
-        "use_tqdm": False,
+        "use_tqdm": True,
     }
+
+    common_readout = config["model_params"]["common_readout"]
 
     if n_agents == 2:
 
         if config["task"] in ["both", "all", "none"]:
-
-            common_readout = config["model_params"]["n_readouts"] is not None
 
             if common_readout:
                 config["model_params"]["n_readouts"] = 2
@@ -155,8 +158,6 @@ if __name__ == "__main__":
 
     elif n_agents == 3:
 
-        common_readout = config["model_params"]["n_readouts"] is not None
-
         if config["task"] in ["both", "all", "none"]:
             if common_readout:
                 config["model_params"]["n_readouts"] = 3
@@ -164,6 +165,23 @@ if __name__ == "__main__":
             else:
                 config["model_params"]["n_readouts"] = None
                 config["model_params"]["agents_params"]["n_readouts"] = 3
+
+        elif config["task"] == "family":
+
+            config["model_params"]["agents_params"]["n_out"] = n_classes
+            factors = get_factors_list(symbol_config["n_diff_symbols"])
+
+            if common_readout:
+                config["model_params"]["n_readouts"] = len(factors)
+                config["model_params"]["agents_params"]["n_readouts"] = None
+                config["model_params"]["readout_from"] = None
+
+            else:
+                config["model_params"]["n_readouts"] = None
+                config["model_params"]["agents_params"]["n_readouts"] = config[
+                    "model_params"
+                ]["n_readouts"] = (3 ** symbol_config["n_diff_symbols"])
+
         else:
             if common_readout:
                 config["model_params"]["n_readouts"] = 2
@@ -237,9 +255,9 @@ if __name__ == "__main__":
     data_table = wandb.Table(dataframe=final_data)
     wandb.log({"Metric Results": data_table})
 
-    try : 
+    try:
         metric_results = {k: np.stack(v, -1) for k, v in metric_results.items()}
-    except ValueError : 
+    except ValueError:
         pass
 
     final_log = {}

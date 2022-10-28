@@ -14,6 +14,8 @@ def get_training_dict(config):
         "data_type": config["datasets"]["data_type"],
         "force_connections": config["training"]["force_connections"],
         "sparsity": config["model_params"]["connections_params"]["sparsity"],
+        "n_classes": config["datasets"]["n_classes"],
+        "n_classes_per_digit": config["datasets"]["n_classes_per_digit"],
     }
 
     return training_dict

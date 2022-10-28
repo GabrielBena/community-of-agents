@@ -104,7 +104,7 @@ def compute_all_metrics(trained_coms, loaders, config, device):
 
     symbols = config["datasets"]["data_type"] == "symbols"
     deepR_params_dict = config["optimization"]["connections"]
-    n_classes = config["datasets"]["n_classes"]
+    n_classes = config["datasets"]["n_classes_per_digit"]
     chosen_timesteps = config["metrics"]["chosen_timesteps"]
 
     n_agents = config["model_params"]["n_agents"]
