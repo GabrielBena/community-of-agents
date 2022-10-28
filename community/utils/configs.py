@@ -103,7 +103,8 @@ def configure_readouts(config):
                 config["model_params"]["agents_params"]["n_readouts"] = len(task[0])
 
         else:
-            warn(f"can't configure readout for task {task}")
+            warn(f"can't auto configure readout for task {task}")
+            print(f" Warning ! Can't auto configure readout for task {task}")
 
 
 def find_and_change(config, param_name, param_value):
