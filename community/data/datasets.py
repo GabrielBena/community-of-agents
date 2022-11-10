@@ -12,6 +12,11 @@ from typing import Any, AnyStr, Callable, Optional, Tuple
 from torchvision.datasets import MNIST
 from PIL import Image
 from itertools import permutations
+from joblib import delayed, Parallel
+import multiprocessing as mp
+import ray
+
+from tqdm.notebook import tqdm
 
 
 class Custom_MNIST(MNIST):
@@ -459,22 +464,45 @@ class SymbolsDataset(Dataset):
             )
 
         else:
-            centers = np.stack(
-                [
-                    [
-                        np.stack(
-                            self.get_random_trajectory(
-                                nb_steps, input_size, symbol_size
-                            )
-                        ).T
-                        for _ in range(n_symbols)
-                    ]
+
+            @ray.remote
+            def get_all_trajectories():
+                return [
+                    np.stack(
+                        self.get_random_trajectory(nb_steps, input_size, symbol_size)
+                    ).T
                     for _ in range(data_size)
                 ]
-            ).transpose(2, 0, 1, -1)
 
-        if not self.data_config["static"]:
-            centers = np.concatenate((centers, centers[::-1]))
+            if self.data_config["vectorize"]:
+
+                centers = np.stack(
+                    ray.get([get_all_trajectories.remote() for s in range(n_symbols)]),
+                    1,
+                ).transpose(
+                    2, 0, 1, -1
+                )  # timesteps x data_size x n_symbols x 2
+
+            else:
+
+                centers = np.stack(
+                    [
+                        [
+                            np.stack(
+                                self.get_random_trajectory(
+                                    nb_steps, input_size, symbol_size
+                                )
+                            ).T
+                            for _ in range(n_symbols)
+                        ]
+                        for _ in range(data_size)
+                    ]
+                ).transpose(
+                    2, 0, 1, -1
+                )  # timesteps x data_size x n_symbols x 2
+
+        # if not self.data_config["static"]:
+        # centers = np.concatenate((centers, centers[::-1]))
 
         return centers
 
@@ -522,32 +550,138 @@ class SymbolsDataset(Dataset):
         if (not self.fixed_symbol_number) or (self.common_input):
             symbols.append(np.zeros_like(self.symbols[0]))
 
-        grids = []
-
-        def assign_square(grid, center_pos, l, d):
-            grid[
-                d,
-                center_pos[0] : center_pos[0] + symbol_size,
-                center_pos[1] : center_pos[1] + symbol_size,
-            ] += symbols[l]
+        n_steps, n_symbols = centers.shape[0], centers.shape[-2]
+        grids = np.zeros((n_steps, data_size, input_size, input_size))
 
         if symbol_assigns is None or None in symbol_assigns:
             # symbol_assigns = [np.random.choice(self.symbol_assignments_len[l]) for l in labels]
             # symbol_assignments = [self.symbol_assignments[l][n_assign] for l, n_assign in zip(labels, symbol_assigns)]
-            symbol_assignments = [self.get_random_symbol_assignement(l) for l in labels]
+            symbol_assignments = np.stack(
+                [self.get_random_symbol_assignement(l) for l in labels]
+            )
         else:
             symbol_assignments = symbol_assigns
 
-        for t, center in enumerate(centers):
-            grid = np.zeros((data_size, input_size, input_size))
-            for d in range(data_size):
-                for i, c in enumerate(center[d]):
-                    # l = int(i < labels[d])
-                    assign_square(grid, (c[0], c[1]), symbol_assignments[d][i], d)
+        if self.data_config["vectorize"]:
 
-            grids.append(grid)
+            grids = np.zeros((n_steps, data_size, input_size, input_size))
+            grids = ray.put(grids)
 
-        return np.stack(grids)
+            # centers_img = ray.put(centers)
+            # symbols_img = ray.put(symbol_assignments)
+
+            @ray.remote
+            def fill_grid(time_step, data_idx, symbol):
+                center_pos = centers[time_step, data_idx, symbol]
+                label = symbol_assignments[data_idx][symbol]
+                grids[
+                    data_idx,
+                    center_pos[0] : center_pos[0] + symbol_size,
+                    center_pos[1] : center_pos[1] + symbol_size,
+                ] += symbols[label]
+
+            @ray.remote
+            def fill_grid_per_ts(time_step):
+
+                grids = np.zeros((data_size, input_size, input_size))
+                for data_idx in range(data_size):
+                    for symbol in range(n_symbols):
+                        center_pos = centers[time_step, data_idx, symbol]
+                        label = symbol_assignments[data_idx][symbol]
+                        grids[
+                            data_idx,
+                            center_pos[0] : center_pos[0] + symbol_size,
+                            center_pos[1] : center_pos[1] + symbol_size,
+                        ] += symbols[label]
+
+                return grids
+
+            @ray.remote
+            def fill_grid_per_data(data_idx):
+                grids = np.zeros((n_steps, input_size, input_size))
+                for time_step in range(n_steps):
+                    for symbol in range(n_symbols):
+                        center_pos = centers[time_step, data_idx, symbol]
+                        label = symbol_assignments[data_idx][symbol]
+                        grids[
+                            time_step,
+                            center_pos[0] : center_pos[0] + symbol_size,
+                            center_pos[1] : center_pos[1] + symbol_size,
+                        ] += symbols[label]
+
+                return grids
+
+            @ray.remote
+            def fill_grid_per_symbol(symbol):
+                grids = np.zeros((n_steps, data_size, input_size, input_size))
+                for time_step in range(n_steps):
+                    for data_idx in range(data_size):
+                        center_pos = centers[time_step, data_idx, symbol]
+                        label = symbol_assignments[data_idx][symbol]
+                        grids[
+                            time_step,
+                            data_idx,
+                            center_pos[0] : center_pos[0] + symbol_size,
+                            center_pos[1] : center_pos[1] + symbol_size,
+                        ] += symbols[label]
+
+                return grids
+
+            if True:
+
+                grids = np.stack(
+                    ray.get([fill_grid_per_ts.remote(idx) for idx in range(n_steps)])
+                )
+
+            else:
+
+                grids = np.stack(
+                    ray.get(
+                        [fill_grid_per_symbol.remote(idx) for idx in range(n_symbols)]
+                    )
+                )
+
+                grids = np.stack(
+                    ray.get(
+                        [fill_grid_per_data.remote(idx) for idx in range(data_size)]
+                    ),
+                    1,
+                )
+
+            ray.shutdown()
+
+        else:
+
+            grids = []
+
+            def assign_square(grid, center_pos, l, d):
+                grid[
+                    d,
+                    center_pos[0] : center_pos[0] + symbol_size,
+                    center_pos[1] : center_pos[1] + symbol_size,
+                ] += symbols[l]
+
+            if symbol_assigns is None or None in symbol_assigns:
+                # symbol_assigns = [np.random.choice(self.symbol_assignments_len[l]) for l in labels]
+                # symbol_assignments = [self.symbol_assignments[l][n_assign] for l, n_assign in zip(labels, symbol_assigns)]
+                symbol_assignments = [
+                    self.get_random_symbol_assignement(l) for l in labels
+                ]
+            else:
+                symbol_assignments = symbol_assigns
+
+            for center in centers:
+                grid = np.zeros((data_size, input_size, input_size))
+                for d in range(data_size):
+                    for i, c in enumerate(center[d]):
+                        # l = int(i < labels[d])
+                        assign_square(grid, (c[0], c[1]), symbol_assignments[d][i], d)
+
+                grids.append(grid)
+
+            grids = np.stack(grids)
+
+        return grids
 
     def get_random_trajectory(
         self, seq_length, image_size, symbol_size, step_length=0.2
@@ -595,11 +729,10 @@ class SymbolsDataset(Dataset):
         data_size,
         nb_steps,
         n_symbols,
-        symbol_type,
         input_size,
         static,
-        common_input,
         n_diff_symbols,
+        **others,
     ):
 
         symbol_size = self.symbol_size
