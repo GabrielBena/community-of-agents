@@ -54,53 +54,56 @@ class Community(nn.Module):
         self.use_common_readout = n_readouts is not None
 
         if self.use_common_readout:
-            self.multi_readout = type(n_readouts) is list or n_readouts > 1
-
-            if readout_from is None:
-                if type(n_readouts) is list:
-                    readout_from = [list(range(self.n_agents)) for r in n_readouts]
-                else:
-                    readout_from = [
-                        list(range(self.n_agents)) for r in range(n_readouts)
-                    ]
-            else:
-                if type(n_readouts) is list:
-                    assert len(readout_from) == len(
-                        n_readouts
-                    ), f"Provide correct readout scheme {n_readouts, readout_from}"
-                else:
-                    assert (
-                        len(readout_from) == n_readouts
-                    ), f"Provide correct readout scheme {n_readouts, readout_from}"
-
-            self.readout_from = readout_from
-            self.gather = lambda l, rf: [l[i] for i in rf]
-
-            self.readout = self.init_readout(n_readouts, readout_from)
+            self.initialize_readout(n_readouts, readout_from)
 
         self.comms_start = comms_start
 
-    def init_readout(self, n_readout, readout_from):
+    def initialize_readout(self, n_readouts, readout_from, n_hid=None):
+
+        self.multi_readout = type(n_readouts) is list or n_readouts > 1
+
+        if readout_from is None:
+            if type(n_readouts) is list:
+                readout_from = [list(range(self.n_agents)) for r in n_readouts]
+            else:
+                readout_from = [list(range(self.n_agents)) for r in range(n_readouts)]
+        else:
+            if type(n_readouts) is list:
+                assert len(readout_from) == len(
+                    n_readouts
+                ), f"Provide correct readout scheme {n_readouts, readout_from}"
+            else:
+                assert (
+                    len(readout_from) == n_readouts
+                ), f"Provide correct readout scheme {n_readouts, readout_from}"
+
+        self.readout_from = readout_from
+        self.gather = lambda l, rf: [l[i] for i in rf]
+
+        readout_dims = self.get_readout_dimensions(n_readouts, readout_from, n_hid)
+        self.readout = self.create_readout_from_dims(readout_dims)
+
+    def get_readout_dimensions(self, n_readout, readout_from, n_hid):
 
         if type(n_readout) is list:
 
-            return nn.ModuleList(
-                [self.init_readout(nr, rf) for nr, rf in zip(n_readout, readout_from)]
-            )
+            return [
+                self.get_readout_dimensions(nr, rf, n_hid)
+                for nr, rf in zip(n_readout, readout_from)
+            ]
 
         else:
             try:
-                readout = [
-                    nn.Linear(
+                readout_dims = [
+                    [
                         np.sum([ag.dims[-2] for ag in self.gather(self.agents, rf)]),
                         self.agents[0].dims[-1],
-                        bias=True,
-                    )
+                    ]
                     for rf in readout_from
                 ]
             except TypeError:
-                readout = [
-                    nn.Linear(
+                readout_dims = [
+                    [
                         np.sum(
                             [
                                 ag.dims[-2]
@@ -108,14 +111,39 @@ class Community(nn.Module):
                             ]
                         ),
                         self.agents[0].dims[-1],
-                        bias=True,
-                    )
+                    ]
                     for _ in range(n_readout)
                 ]
 
-            readout = nn.ModuleList(readout)
+        def insert_dim(readout_dims, dim, idx=1):
+            try:
+                [insert_dim(r, dim) for r in readout_dims]
+            except (TypeError, AttributeError) as e:
+                readout_dims.insert(idx, dim)
 
-            return readout
+        if n_hid is not None:
+            insert_dim(readout_dims, n_hid)
+
+        return readout_dims
+
+    def create_readout_from_dims(self, readout_dims):
+
+        try:
+            readout = nn.ModuleList(
+                [self.create_readout_from_dims(r_dim) for r_dim in readout_dims]
+            )
+        except (TypeError, IndexError) as e:
+            readout = [
+                nn.Linear(d1, d2) for d1, d2 in zip(readout_dims[:-1], readout_dims[1:])
+            ]
+
+            if len(readout) == 1:
+                readout = readout[0]
+            else:
+                readout.insert(1, nn.ReLU())
+                readout = nn.Sequential(*readout)
+
+        return readout
 
     # Initializes connections in_between agents with the given sparsity matrix
     def init_connections(self):
@@ -267,7 +295,7 @@ class Community(nn.Module):
         except TypeError:
             connections = torch.tensor(connections)
 
-        return outputs, states, connections
+        return outputs.squeeze(), states, connections
 
     @property
     def nb_connections(self):
