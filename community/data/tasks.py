@@ -1,5 +1,4 @@
 import numpy as np
-from sympy import factor_list
 import torch
 import itertools
 import torchvision.transforms.functional as TF
@@ -147,7 +146,8 @@ def get_factors_list(n_digits, device=torch.device("cpu")):
         for i, p in enumerate(itertools.product(*[[-1, 0, 1] for _ in range(n_digits)]))
         if torch.tensor(p).sum() > 0
     ]
-    return factors_list
+    key_f = lambda p: (p == 1).sum() + (p == -1).sum() * 0.1
+    return sorted(factors_list, key=key_f)
 
 
 def get_task_family_dict(target, n_classes_per_dig):
