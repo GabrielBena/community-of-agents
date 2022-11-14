@@ -35,9 +35,29 @@ def configure_readouts(config):
     n_classes_per_ag = config["datasets"]["n_classes_per_digit"]
     symbol_config = config["datasets"]["symbol_config"]
 
-    if n_agents == 2:
+    if task == "family":
+
+        config["model_params"]["agents_params"]["n_out"] = n_classes
+        factors = get_factors_list(symbol_config["n_diff_symbols"])
+        print(factors)
+
+        if common_readout:
+
+            config["model_params"]["n_readouts"] = len(factors)
+            config["model_params"]["agents_params"]["n_readouts"] = None
+            config["model_params"]["readout_from"] = None
+
+        else:
+            config["model_params"]["n_readouts"] = None
+            config["model_params"]["agents_params"]["n_readouts"] = config[
+                "model_params"
+            ]["n_readouts"] = (3 ** symbol_config["n_diff_symbols"])
+
+    elif n_agents == 2:
 
         if task in ["both", "all", "none"]:
+
+            config["model_params"]["agents_params"]["n_out"] = n_classes_per_ag
 
             if common_readout:
                 config["model_params"]["n_readouts"] = 2
@@ -50,6 +70,8 @@ def configure_readouts(config):
 
         if task in ["both", "all", "none"]:
 
+            config["model_params"]["agents_params"]["n_out"] = n_classes_per_ag
+
             if common_readout:
                 config["model_params"]["n_readouts"] = 3
                 config["model_params"]["agents_params"]["n_readouts"] = None
@@ -59,23 +81,8 @@ def configure_readouts(config):
                 config["model_params"]["agents_params"]["n_readouts"] = 3
                 config["model_params"]["readout_from"] = None
 
-        elif task == "family":
-
-            config["model_params"]["agents_params"]["n_out"] = n_classes
-            factors = get_factors_list(symbol_config["n_diff_symbols"])
-
-            if common_readout:
-                config["model_params"]["n_readouts"] = len(factors)
-                config["model_params"]["agents_params"]["n_readouts"] = None
-                config["model_params"]["readout_from"] = None
-
-            else:
-                config["model_params"]["n_readouts"] = None
-                config["model_params"]["agents_params"]["n_readouts"] = config[
-                    "model_params"
-                ]["n_readouts"] = (3 ** symbol_config["n_diff_symbols"])
-
         elif type(task) is list:
+
             config["model_params"]["agents_params"]["n_out"] = n_classes_per_ag
 
             def get_nested_readout(task_list, n_readouts):
