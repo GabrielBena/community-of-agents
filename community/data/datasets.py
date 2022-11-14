@@ -474,7 +474,7 @@ class SymbolsDataset(Dataset):
                     for _ in range(data_size)
                 ]
 
-            if self.data_config["vectorize"]:
+            if self.data_config["parallel"]:
 
                 centers = np.stack(
                     ray.get([get_all_trajectories.remote() for s in range(n_symbols)]),
@@ -562,7 +562,7 @@ class SymbolsDataset(Dataset):
         else:
             symbol_assignments = symbol_assigns
 
-        if self.data_config["vectorize"]:
+        if self.data_config["parallel"]:
 
             grids = np.zeros((n_steps, data_size, input_size, input_size))
             grids = ray.put(grids)

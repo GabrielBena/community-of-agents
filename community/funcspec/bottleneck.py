@@ -102,7 +102,7 @@ def readout_retrain(
                 p.requires_grad = train_all_param
 
         lr_ag, gamma = 1e-3, 0.9
-        params_dict = {"lr": lr_ag, "gamma": gamma}
+        params_dict = {"lr": lr_ag, "gamma": gamma, "reg_readout": None}
 
         optimizers, schedulers = init_optimizers(
             f_community, params_dict, deepR_params_dict

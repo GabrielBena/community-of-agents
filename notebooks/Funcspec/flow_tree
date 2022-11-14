@@ -1,0 +1,13 @@
+# v2.6.0
+# ./Infomap  --directed --prefer-modular-solution
+# started at 2022-10-25 16:26:12
+# completed in 5.8e-08 s
+# partitioned into 0 levels with 0 top modules
+# codelength 0 bits
+# relative codelength savings 0%
+# flow model directed
+# path flow name node_id
+ 0 "0" 0
+*Links directed
+#*Links path enterFlow exitFlow numEdges numChildren
+*Links root 0 0 0 0

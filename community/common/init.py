@@ -55,23 +55,27 @@ def init_optimizers(community, params_dict, deepR_params_dict):
         params_dict : sub-networks learning parameters
         deepR_params_dict : Sparse connections learning parameters
     """
+    reg_readout = params_dict["reg_readout"]
+    print(reg_readout)
 
-    connect_params = community.connections.parameters()
-    agents_params = community.agents.parameters()
-
-    optimizer_agents = optim.Adam(agents_params, lr=params_dict["lr"])
-    optimizer_agents = torch.optim.Adam(community.parameters(), lr=1e-3)
-    try:
-        optimizer_connections = optim.Adam(connect_params, lr=deepR_params_dict["lr"])
-        scheduler_connections = StepLR(
-            optimizer_connections, step_size=1, gamma=deepR_params_dict["gamma"]
+    if not reg_readout:
+        optimizer = torch.optim.Adam(community.parameters(), lr=1e-3)
+    else:
+        optimizer = torch.optim.AdamW(
+            [p for n, p in community.named_parameters() if "readout" not in n],
+            lr=1e-3,
         )
-    except (ValueError, KeyError):  # no connections
-        optimizer_connections = optim.Adam([torch.tensor(0)])
-        scheduler_connections = StepLR(optimizer_connections, step_size=1)
+        optimizer.add_param_group(
+            {
+                "params": [
+                    p for n, p in community.named_parameters() if "readout" in n
+                ],
+                "lr": 1e-3,
+                "weight_decay": reg_readout,
+            }
+        )
 
-    optimizers = [optimizer_agents, None]
-    scheduler_agents = StepLR(optimizer_agents, step_size=1, gamma=params_dict["gamma"])
-    schedulers = [scheduler_agents, scheduler_connections]
+    scheduler_agents = StepLR(optimizer, step_size=1, gamma=params_dict["gamma"])
+    schedulers = [scheduler_agents, None]
 
-    return optimizers, schedulers
+    return [optimizer, None], schedulers

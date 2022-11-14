@@ -144,7 +144,7 @@ def get_factors_list(n_digits, device=torch.device("cpu")):
     factors_list = [
         torch.tensor(p, device=device)
         for i, p in enumerate(itertools.product(*[[-1, 0, 1] for _ in range(n_digits)]))
-        if torch.tensor(p).sum() > 0
+        if torch.tensor(p).sum() >= 0 and torch.tensor(p).any()
     ]
     key_f = lambda p: (p == 1).sum() + (p == -1).sum() * 0.1
     return sorted(factors_list, key=key_f)

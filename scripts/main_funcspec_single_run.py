@@ -22,7 +22,7 @@ from tqdm.notebook import tqdm as tqdm_n
 if __name__ == "__main__":
 
     # Use for debugging
-    test_run = False
+    test_run = True
 
     if test_run:
         print("Debugging Mode is activated ! Only doing mock training")
@@ -31,10 +31,10 @@ if __name__ == "__main__":
     device = torch.device("cuda" if use_cuda and torch.cuda.is_available() else "cpu")
     print(f"Training on {device}")
 
-    n_agents = 3
+    n_agents = 2
     n_digits = n_agents
 
-    n_classes_per_digit = 20
+    n_classes_per_digit = 30
     n_classes = n_classes_per_digit * n_digits
 
     print(f"Training for {n_classes} classes")
@@ -48,6 +48,7 @@ if __name__ == "__main__":
         "symbol_type": "mod_5",
         "common_input": True,
         "n_diff_symbols": n_digits,
+        "parallel": False,
     }
 
     if symbol_config["static"]:
@@ -89,7 +90,11 @@ if __name__ == "__main__":
     p_masks = [0.1]
 
     lr, gamma = 1e-3, 0.95
-    params_dict = {"lr": lr, "gamma": gamma}
+    params_dict = {
+        "lr": lr,
+        "gamma": gamma,
+        "reg_readout": None,
+    }
 
     l1, gdnoise, lr, gamma, cooling = 1e-5, 1e-3, 1e-3, 0.95, 0.95
     deepR_params_dict = {

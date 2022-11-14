@@ -195,8 +195,15 @@ def define_and_log(metrics, config, best_acc):
                 step_single_metrics = metric[..., step]
 
                 metric_data.setdefault(metric_name + "_det", [])
+                metric_data.setdefault(metric_name + "_det_col_norm", [])
+
                 metric_data[metric_name + "_det"].append(
                     np.abs(LA.det(step_single_metrics))
+                )
+
+                metric_data[metric_name + "_det_col_norm"].append(
+                    np.abs(LA.det(step_single_metrics))
+                    / step_single_metrics.sum(0).prod()
                 )
 
                 for norm in [1, 2, "fro", "nuc"]:

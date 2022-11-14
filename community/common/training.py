@@ -326,7 +326,8 @@ def train_community(
 
         if schedulers is not None:
             for sch in schedulers:
-                sch.step()
+                if sch:
+                    sch.step()
 
         results = {
             "train_losses": np.array(train_losses),
