@@ -3,18 +3,20 @@ datasets:
   data_type: symbols
   fix_asym: false
   input_size: 3600
-  n_classes: 16
+  n_classes: 60
+  n_classes_per_digit: 30
   permute_dataset: false
   seed:
   symbol_config:
+    common_input: true
     data_size:
       - 30000
       - 5000
-    double_data: false
     input_size: 60
-    n_diff_symbols: 3
-    n_symbols: 49
+    n_diff_symbols: 2
+    n_symbols: 59
     nb_steps: 6
+    parallel: false
     static: true
     symbol_type: mod_5
   use_cuda: true
@@ -31,27 +33,29 @@ model_params:
     n_hidden: 15
     n_in: 3600
     n_layers: 1
-    n_out: 16
-    n_readouts:
+    n_out: 30
+    n_readouts: 1
     train_in_out:
       - true
       - true
     use_bottleneck: false
+  common_readout: true
   connections_params:
     binarize: true
     comms_dropout: 0.0
     comms_start: mid
     sparsity: 0
     use_deepR: false
-  n_agents: 3
+  n_agents: 2
   n_ins:
-  n_readouts: 3
+  n_readouts: 1
   readout_from:
 n_tests: 20
 optimization:
   agents:
     gamma: 0.95
     lr: 0.001
+    reg_readout:
   connections:
     cooling: 0.95
     gamma: 0.95
@@ -59,12 +63,12 @@ optimization:
     global_rewire: false
     l1: 1.0e-05
     lr: 0.001
-task: both
+task: all
 test_run: false
 training:
   decision_params:
     - last
-    - both
+    - all
   early_stop: false
   force_connections: false
   inverse_task: false

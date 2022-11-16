@@ -239,7 +239,6 @@ if __name__ == "__main__":
     bottleneck_det = final_data["bottleneck_det"].mean()
     final_log["bottleneck_det"] = bottleneck_det
 
-    print(final_log)
     wandb.log(final_log)
 
     for name, file in zip(

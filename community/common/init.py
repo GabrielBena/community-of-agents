@@ -56,8 +56,6 @@ def init_optimizers(community, params_dict, deepR_params_dict):
         deepR_params_dict : Sparse connections learning parameters
     """
     reg_readout = params_dict["reg_readout"]
-    print(reg_readout)
-
     if not reg_readout:
         optimizer = torch.optim.Adam(community.parameters(), lr=1e-3)
     else:
