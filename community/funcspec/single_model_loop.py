@@ -10,7 +10,7 @@ from community.funcspec.bottleneck import readout_retrain
 from community.funcspec.correlation import get_pearson_metrics
 from community.common.training import train_community
 from community.common.init import init_community, init_optimizers
-from community.utils.configs import get_training_dict, find_varying_param
+from community.utils.configs import get_training_dict, _finditem
 import copy
 from time import sleep
 
@@ -28,7 +28,7 @@ def init_and_train(config, loaders, device):
     use_tqdm = config["use_tqdm"]
 
     for v_param_name, v_param in wandb.config["varying_params"].items():
-        assert find_varying_param(config, v_param_name) == v_param
+        assert _finditem(config, v_param_name) == v_param
         if use_wandb:
             wandb.log({v_param_name: v_param})
             if v_param_name == "sparsity":
@@ -97,6 +97,7 @@ def init_and_train(config, loaders, device):
             )
 
     return trained_coms, train_outs
+
 
 def compute_all_metrics(trained_coms, loaders, config, device):
 

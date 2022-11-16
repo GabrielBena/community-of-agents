@@ -39,7 +39,6 @@ def configure_readouts(config):
 
         config["model_params"]["agents_params"]["n_out"] = n_classes
         factors = get_factors_list(symbol_config["n_diff_symbols"])
-        print(factors)
 
         if common_readout:
 
@@ -108,17 +107,19 @@ def find_and_change(config, param_name, param_value):
                 config[key] = param_value
 
 
-def find_varying_param(config, param_to_change=None):
+sentinel = object()
 
-    if param_to_change is None:
-        param_to_change = config["varying_param"]
 
-    for k, v in config.items():
-        if type(v) is dict:
-            return find_varying_param(v, param_to_change)
-        else:
-            if k == param_to_change and v is not None:
-                return v
+def _finditem(obj, key, sentinel=sentinel):
+    if key in obj:
+        return obj[key]
+    for k, v in obj.items():
+        if isinstance(v, dict):
+            item = _finditem(v, key, sentinel)
+            if item is not sentinel:
+                return item
+
+    return sentinel
 
 
 def get_new_config(config, key_prefix="config"):
