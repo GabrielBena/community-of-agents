@@ -12,9 +12,9 @@ from typing import Any, AnyStr, Callable, Optional, Tuple
 from torchvision.datasets import MNIST
 from PIL import Image
 from itertools import permutations
-from joblib import delayed, Parallel
+#from joblib import delayed, Parallel
 import multiprocessing as mp
-import ray
+#import ray
 
 from tqdm.notebook import tqdm
 
@@ -465,7 +465,6 @@ class SymbolsDataset(Dataset):
 
         else:
 
-            @ray.remote
             def get_all_trajectories():
                 return [
                     np.stack(
