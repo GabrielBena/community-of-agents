@@ -49,71 +49,53 @@ def configure_readouts(config):
 
         else:
             config["model_params"]["n_readouts"] = None
-            config["model_params"]["agents_params"]["n_readouts"] = config[
-                "model_params"
-            ]["n_readouts"] = (3 ** symbol_config["n_diff_symbols"])
+            config["model_params"]["agents_params"]["n_readouts"] = len(factors)
 
-    elif n_agents == 2:
+    elif type(task) is list:
 
-        if task in ["both", "all", "none"]:
+        config["model_params"]["agents_params"]["n_out"] = n_classes_per_ag
 
-            config["model_params"]["agents_params"]["n_out"] = n_classes_per_ag
+        def get_nested_readout(task_list, n_readouts):
+            try:
+                return [[int(t) for t in task_list] for _ in range(n_readouts)]
+            except TypeError:
+                return [
+                    get_nested_readout(t, n_r) for t, n_r in zip(task_list, n_readouts)
+                ]
 
-            if common_readout:
-                config["model_params"]["n_readouts"] = 2
-                config["model_params"]["agents_params"]["n_readouts"] = None
+        def get_nested_len(task_list):
+            if type(task_list[0]) is list:
+                return [get_nested_len(t) for t in task_list]
             else:
-                config["model_params"]["n_readouts"] = None
-                config["model_params"]["agents_params"]["n_readouts"] = 2
+                return len(task_list)
 
-    elif n_agents == 3:
-
-        if task in ["both", "all", "none"]:
-
-            config["model_params"]["agents_params"]["n_out"] = n_classes_per_ag
-
-            if common_readout:
-                config["model_params"]["n_readouts"] = 3
-                config["model_params"]["agents_params"]["n_readouts"] = None
-                config["model_params"]["readout_from"] = None
-            else:
-                config["model_params"]["n_readouts"] = None
-                config["model_params"]["agents_params"]["n_readouts"] = 3
-                config["model_params"]["readout_from"] = None
-
-        elif type(task) is list:
-
-            config["model_params"]["agents_params"]["n_out"] = n_classes_per_ag
-
-            def get_nested_readout(task_list, n_readouts):
-                try:
-                    return [[int(t) for t in task_list] for _ in range(n_readouts)]
-                except TypeError:
-                    return [
-                        get_nested_readout(t, n_r)
-                        for t, n_r in zip(task_list, n_readouts)
-                    ]
-
-            def get_nested_len(task_list):
-                if type(task_list[0]) is list:
-                    return [get_nested_len(t) for t in task_list]
-                else:
-                    return len(task_list)
-
-            if common_readout:
-                n_readouts = config["model_params"]["n_readouts"] = get_nested_len(task)
-                config["model_params"]["readout_from"] = get_nested_readout(
-                    task, n_readouts
-                )
-                config["model_params"]["agents_params"]["n_readouts"] = None
-
-            else:
-                config["model_params"]["n_readouts"] = None
-                config["model_params"]["agents_params"]["n_readouts"] = len(task[0])
+        if common_readout:
+            n_readouts = config["model_params"]["n_readouts"] = get_nested_len(task)
+            config["model_params"]["readout_from"] = get_nested_readout(
+                task, n_readouts
+            )
+            config["model_params"]["agents_params"]["n_readouts"] = None
 
         else:
-            warn(f"can't auto configure readout for task {task}")
-            print(f" Warning ! Can't auto configure readout for task {task}")
+            config["model_params"]["n_readouts"] = None
+            config["model_params"]["agents_params"]["n_readouts"] = len(task[0])
+
+    elif task in ["both", "all", "none"]:
+
+        config["model_params"]["agents_params"]["n_out"] = n_classes_per_ag
+
+        if common_readout:
+            config["model_params"]["n_readouts"] = n_agents
+            config["model_params"]["agents_params"]["n_readouts"] = None
+            config["model_params"]["readout_from"] = None
+        else:
+            config["model_params"]["n_readouts"] = None
+            config["model_params"]["agents_params"]["n_readouts"] = n_agents
+            config["model_params"]["readout_from"] = None
+
+    else:
+        warn(f"can't auto configure readout for task {task}")
+        print(f" Warning ! Can't auto configure readout for task {task}")
 
 
 def find_and_change(config, param_name, param_value):
