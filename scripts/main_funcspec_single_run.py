@@ -34,7 +34,7 @@ if __name__ == "__main__":
     n_agents = 2
     n_digits = n_agents
 
-    n_classes_per_digit = 30
+    n_classes_per_digit = 60 // n_agents
     n_classes = n_classes_per_digit * n_digits
 
     print(f"Training for {n_classes} classes")
