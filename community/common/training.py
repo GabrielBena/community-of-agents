@@ -305,9 +305,7 @@ def train_community(
                     pbar.set_description(desc(descs))
 
         if testing:
-            descs[1], loss, acc, deciding_ags = test_community(
-                model, device, test_loader, config
-            )
+            descs[1], loss, acc, _ = test_community(model, device, test_loader, config)
             if loss < best_loss:
                 best_loss = loss
                 best_state = copy.deepcopy(model.state_dict())
@@ -321,11 +319,6 @@ def train_community(
 
             test_losses.append(loss)
             test_accs.append(acc)
-            if (
-                deciding_ags is not None
-                and train_loader.batch_size in deciding_ags.shape
-            ):
-                deciding_agents.append(deciding_ags.cpu().data.numpy())
 
         else:
             best_state = None
