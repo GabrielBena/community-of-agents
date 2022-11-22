@@ -132,7 +132,7 @@ if __name__ == "__main__":
             "connections": deepR_params_dict,
         },
         "training": {
-            "decision_params": ("last", "all"),
+            "decision_params": ["last", "all"],
             "n_epochs": 30 if not test_run else 1,
             "inverse_task": False,
             "stopping_acc": 0.95,
