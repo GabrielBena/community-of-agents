@@ -64,6 +64,12 @@ def get_task_target(target, task, n_classes, temporal_target=False):
 
         new_target = None
 
+        def get_target(fn):
+            if new_target is None:
+                return fn(target)
+            else:
+                return fn(new_target)
+
         # Task can be a combination of subtasks, separated by _
         tasks = task.split("_")
 
@@ -108,16 +114,22 @@ def get_task_target(target, task, n_classes, temporal_target=False):
             new_target = target
 
         if "opposite" in tasks:
-            if new_target is not None:
-                new_target = n_classes - new_target - 1
-            else:
-                new_target = n_classes - target - 1
+            new_target = get_target(lambda t: n_classes - t - 1)
 
         if "sum" in tasks:
-            if new_target is not None:
-                new_target = new_target.sum(-1)
-            else:
-                new_target = target.sum(-1)
+            new_target = get_target(lambda t: t.sum(-1))
+
+        if "bitand" in tasks:
+            new_target = digits[0] & digits[1]
+
+        if "bitor" in tasks:
+            new_target = digits[0] | digits[1]
+
+        if "max" in tasks:
+            new_target = get_target(lambda t: t.max(-1)[0])
+
+        if "min" in tasks:
+            new_target = get_target(lambda t: t.min(-1)[0])
 
         try:
             task = int(tasks[-1])
