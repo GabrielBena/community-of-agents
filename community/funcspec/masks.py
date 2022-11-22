@@ -200,7 +200,6 @@ def train_mask(
         community, sparsity, include_ih, not community.use_common_readout
     ).to(device)
 
-    """
     momentum, wd = 0.9, 0.0005
     optimizer_agents = optim.SGD(
         [p for p in masked_community.parameters() if p.requires_grad],
@@ -208,23 +207,19 @@ def train_mask(
         momentum=momentum,
         weight_decay=wd,
     )
-    try:
-        optimizer_connections = optim.Adam(community.connections.parameters())
-    except ValueError:  # no connections
-        optimizer_connections = optim.Adam([torch.tensor(0)])
-
-    optimizers = [optimizer_agents, optimizer_connections]
     """
     optimizer_agents = torch.optim.AdamW(
         [p for p in masked_community.parameters() if p.requires_grad],
         lr=lr,
         weight_decay=1e-1,
     )
+    """
     optimizers = [optimizer_agents, None]
 
     d_params = decision_params[::]
     if "all" in decision_params:
-        d_params[1] = target_digit
+        # d_params[1] = target_digit
+        pass
 
     training_dict = {
         "n_epochs": n_epochs,
