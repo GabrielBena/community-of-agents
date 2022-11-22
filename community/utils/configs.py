@@ -61,6 +61,8 @@ def configure_readouts(config):
                 return [
                     get_nested_readout(t, n_r) for t, n_r in zip(task_list, n_readouts)
                 ]
+            except ValueError:
+                return [[i for i in range(n_agents)] for t in task_list]
 
         def get_nested_len(task_list):
             if type(task_list[0]) is list:
@@ -88,9 +90,11 @@ def configure_readouts(config):
             config["model_params"]["agents_params"]["n_readouts"] = None
             config["model_params"]["readout_from"] = None
         else:
+
             config["model_params"]["n_readouts"] = None
             config["model_params"]["agents_params"]["n_readouts"] = n_agents
             config["model_params"]["readout_from"] = None
+            config["training"]["decision_params"][-1] = "max"
 
     else:
         warn(f"can't auto configure readout for task {task}")
