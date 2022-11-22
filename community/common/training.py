@@ -103,7 +103,7 @@ def train_community(
     joint_training=False,
     use_tqdm=True,
     device=torch.device("cuda"),
-    show_all_acc=False,
+    show_all_acc=True,
 ):
     """
     Training and testing function for Community of agents
@@ -228,7 +228,11 @@ def train_community(
                     output, *decision_params, target=t_target
                 )
 
-                # if deciding_ags is not None and deciding_ags.shape[0]==train_loader.batch_size: deciding_agents.append(deciding_ags.cpu().data.numpy())
+                if (
+                    deciding_ags is not None
+                    and train_loader.batch_size in deciding_ags.shape
+                ):
+                    deciding_agents.append(deciding_ags.cpu().data.numpy())
 
                 loss, t_target, output = get_loss(output, t_target)
 
@@ -284,7 +288,7 @@ def train_community(
                 nb_new_con = 0
                 acc = train_accs[-1]
                 descs[0] = str(
-                    "Train Epoch: {} [{}/{} ({:.0f}%)] Loss: {:.3f}, Accuracy: {}%".format(
+                    "Train Epoch: {} [{}/{} ({:.0f}%)] Loss: {:.3f}, Accuracy: {}, Dec : {:.3f}%".format(
                         epoch,
                         batch_idx * train_loader.batch_size,
                         len(train_loader.dataset),
@@ -293,6 +297,7 @@ def train_community(
                         np.round(100 * acc.mean(), 2)
                         if type(acc) is not float and not show_all_acc
                         else np.round(100 * acc),
+                        np.mean(deciding_agents),
                     )
                 )
 
@@ -316,7 +321,11 @@ def train_community(
 
             test_losses.append(loss)
             test_accs.append(acc)
-            deciding_agents.append(deciding_ags)
+            if (
+                deciding_ags is not None
+                and train_loader.batch_size in deciding_ags.shape
+            ):
+                deciding_agents.append(deciding_ags.cpu().data.numpy())
 
         else:
             best_state = None
