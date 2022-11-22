@@ -37,11 +37,18 @@ def max_decision(outputs):
     )
     mask_1 = deciding_ags.unsqueeze(0).unsqueeze(-1).expand_as(outputs)
     mask_2 = torch.einsum(
-        "b, bcx -> bcx", torch.arange(n_agents).to(device), torch.ones_like(outputs)
+        "b, b... -> b...", torch.arange(n_agents).to(device), torch.ones_like(outputs)
     )
     mask = mask_1 == mask_2
 
     return (outputs * mask).sum(0), deciding_ags
+
+
+def max_decision_3(outputs):
+    device = outputs.device
+    mask = (outputs.max(0)[1].sum(-1) > outputs.shape[-1] // 2).bool()
+    mask = mask.unsqueeze(-1).expand_as(outputs[0])
+    return torch.where(mask, outputs[1], outputs[0]).to(device), mask[..., 0]
 
 
 def get_decision(outputs, temporal_decision="last", agent_decision="0", target=None):
@@ -80,10 +87,7 @@ def get_decision(outputs, temporal_decision="last", agent_decision="0", target=N
     except ValueError:
 
         if agent_decision == "max":
-            if outputs.shape[0] == 2:
-                outputs, deciding_ags = max_decision_2(outputs)
-            else:
-                outputs, deciding_ags = max_decision(outputs)
+            outputs, deciding_ags = max_decision(outputs)
 
         elif agent_decision == "random":
             outputs, deciding_ags = random_decision(outputs)
