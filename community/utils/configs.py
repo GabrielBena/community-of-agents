@@ -89,6 +89,7 @@ def configure_readouts(config):
             config["model_params"]["n_readouts"] = n_agents
             config["model_params"]["agents_params"]["n_readouts"] = None
             config["model_params"]["readout_from"] = None
+            config["training"]["decision_params"][-1] = "all"
         else:
 
             config["model_params"]["n_readouts"] = None
