@@ -83,6 +83,12 @@ class Community(nn.Module):
         readout_dims = self.get_readout_dimensions(n_readouts, readout_from, n_hid)
         self.readout = self.create_readout_from_dims(readout_dims)
 
+    def init_readout_weights(self, readout):
+        try:
+            nn.init.kaiming_uniform_(readout.weight, nonlinearity="relu")
+        except AttributeError:
+            [self.init_readout_weights(r) for r in self.readout]
+
     def get_readout_dimensions(self, n_readout, readout_from, n_hid):
 
         if type(n_readout) is list:
