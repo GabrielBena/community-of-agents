@@ -115,6 +115,8 @@ class Agent(nn.Module):
 
             self.readout = nn.ModuleList(readout)
 
+            self.init_readout_weights(self.readout)
+
         self.cell_params("weight_ih_l0").requires_grad = train_in_out[0]
         self.cell_params("bias_ih_l0").requires_grad = train_in_out[0]
         # self.cell.weight_ih_l0.requires_grad = train_in_out[0]
@@ -127,6 +129,12 @@ class Agent(nn.Module):
     @property
     def w_rec(self):
         return self.cell.weight_hh_l0
+
+    def init_readout_weights(self, readout):
+        try:
+            nn.init.kaiming_uniform_(readout.weight, nonlinearity="relu")
+        except AttributeError:
+            [self.init_readout_weights(r) for r in self.readout]
 
     def forward(self, x_in, x_h=None, x_connect=0, softmax=False):
         """
