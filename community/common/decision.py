@@ -53,6 +53,18 @@ def max_decision_3(outputs):
 
 def get_decision(outputs, temporal_decision="last", agent_decision="0", target=None):
 
+    outputs = get_temporal_decision(outputs, temporal_decision)
+
+    if len(outputs.shape) == 2:
+        return outputs, None
+
+    for ag_decision in agent_decision.split("_"):
+        outputs, deciding_ags = get_agent_decision(outputs, ag_decision)
+
+    return outputs, deciding_ags
+
+
+def get_temporal_decision(outputs, temporal_decision):
     n_steps = len(outputs)
     try:
         deciding_ts = int(temporal_decision)
@@ -75,9 +87,10 @@ def get_decision(outputs, temporal_decision="last", agent_decision="0", target=N
             raise ValueError(
                 'temporal decision not recognized, try "last", "sum" or "mean", or time_step of decision ("0", "-1" ) '
             )
+    return outputs
 
-    if len(outputs.shape) == 2:
-        return outputs, None
+
+def get_agent_decision(outputs, agent_decision, target=None):
 
     try:
         deciding_ags = int(agent_decision)
