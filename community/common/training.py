@@ -276,6 +276,8 @@ def train_community(
 
                 # Apply gradients on agents weights
                 optimizer_agents.step()
+                if hasattr(model, "scores"):
+                    model.update_subnets()
 
                 # Apply gradient for sparse connections and rewire
                 """

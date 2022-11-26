@@ -51,6 +51,7 @@ class Mask(nn.Module):
         self.model = copy.deepcopy(model)
         self.sparsity = sparsity
         self.scores = nn.ParameterDict()
+
         for name, p in self.model.named_parameters():
             n = get_new_name(name)
             if "bias" not in n:
@@ -65,11 +66,14 @@ class Mask(nn.Module):
                 nn.init.normal_(self.scores[n], 0, 1e-2)
             p.requires_grad = False
 
-    def forward(self, x):
-        subnets = [
+    def get_subnets(self):
+        return [
             GetSubnet_global.apply(s, list(self.scores.values()), self.sparsity)
             for s in self.scores.values()
         ]
+
+    def forward(self, x):
+        subnets = self.get_subnets()
         f_model = copy.deepcopy(self.model)
         for i, (name, p) in enumerate(f_model.named_parameters()):
             p *= subnets[i]
@@ -111,6 +115,8 @@ class Mask_Community(nn.Module):
                     )
                     nn.init.normal_(self.scores[n], 0, 1e-2)
 
+        self.update_subnets()
+
     def get_model_params(self, model):
 
         model_params = {}
@@ -122,24 +128,51 @@ class Mask_Community(nn.Module):
 
         return model_params
 
+    def update_subnets(self):
+        self.subnets = {
+            n: GetSubnet_global.apply(s, list(self.scores.values()), self.sparsity)
+            for n, s in self.scores.items()
+        }
+
+    def to(self, device):
+
+        self.update_subnets()
+        return super().to(device)
+
+    @property
+    def proportions(self):
+        total = np.sum([s.data.cpu().sum() for n, s in self.subnets.items()])
+        sums = np.array(
+            [
+                np.sum(
+                    [
+                        s.data.cpu().sum()
+                        for n, s in self.subnets.items()
+                        if n[7] == str(i)
+                    ]
+                )
+                for i in range(len(self.model.agents))
+            ]
+        )
+        return sums / total
+
     def forward(self, x, conns=0.0):
-        subnets = [
-            GetSubnet_global.apply(s, list(self.scores.values()), self.sparsity)
-            for s in self.scores.values()
-        ]
         f_model = copy.deepcopy(self.model)
-        i = 0
         for (name, p) in self.get_model_params(f_model).items():
             if (not "ih" in name or self.include_ih) and (
                 not "readout" in name or self.include_readout
             ):
-                p *= subnets[i]
-                i += 1
+                try:
+                    p *= self.subnets[get_new_name(name)]
+                except RuntimeError:  # subnets on cpu
+                    self.update_subnets()
+                    p *= self.subnets[get_new_name(name)]
 
         return f_model(x)
 
 
 def get_proportions(masked_model):
+
     scores = list(masked_model.scores.values())
     d_scores = masked_model.scores
     k = masked_model.sparsity
@@ -192,12 +225,14 @@ def train_mask(
     use_tqdm=False,
     symbols=False,
     force_connections=False,
-    chosen_timesteps=["0", "mid-", "last"],
     include_ih=False,
+    multi_objectives=True,
 ):
-
     masked_community = Mask_Community(
-        community, sparsity, include_ih, not community.use_common_readout
+        community,
+        sparsity,
+        include_ih=include_ih,
+        include_readout=not community.use_common_readout,
     ).to(device)
 
     momentum, wd = 0.9, 0.0005
@@ -217,9 +252,8 @@ def train_mask(
     optimizers = [optimizer_agents, None]
 
     d_params = decision_params[::]
-    if "all" in decision_params:
-        # d_params[1] = target_digit
-        pass
+    if multi_objectives:
+        d_params[1] += f"_{target_digit}"
 
     training_dict = {
         "n_epochs": n_epochs,
@@ -260,10 +294,12 @@ def find_optimal_sparsity(
     masked_community,
     target_digit,
     loaders,
-    min_acc=0.95,
+    min_acc=None,
     device=torch.device("cpu"),
     use_tqdm=False,
     symbols=False,
+    n_classes=10,
+    d_params=("last", "max"),
 ):
 
     optimizers = None, None
@@ -283,12 +319,14 @@ def find_optimal_sparsity(
             "check_gradients": False,
             "reg_factor": 0.0,
             "train_connections": False,
-            "decision_params": ("last", "max"),
+            "decision_params": d_params,
             "stopping_acc": None,
             "early_stop": False,
             "deepR_params_dict": {},
             "data_type": "symbols" if symbols else None,
             "force_connections": False,
+            "n_classes": n_classes,
+            "n_classes_per_digit": n_classes,
         }
 
         train_out = train_community(
@@ -302,14 +340,16 @@ def find_optimal_sparsity(
         )
         return train_out
 
+    if min_acc is None:
+        s = masked_community.sparsity
+        masked_community.sparsity = 1.0
+        train_out = test_masked_com()
+        min_acc = train_out["test_accs"].max()
+        masked_community.sparsity = s
+        print(masked_community.sparsity)
+
     train_out = test_masked_com()
     test_acc = train_out["test_accs"].max()
-
-    def conditional_loop():
-        condition = test_acc >= min_acc
-        print(condition)
-        while condition:
-            yield
 
     pbar = tqdm(total=100, position=position, leave=None)
     pbar.set_description(
@@ -343,6 +383,8 @@ def train_and_get_mask_metric(
     use_tqdm=False,
     symbols=False,
     include_ih=False,
+    chosen_timesteps=["last"],
+    multi_objectives=True,
 ):
     """
     Initializes and trains masks on community model.
@@ -365,6 +407,7 @@ def train_and_get_mask_metric(
     test_losses_total = []
     best_states_total = []
     sparsities_total = []
+    masked_models_total = []
 
     if type(use_tqdm) is int:
         position = use_tqdm
@@ -375,16 +418,21 @@ def train_and_get_mask_metric(
     notebook = is_notebook()
     tqdm_f = tqdm_n if notebook else tqdm
 
-    pbar = range(n_tests)
+    pbar = chosen_timesteps
     if use_tqdm:
         pbar = tqdm_f(pbar, position=position, desc="Mask Metric Trials : ", leave=None)
 
-    for test in pbar:
+    for ts in pbar:
+
         prop_per_agent = []
         test_accuracies = []
         test_losses = []
         best_states = []
         sparsities = []
+        masked_models = []
+
+        d_params = decision_params[::]
+        d_params[0] = ts
 
         for target_digit in ["0", "1"]:
 
@@ -395,7 +443,7 @@ def train_and_get_mask_metric(
                 target_digit,
                 n_classes,
                 lr,
-                decision_params,
+                d_params,
                 n_epochs,
                 device,
                 position + 1 if use_tqdm else False,
@@ -404,80 +452,93 @@ def train_and_get_mask_metric(
             )
 
             if use_optimal_sparsity:
-                try:
-                    optimal_sparsity, test_accs = find_optimal_sparsity(
-                        masked_community,
-                        target_digit,
-                        loaders,
-                        community.best_acc * 0.95,
-                        device=device,
-                        symbols=symbols,
-                        use_tqdm=position + 1 if use_tqdm else False,
-                    )
-                except AttributeError:
-                    optimal_sparsity, test_accs = find_optimal_sparsity(
-                        masked_community,
-                        target_digit,
-                        loaders,
-                        min_acc=0.95,
-                        device=device,
-                        symbols=symbols,
-                        use_tqdm=position + 1 if use_tqdm else False,
-                    )
 
-            prop = get_proportions_per_agent(masked_community)[0]
+                optimal_sparsity, test_accs = find_optimal_sparsity(
+                    masked_community,
+                    target_digit,
+                    loaders,
+                    min_acc=None,
+                    device=device,
+                    symbols=symbols,
+                    use_tqdm=position + 1 if use_tqdm else False,
+                )
+
+            # prop = get_proportions_per_agent(masked_community)[0]
+            prop = masked_community.proportions
 
             prop_per_agent.append(prop)
             test_accuracies.append(np.array(test_accs))
             test_losses.append(np.array(test_loss))
             best_states.append(best_state)
             sparsities.append(masked_community.sparsity)
+            masked_models.append(masked_community)
 
         best_states_total.append(np.array(best_states))
         prop_per_agent_total.append(np.array(prop_per_agent))
         test_accuracies_total.append(np.array(test_accuracies))
         test_losses_total.append(np.array(test_losses))
         sparsities_total.append(np.array(sparsities))
+        masked_models_total.append(masked_models)
 
     results_dict = {
-        "proportions": np.array(prop_per_agent_total),
-        "test_accs": np.array(test_accuracies_total),
-        "test_losses": np.array(test_losses_total),
+        "proportions": np.stack(prop_per_agent_total, -1),
+        "test_accs": np.stack(test_accuracies_total, -1),
+        "test_losses": np.stack(test_losses_total, -1),
         "best_states": best_states_total,
-        "sparsities": np.array(sparsities_total),
+        "sparsities": np.stack(sparsities_total, -1),
     }
 
-    return results_dict
+    return results_dict, masked_models_total
 
 
-def get_proportions_per_agent(masked_community):
+def get_proportions_per_agent(masked_community, method=0):
     """
     Returns repartition of selected weights among agents :
     Args :
         masked_community : weight mask applied to community
     """
 
-    prop_ag_0 = 0
-    prop_ag_1 = 0
-    sparsity = masked_community.sparsity
-    numel = 0
-    for p in masked_community.scores.values():
-        numel += p.numel()
-    sparsity = masked_community.sparsity
-    for n, p in get_proportions(masked_community).items():
-        if "agents" in n:
-            if n[7] == "0":
+    if method == 0:
+        # Average of averages
+
+        proportions = get_proportions(masked_community)
+        return (
+            np.array(
+                [
+                    np.mean(
+                        [
+                            p[1] / np.sum(p)
+                            for n, p in get_proportions(masked_community).items()
+                            if n[7] == str(i)
+                        ]
+                    )
+                    for i in range(len(masked_community.model.agents))
+                ]
+            ),
+            0,
+        )
+    else:
+        prop_ag_0 = 0
+        prop_ag_1 = 0
+        sparsity = masked_community.sparsity
+        numel = 0
+        for p in masked_community.scores.values():
+            numel += p.numel()
+        sparsity = masked_community.sparsity
+        for n, p in get_proportions(masked_community).items():
+            if "agents" in n:
+                if n[7] == "0":
+                    prop_ag_0 += p[1] / sparsity
+                elif n[7] == "1":
+                    prop_ag_1 += p[1] / sparsity
+
+            if n[0] == "0" and "thetas" not in n:
                 prop_ag_0 += p[1] / sparsity
-            elif n[7] == "1":
+            elif n[0] == "1" and "thetas" not in n:
                 prop_ag_1 += p[1] / sparsity
 
-        if n[0] == "0" and "thetas" not in n:
-            prop_ag_0 += p[1] / sparsity
-        elif n[0] == "1" and "thetas" not in n:
-            prop_ag_1 += p[1] / sparsity
-
-    prop = np.array((prop_ag_0, prop_ag_1))
-    return prop, prop * numel * sparsity
+        prop = np.array((prop_ag_0, prop_ag_1))
+        return prop, prop * numel * sparsity
 
 
 def compute_mask_metric(
