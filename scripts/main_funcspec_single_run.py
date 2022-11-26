@@ -22,7 +22,7 @@ from tqdm.notebook import tqdm as tqdm_n
 if __name__ == "__main__":
 
     # Use for debugging
-    test_run = False
+    test_run = True
 
     if test_run:
         print("Debugging Mode is activated ! Only doing mock training")
@@ -152,9 +152,11 @@ if __name__ == "__main__":
         pyaml.dump(config, config_file)
 
     if test_run:
-        os.environ["WANDB_MODE"] = "offline"
+        pass
+        # os.environ["WANDB_MODE"] = "offline"
 
-    wandb.init(project="funcspec_V2", entity="m2snn", config=config)
+    # wandb.init(project="funcspec_V2", entity="m2snn", config=config)
+    wandb.init(project="Funcspec", entity="gbena", config=config)
 
     run_dir = wandb.run.dir + "/"
 

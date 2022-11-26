@@ -34,6 +34,7 @@ def configure_readouts(config):
     n_classes = config["datasets"]["n_classes"]
     n_classes_per_ag = config["datasets"]["n_classes_per_digit"]
     symbol_config = config["datasets"]["symbol_config"]
+    n_symbols = symbol_config["n_diff_symbols"]
 
     if task == "family":
 
@@ -86,14 +87,14 @@ def configure_readouts(config):
         config["model_params"]["agents_params"]["n_out"] = n_classes_per_ag
 
         if common_readout:
-            config["model_params"]["n_readouts"] = n_agents
+            config["model_params"]["n_readouts"] = n_symbols
             config["model_params"]["agents_params"]["n_readouts"] = None
             config["model_params"]["readout_from"] = None
             config["training"]["decision_params"][-1] = "all"
         else:
 
             config["model_params"]["n_readouts"] = None
-            config["model_params"]["agents_params"]["n_readouts"] = n_agents
+            config["model_params"]["agents_params"]["n_readouts"] = n_symbols
             config["model_params"]["readout_from"] = None
             config["training"]["decision_params"][-1] = "max"
 
