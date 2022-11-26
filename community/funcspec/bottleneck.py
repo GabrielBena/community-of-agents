@@ -33,6 +33,7 @@ def readout_retrain(
     device=torch.device("cuda"),
     symbols=False,
     chosen_timesteps=["0", "mid-", "last"],
+    n_hid=None,
 ):
     """
     Retrains the bottleneck-readout connections of each sub-network for each sub-task and stores performance.
@@ -75,17 +76,32 @@ def readout_retrain(
 
         for f_agent in f_community.agents:
 
-            if f_agent.use_bottleneck:
-                f_agent.readout = nn.ModuleList(
-                    [
-                        nn.Linear(f_agent.bottleneck.out_features, n_classes)
-                        for _ in range(n_digits)
-                    ]
-                )
+            n_in = (
+                f_agent.bottleneck.out_features
+                if f_agent.use_bottleneck
+                else f_agent.dims[-2]
+            )
+            n_out = n_classes
+            if n_hid is not None:
+                dims = [n_in, n_hid, n_out]
             else:
-                f_agent.readout = nn.ModuleList(
-                    [nn.Linear(f_agent.dims[-2], n_classes) for _ in range(n_digits)]
-                )
+                dims = [n_in, n_out]
+
+            readout = [
+                [nn.Linear(d1, d2) for d1, d2 in zip(dims[:-1], dims[1:])]
+                for _ in range(n_digits)
+            ]
+
+            readout_final = []
+            for r in readout:
+                if n_hid is not None:
+                    r.insert(1, nn.ReLU())
+                    r = nn.Sequential(*r)
+                    readout_final.append(r)
+                else:
+                    readout_final.append(r[0])
+
+            f_agent.readout = nn.ModuleList(readout_final)
 
             f_agent.use_readout = True
             f_agent.n_readouts = n_digits
