@@ -129,7 +129,7 @@ def compute_all_metrics(trained_coms, loaders, config, device):
     """
     # print('Weight Masks')
     # masks_metric = {}
-    # masks_results = train_and_get_mask_metric(community, 0.1, loaders, device=device, n_tests=1, n_epochs=1, use_tqdm=1, use_optimal_sparsity=True, symbols=symbols)
+    # masks_results, masked_coms = train_and_get_mask_metric(community, 0.1, loaders, device=device, n_tests=1, n_epochs=1, use_tqdm=1, use_optimal_sparsity=True, symbols=symbols)
     # masks_props, masks_accs, _, masks_states, masks_spars = list(masks_results.values())
     # masks_metric, masks_accs, masks_spars = masks_props.mean(0), masks_accs.mean(0).max(-1), masks_spars.mean(0)
 
@@ -155,7 +155,7 @@ def compute_all_metrics(trained_coms, loaders, config, device):
     # metric_names = ['Correlation', 'Masks', 'Bottleneck']
     # all_results = [correlations_results, masks_results, bottleneck_results]
 
-    metric_names = ["bottleneck"]
+    metric_names = ["bottleneck", "masks"]
     metrics = [bottleneck_metric]
 
     metric_results = {

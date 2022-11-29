@@ -22,7 +22,7 @@ from tqdm.notebook import tqdm as tqdm_n
 if __name__ == "__main__":
 
     # Use for debugging
-    test_run = True
+    test_run = False
 
     if test_run:
         print("Debugging Mode is activated ! Only doing mock training")
