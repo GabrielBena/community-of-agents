@@ -35,6 +35,7 @@ class Community(nn.Module):
         self.agents = nn.ModuleList(agents)
         self.n_agents = len(agents)
         self.n_layers = agents[0].cell.num_layers
+        self.agent_dims = agents[0].dims
 
         if sparsity > 1:
             sparsity /= 100
@@ -302,6 +303,22 @@ class Community(nn.Module):
             connections = torch.tensor(connections)
 
         return outputs.squeeze(), states, connections
+
+    @property
+    def w_rec_global(self):
+        n_hid = self.agent_dims[1]
+        w_rec = torch.zeros((self.n_agents * n_hid, self.n_agents * n_hid))
+
+        for i, ag1 in enumerate(self.agents):
+            for j, ag2 in enumerate(self.agents):
+                if i != j:
+                    conns = self.connections[f"{ag1.tag}{ag2.tag}"]
+                    w_rec[
+                        i * n_hid : (i + 1) * n_hid, j * n_hid : (j + 1) * n_hid
+                    ] = conns.w
+
+            w_rec[i * n_hid : (i + 1) * n_hid, i * n_hid : (i + 1) * n_hid] = ag1.w_rec
+        return w_rec
 
     @property
     def nb_connections(self):
