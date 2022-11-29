@@ -93,7 +93,9 @@ class Mask_Community(nn.Module):
         super().__init__()
 
         self.model = copy.deepcopy(model)
-        self.sparsity = sparsity
+
+        self.__sparsity = sparsity
+
         self.scores = nn.ParameterDict()
         self.is_community = False
         self.include_ih = include_ih
@@ -133,6 +135,14 @@ class Mask_Community(nn.Module):
             n: GetSubnet_global.apply(s, list(self.scores.values()), self.sparsity)
             for n, s in self.scores.items()
         }
+
+    def set_sparsity(self, sparsity):
+        self.__sparsity = sparsity
+        self.update_subnets()
+
+    @property
+    def sparsity(self):
+        return self.__sparsity
 
     def to(self, device):
 
@@ -235,6 +245,7 @@ def train_mask(
         include_readout=not community.use_common_readout,
     ).to(device)
 
+    """
     momentum, wd = 0.9, 0.0005
     optimizer_agents = optim.SGD(
         [p for p in masked_community.parameters() if p.requires_grad],
@@ -246,9 +257,9 @@ def train_mask(
     optimizer_agents = torch.optim.AdamW(
         [p for p in masked_community.parameters() if p.requires_grad],
         lr=lr,
-        weight_decay=1e-1,
+        weight_decay=1e-2,
     )
-    """
+
     optimizers = [optimizer_agents, None]
 
     d_params = decision_params[::]
@@ -473,17 +484,19 @@ def train_and_get_mask_metric(
             sparsities.append(masked_community.sparsity)
             masked_models.append(masked_community)
 
-        best_states_total.append(np.array(best_states))
-        prop_per_agent_total.append(np.array(prop_per_agent))
-        test_accuracies_total.append(np.array(test_accuracies))
-        test_losses_total.append(np.array(test_losses))
-        sparsities_total.append(np.array(sparsities))
+        best_states_total.append(np.stack(best_states, -1))
+        prop_per_agent_total.append(np.stack(prop_per_agent, -1))
+        test_accuracies_total.append(np.stack(test_accuracies, -1).max(0)[0])
+        # test_losses_total.append(np.stack(test_losses, -1))
+        sparsities_total.append(np.stack(sparsities, -1))
         masked_models_total.append(masked_models)
 
     results_dict = {
-        "proportions": np.stack(prop_per_agent_total, -1),
+        "proportions": np.stack(
+            prop_per_agent_total, -1
+        ),  # n_agents x n_targets x timesteps
         "test_accs": np.stack(test_accuracies_total, -1),
-        "test_losses": np.stack(test_losses_total, -1),
+        # "test_losses": np.stack(test_losses_total, -1),
         "best_states": best_states_total,
         "sparsities": np.stack(sparsities_total, -1),
     }
