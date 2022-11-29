@@ -14,7 +14,7 @@ class MaskedLinear(nn.Linear):
         sparsity: float,
         bias: bool = False,
         w_mask=None,
-        weight_scale=None,
+        weight_scale=1.0,
         dropout=0.0,
         binarize=False,
         device=None,
@@ -62,7 +62,7 @@ class MaskedLinear(nn.Linear):
 
         self.binarize = binarize
 
-        self.weight_scale = 1.0 if weight_scale is None else weight_scale
+        self.weight_scale = weight_scale
         self.reset_parameters_()
 
         self.is_deepR_connect = False
@@ -86,13 +86,19 @@ class MaskedLinear(nn.Linear):
             self.in_features, self.out_features, self.bias is not None
         )
 
-    def reset_parameters_(self) -> None:
-        if self.nb_neurons != 0:
-            bound = self.weight_scale * np.sqrt(
-                1.0 / (self.nb_neurons)
-            )  # *self.sparsity))
-            nn.init.kaiming_uniform_(self.weight)
-            self.weight.data *= bound
+    def reset_parameters_(self, method="xavier") -> None:
+        if method == "xavier":
+            nn.init.xavier_normal_(
+                self.weight, nn.init.calculate_gain("relu", self.weight)
+            )
+        else:
+
+            if self.nb_neurons != 0:
+                bound = self.weight_scale * np.sqrt(
+                    1.0 / (self.nb_neurons)
+                )  # *self.sparsity))
+                nn.init.kaiming_normal_(self.weight)
+                self.weight.data *= bound
 
 
 class Sparse_Connect(nn.Module):
