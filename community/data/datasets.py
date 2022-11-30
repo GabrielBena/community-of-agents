@@ -12,9 +12,11 @@ from typing import Any, AnyStr, Callable, Optional, Tuple
 from torchvision.datasets import MNIST
 from PIL import Image
 from itertools import permutations
-#from joblib import delayed, Parallel
+
+# from joblib import delayed, Parallel
 import multiprocessing as mp
-#import ray
+
+# import ray
 
 from tqdm.notebook import tqdm
 
@@ -374,20 +376,30 @@ class SymbolsDataset(Dataset):
             symbols = [np.zeros((s_size + 1, s_size + 1)) for n in range(n_diff)]
             step = s_size // n_diff
 
+            symbol_orders = np.array([0, 2, 1, 3])
+            if len(symbol_orders) < n_diff:
+                symbol_orders = np.concatenate(
+                    (symbol_orders, np.arange(len(symbol_orders), n_diff))
+                )
+
             # self.data_config["symbol_size"] += 1
 
             for i in range(s_size):
                 for j in range(s_size):
-                    for n in range(n_diff):
+                    for n, (n_mod, _) in enumerate(zip(symbol_orders, range(n_diff))):
 
                         if (
-                            (i + j) % (s_size - 1) == n or (i - j) % (s_size - 1) == n
-                        ) and n % 2 == 0:
+                            (i + j) % (s_size - 1) == n_mod
+                            or (i - j) % (s_size - 1) == n_mod
+                        ) and n_mod % 2 == 0:
+
                             symbols[n][i, j] = 1
 
                         if (
-                            i % (s_size - 1) == n - 1 or j % (s_size - 1) == n - 1
-                        ) and n % 2 == 1:
+                            i % (s_size - 1) == n_mod - 1
+                            or j % (s_size - 1) == n_mod - 1
+                        ) and n_mod % 2 == 1:
+
                             symbols[n][i, j] = 1
 
         else:
