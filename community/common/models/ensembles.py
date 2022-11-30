@@ -213,16 +213,16 @@ class Community(nn.Module):
             else:
                 raise NotImplementedError
 
-            outputs = [[] for ag in self.agents] if not self.use_common_readout else []
-            states = [[None] for ag in self.agents]
-            connections = [[] for ag in self.agents]
+        outputs = [[] for ag in self.agents] if not self.use_common_readout else []
+        states = [[None] for ag in self.agents]
+        connections = [[] for ag in self.agents]
 
         for t, x_t in enumerate(x):
             if split_data:
                 assert len(x_t) == len(
                     self.agents
                 ), "If data is provided per agent, make sure second dimension matches number of agents"
-
+            ag_states = []
             for ag1 in self.agents:
                 i = int(ag1.tag)
                 if split_data:
@@ -241,7 +241,7 @@ class Community(nn.Module):
                             if self.connected[j, i] == 1:
                                 # State-to-state connections j->i
                                 sparse_out = self.connections[ag2.tag + ag1.tag](
-                                    states[j][t - 1]
+                                    states[j][-1]
                                 )
                                 inputs_connect += sparse_out[0]
 
@@ -253,14 +253,16 @@ class Community(nn.Module):
 
                     # out, h = ag1(inputs, states[t-1][i], inputs_connect)
 
-                out, h = ag1(inputs, states[i][t - 1], inputs_connect)
+                out, h = ag1(inputs, states[i][-1], inputs_connect)
 
                 if not self.use_common_readout:
                     outputs[i].append(out)
 
-                states[i].append(h)
+                ag_states.append(h)
                 connections[i].append(inputs_connect)
             # Store states and outputs of agent
+            for i, state in enumerate(ag_states):
+                states[i].append(state)
 
             if self.use_common_readout:
 
