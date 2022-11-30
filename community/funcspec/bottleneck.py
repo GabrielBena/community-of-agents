@@ -33,6 +33,7 @@ def readout_retrain(
     device=torch.device("cuda"),
     symbols=False,
     chosen_timesteps=["0", "mid-", "last"],
+    task="all",
     n_hid=None,
 ):
     """
@@ -131,12 +132,12 @@ def readout_retrain(
 
         training_dict = {
             "n_epochs": n_epochs,
-            "task": "all",
+            "task": task,
             "global_rewire": False,
             "check_gradients": False,
             "reg_factor": 0.0,
             "train_connections": False,
-            "decision_params": (training_timestep, "both"),
+            "decision": (training_timestep, "both"),
             "stopping_acc": None,
             "early_stop": False,
             "deepR_params_dict": deepR_params_dict,
@@ -196,7 +197,7 @@ def compute_bottleneck_metrics(
     community_state_path = (
         config["saves"]["models_save_path"] + config["saves"]["models_save_name"]
     )
-    agent_params_dict = config["model_params"]["agents_params"]
+    agent_params_dict = config["model"]["agents"]
 
     try:  # Load states from file
         community_states = torch.load(community_state_path)
@@ -221,7 +222,7 @@ def compute_bottleneck_metrics(
         agent_params_dict,
         0.1,
         device=device,
-        use_deepR=config["model_params"]["use_deepR"],
+        use_deepR=config["model"]["use_deepR"],
     )
 
     for i, p_con in enumerate(

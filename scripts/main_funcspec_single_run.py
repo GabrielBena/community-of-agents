@@ -6,6 +6,8 @@ import torch
 import torch.nn as nn
 from torchvision import *
 import pyaml
+from yaml.loader import SafeLoader
+
 import pandas as pd
 import numpy as np
 
@@ -22,9 +24,9 @@ from tqdm.notebook import tqdm as tqdm_n
 if __name__ == "__main__":
 
     # Use for debugging
-    test_run = False
+    debug_run = False
 
-    if test_run:
+    if debug_run:
         print("Debugging Mode is activated ! Only doing mock training")
 
     use_cuda = True
@@ -40,7 +42,7 @@ if __name__ == "__main__":
     print(f"Training for {n_classes} classes")
 
     symbol_config = {
-        "data_size": [30000, 5000],
+        "data_size": [50000, 10000],
         "nb_steps": 50,
         "n_symbols": n_classes - 1,
         "input_size": 60,
@@ -52,9 +54,9 @@ if __name__ == "__main__":
     }
 
     if symbol_config["static"]:
-        symbol_config["nb_steps"] = 6
+        symbol_config["nb_steps"] = 10
         symbol_config["data_size"] = [
-            d if not test_run else d // 5 for d in symbol_config["data_size"]
+            d if not debug_run else d // 5 for d in symbol_config["data_size"]
         ]
 
     dataset_config = {
@@ -75,7 +77,7 @@ if __name__ == "__main__":
     else:
         dataset_config["input_size"] = 784
 
-    agents_params_dict = {
+    agents_config = {
         "n_in": dataset_config["input_size"],
         "n_hidden": 15,
         "n_layers": 1,
@@ -90,14 +92,14 @@ if __name__ == "__main__":
     p_masks = [0.1]
 
     lr, gamma = 1e-3, 0.95
-    params_dict = {
+    optim_config = {
         "lr": lr,
         "gamma": gamma,
         "reg_readout": None,
     }
 
     l1, gdnoise, lr, gamma, cooling = 1e-5, 1e-3, 1e-3, 0.95, 0.95
-    deepR_params_dict = {
+    deepR_config = {
         "l1": l1,
         "gdnoise": gdnoise,
         "lr": lr,
@@ -106,7 +108,7 @@ if __name__ == "__main__":
         "global_rewire": False,
     }
 
-    connections_params_dict = {
+    connections_config = {
         "use_deepR": False,
         "comms_dropout": 0.0,
         "sparsity": 0,
@@ -114,9 +116,9 @@ if __name__ == "__main__":
         "comms_start": "mid",
     }
 
-    model_params_dict = {
-        "agents_params": agents_params_dict,
-        "connections_params": connections_params_dict,
+    model_config = {
+        "agents": agents_config,
+        "connections": connections_config,
         "n_agents": n_agents,
         "n_ins": None,
         "common_readout": True,
@@ -125,35 +127,35 @@ if __name__ == "__main__":
     }
 
     config = {
-        "model_params": model_params_dict,
+        "model": model_config,
         "datasets": dataset_config,
         "optimization": {
-            "agents": params_dict,
-            "connections": deepR_params_dict,
+            "agents": optim_config,
+            "connections": deepR_config,
         },
         "training": {
-            "decision_params": ["last", "all"],
-            "n_epochs": 30 if not test_run else 1,
+            "decision": ["last", "all"],
+            "n_epochs": 20 if not debug_run else 1,
             "inverse_task": False,
             "stopping_acc": 0.95,
             "early_stop": False,
             "force_connections": False,
         },
-        "metrics": {"chosen_timesteps": ["0", "mid-", "last"]},
+        "metrics": {"chosen_timesteps": ["mid-", "last"]},
         "varying_params": {},
-        "task": "all",  # "family",
+        "task": "parity-both",  # "family",
         "metrics_only": False,
-        "n_tests": 20 if not test_run else 2,
-        "test_run": test_run,
+        "n_tests": 10 if not debug_run else 2,
+        "debug_run": debug_run,
         "use_tqdm": False,
     }
 
     with open("latest_config.yml", "w") as config_file:
         pyaml.dump(config, config_file)
 
-    if test_run:
+    if debug_run:
+        os.environ["WANDB_MODE"] = "offline"
         pass
-        # os.environ["WANDB_MODE"] = "offline"
 
     # wandb.init(project="funcspec_V2", entity="m2snn", config=config)
     wandb.init(project="Funcspec", entity="gbena", config=config)
@@ -174,7 +176,9 @@ if __name__ == "__main__":
             find_and_change(config, param_name, param)
 
     if config["task"] == "shared_goals":
-        task = config["task"] = [[str(i), str((i + 1) % 3)] for i in range(n_agents)]
+        task = config["task"] = [
+            [str(i), str((i + 1) % n_agents)] for i in range(n_agents)
+        ]
 
     configure_readouts(config)
 

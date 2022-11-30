@@ -177,6 +177,8 @@ class Mask_Community(nn.Module):
                 except RuntimeError:  # subnets on cpu
                     self.update_subnets()
                     p *= self.subnets[get_new_name(name)]
+            elif "connections" in name:
+                p *= 0
 
         return f_model(x)
 
