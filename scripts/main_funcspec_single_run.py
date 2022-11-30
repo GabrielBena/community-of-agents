@@ -36,7 +36,7 @@ if __name__ == "__main__":
     n_agents = 2
     n_digits = n_agents
 
-    n_classes_per_digit = 60 // n_agents
+    n_classes_per_digit = 10
     n_classes = n_classes_per_digit * n_digits
 
     print(f"Training for {n_classes} classes")
@@ -79,7 +79,7 @@ if __name__ == "__main__":
 
     agents_config = {
         "n_in": dataset_config["input_size"],
-        "n_hidden": 15,
+        "n_hidden": 20,
         "n_layers": 1,
         "n_out": n_classes_per_digit,
         "n_readouts": 1,
@@ -111,7 +111,7 @@ if __name__ == "__main__":
     connections_config = {
         "use_deepR": False,
         "comms_dropout": 0.0,
-        "sparsity": 0,
+        "sparsity": 0.01,
         "binarize": True,
         "comms_start": "start",
     }
@@ -121,7 +121,7 @@ if __name__ == "__main__":
         "connections": connections_config,
         "n_agents": n_agents,
         "n_ins": None,
-        "common_readout": True,
+        "common_readout": False,
         "n_readouts": 1,
         "readout_from": None,
     }
@@ -135,28 +135,26 @@ if __name__ == "__main__":
         },
         "training": {
             "decision": ["last", "all"],
-            "n_epochs": 20 if not debug_run else 1,
+            "n_epochs": 25 if not debug_run else 1,
             "inverse_task": False,
             "stopping_acc": 0.95,
             "early_stop": False,
             "force_connections": False,
         },
-        "metrics": {
-            "chosen_timesteps": ["mid-", "last"]
-            },
+        "metrics": {"chosen_timesteps": ["mid-", "last"]},
         "varying_params": {},
-        "task": "both", 
+        "task": "parity-both",
         "metrics_only": False,
         "n_tests": 10 if not debug_run else 2,
         "debug_run": debug_run,
-        "use_tqdm": False,
+        "use_tqdm": True,
     }
 
     with open("latest_config.yml", "w") as config_file:
         pyaml.dump(config, config_file)
 
     if debug_run:
-        os.environ["WANDB_MODE"] = "offline"
+        # os.environ["WANDB_MODE"] = "offline"
         pass
 
     # wandb.init(project="funcspec_V2", entity="m2snn", config=config)
