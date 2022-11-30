@@ -2,6 +2,7 @@ import numpy as np
 import torch
 import itertools
 import torchvision.transforms.functional as TF
+from copy import deepcopy
 
 
 def rotation_conflict_task(datas, digits, n_angles=4):
@@ -52,98 +53,103 @@ def get_task_target(target, task, n_classes, temporal_target=False):
         return get_task_target(target, task, n_classes, False).unique(dim=0)
 
     elif type(task) is list:
+        targets = [get_task_target(target, t, n_classes) for t in task]
         try:
-            return torch.stack([get_task_target(target, t, n_classes) for t in task])
+            return torch.stack(targets)
         except ValueError:
-            return [get_task_target(target, t, n_classes) for t in task]
+            return targets
 
     elif task == "family":
         return get_task_family_dict(target, n_classes)
 
     else:
 
-        new_target = None
-
-        def get_target(fn):
-            if new_target is None:
-                return fn(target)
-            else:
-                return fn(new_target)
+        new_target = deepcopy(target)
 
         # Task can be a combination of subtasks, separated by _
         tasks = task.split("_")
 
-        if "inv" in tasks:
-            new_target = target.flip(-1)
+        target_mult = lambda tgt: torch.stack(
+            [t * (n_classes**i) for (i, t) in enumerate(tgt.T)]
+        )
 
-        digits = target.T
+        def get_single_task(task, target):
 
-        parity = (digits.sum(0)) % 2  # 0 when same parity
-        target_100 = torch.stack([t * (10**i) for (i, t) in enumerate(digits)])
+            # composed names of task should be with -
 
-        if "parity" in tasks:
-            if "digits" in tasks:
-                new_target = torch.where(parity.bool(), digits[0], digits[1])
-            elif "both" in tasks:
-                new_target = torch.stack(
-                    torch.where(parity.bool(), digits[0], digits[1]),
-                    torch.where(parity.bool(), digits[1], digits[0]),
-                )
+            try:
+                t = int(task)
+                return target[..., t]
+            except ValueError:
+                pass
+
+            if task == "inv":
+                return target.flip(-1)
+
+            elif task in ["none", "both", "all"]:
+                return target
+
+            elif "parity" in task:
+                digits = target.T
+                parity = (digits.sum(0)) % 2  # 0 when same parity
+                if "digits" in task:
+                    return torch.where(parity.bool(), digits[0], digits[1])
+                elif "both" in task:
+                    return torch.stack(
+                        [
+                            torch.where(parity.bool(), digits[0], digits[1]),
+                            torch.where(parity.bool(), digits[1], digits[0]),
+                        ],
+                        -1,
+                    )
+                else:
+                    return parity
+
+            elif task == "mult":
+                return target_mult(target)
+
+            elif "count" in task:
+
+                if "max" in task:
+                    new_target = torch.where(
+                        target.argmax(-1).bool(), target[:, 1], target[:, 0]
+                    )
+                    new_target[target[:, 0] == target[:, 1]] = 0
+                elif "min" in task:
+                    new_target = torch.where(
+                        target.argmin(-1).bool(), target[:, 1], target[:, 0]
+                    )
+                    new_target[target[:, 0] == target[:, 1]] = 3
+                elif "equal" in task:
+                    new_target = target[:, 0] != target[:, 1]
+
+                return new_target
+
+            elif task == "max":
+                return target.max(-1)[0]
+
+            elif task == "min":
+                return target.min(-1)[0]
+
+            elif task == "opposite":
+                return n_classes - target - 1
+
+            elif task == "sum":
+                return target.sum(-1)
+
+            elif task == "bitand":
+                return digits[0] & digits[1]
+
+            elif task == "bitor":
+                return digits[0] | digits[1]
+
             else:
-                new_target = parity
-
-        elif "100_class" in tasks:
-            new_target = target_100
-
-        elif "count" in tasks:
-
-            if "max" in tasks:
-                new_target = torch.where(
-                    target.argmax(-1).bool(), target[:, 1], target[:, 0]
+                raise ValueError(
+                    'Task not recognized, try digit number ("0", "1"), "parity", "parity_digits", "sum", "none" '
                 )
-                new_target[target[:, 0] == target[:, 1]] = 0
-            elif "min" in tasks:
-                new_target = torch.where(
-                    target.argmin(-1).bool(), target[:, 1], target[:, 0]
-                )
-                new_target[target[:, 0] == target[:, 1]] = 3
-            elif "equal" in tasks:
-                new_target = target[:, 0] != target[:, 1]
 
-        elif task in ["none", "both", "all"]:
-            new_target = target
-
-        if "opposite" in tasks:
-            new_target = get_target(lambda t: n_classes - t - 1)
-
-        if "sum" in tasks:
-            new_target = get_target(lambda t: t.sum(-1))
-
-        if "bitand" in tasks:
-            new_target = digits[0] & digits[1]
-
-        if "bitor" in tasks:
-            new_target = digits[0] | digits[1]
-
-        if "max" in tasks:
-            new_target = get_target(lambda t: t.max(-1)[0])
-
-        if "min" in tasks:
-            new_target = get_target(lambda t: t.min(-1)[0])
-
-        try:
-            task = int(tasks[-1])
-            if new_target is None:
-                new_target = target
-            new_target = new_target[..., task]
-
-        except ValueError:
-            pass
-
-        if new_target is None:
-            raise ValueError(
-                'Task recognized, try digit number ("0", "1"), "parity", "parity_digits", "parity_digits_100" or "sum" '
-            )
+        for task in tasks:
+            new_target = get_single_task(task, new_target)
 
         if len(new_target.shape) == 2:
             new_target = new_target.T
