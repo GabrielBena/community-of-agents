@@ -113,7 +113,7 @@ if __name__ == "__main__":
         "comms_dropout": 0.0,
         "sparsity": 0,
         "binarize": True,
-        "comms_start": "mid",
+        "comms_start": "start",
     }
 
     model_config = {
@@ -141,9 +141,11 @@ if __name__ == "__main__":
             "early_stop": False,
             "force_connections": False,
         },
-        "metrics": {"chosen_timesteps": ["mid-", "last"]},
+        "metrics": {
+            "chosen_timesteps": ["mid-", "last"]
+            },
         "varying_params": {},
-        "task": "parity-both",  # "family",
+        "task": "both", 
         "metrics_only": False,
         "n_tests": 10 if not debug_run else 2,
         "debug_run": debug_run,

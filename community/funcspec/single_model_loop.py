@@ -142,11 +142,12 @@ def compute_all_metrics(trained_coms, loaders, config, device):
         n_agents,
         n_digits,
         deepR_params_dict=deepR_params_dict,
-        n_epochs=4,
+        n_epochs=1,
         device=device,
         use_tqdm=1 if use_tqdm else False,
         symbols=symbols,
         chosen_timesteps=chosen_timesteps,
+        n_hid=30
     )
     bottleneck_metric = bottleneck_results["accs"]  # n_agents n_targets x n_timesepts
 
@@ -174,12 +175,13 @@ def define_and_log(metrics, config, best_acc):
         lambda metric: np.abs(diff_metric(metric[0]) - diff_metric(metric[1])) / 2
     )
 
+    metric_ts = config['metrics']['chosen_timesteps']
     metric_data = {}
 
-    for step in range(1, 3):
+    for step, ts in enumerate(metric_ts):
 
         metric_data.setdefault("Step", [])
-        metric_data["Step"].append(step)
+        metric_data["Step"].append(metric_ts)
 
         metric_data.setdefault("best_acc", [])
         metric_data["best_acc"].append(best_acc)
