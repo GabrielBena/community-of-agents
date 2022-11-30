@@ -135,7 +135,7 @@ def train_community(
     train_connections = config["train_connections"] and config["sparsity"] > 0
     check_gradients = config["check_gradients"]
     global_rewire = config["global_rewire"]
-    decision_params = config["decision_params"]
+    decision = config["decision"]
     stopping_acc = config["stopping_acc"]
     early_stop = config["early_stop"]
     deepR_params_dict = config["deepR_params_dict"]
@@ -224,9 +224,7 @@ def train_community(
                     conns = None
 
                 output, *_ = model(data, conns)
-                output, deciding_ags = get_decision(
-                    output, *decision_params, target=t_target
-                )
+                output, deciding_ags = get_decision(output, *decision, target=t_target)
 
                 if (
                     deciding_ags is not None
@@ -380,7 +378,7 @@ def test_community(
     n_classes_per_digit = config["n_classes_per_digit"]
 
     task = config["task"]
-    decision_params = config["decision_params"]
+    decision = config["decision"]
 
     model.eval()
     conv_com = type(model) is ConvCommunity
@@ -420,9 +418,7 @@ def test_community(
                 conns = None
 
             output, *_ = model(data, conns)
-            output, deciding_ags = get_decision(
-                output, *decision_params, target=t_target
-            )
+            output, deciding_ags = get_decision(output, *decision, target=t_target)
             if (
                 deciding_ags is not None
                 and deciding_ags.shape[0] == test_loader.batch_size
@@ -483,7 +479,7 @@ def plot_confusion_mat(model, test_loader, config, device=torch.device("cuda")):
 
     task = config["task"]
     symbols = config["data_type"] == "symbols"
-    decision_params = config["decision_params"]
+    decision = config["decision"]
 
     conv_com = type(model) is ConvCommunity
 
@@ -495,7 +491,7 @@ def plot_confusion_mat(model, test_loader, config, device=torch.device("cuda")):
 
         outputs, states, conns = model(data)
         # print((outputs[-1][0] == outputs[-1][1]).all())
-        output, deciding_ags = get_decision(outputs, decision_params, target)
+        output, deciding_ags = get_decision(outputs, decision, target)
 
         loss = F.cross_entropy(output, t_target)
 
@@ -547,8 +543,8 @@ def compute_trained_communities(
     task = config["task"]
     print(f"Starting training on {task}")
     params_dict, deepR_params_dict = tuple(config["optimization"].values())
-    agent_params_dict = config["model_params"]["agents_params"]
-    connections_params_dict = config["model_params"]["connections_params"]
+    agent_params_dict = config["model"]["agents"]
+    connections_params_dict = config["model"]["connections"]
 
     inverse_task = "digits" in task and config["training"]["inverse_task"]
 

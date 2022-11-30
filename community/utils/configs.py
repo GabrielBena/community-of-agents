@@ -12,13 +12,13 @@ def get_training_dict(config):
         "check_gradients": False,
         "reg_factor": 0.0,
         "train_connections": True,
-        "decision_params": config["training"]["decision_params"],
+        "decision": config["training"]["decision"],
         "stopping_acc": config["training"]["stopping_acc"],
         "early_stop": config["training"]["early_stop"],
         "deepR_params_dict": config["optimization"]["connections"],
         "data_type": config["datasets"]["data_type"],
         "force_connections": config["training"]["force_connections"],
-        "sparsity": config["model_params"]["connections_params"]["sparsity"],
+        "sparsity": config["model"]["connections"]["sparsity"],
         "n_classes": config["datasets"]["n_classes"],
         "n_classes_per_digit": config["datasets"]["n_classes_per_digit"],
     }
@@ -28,8 +28,8 @@ def get_training_dict(config):
 
 def configure_readouts(config):
 
-    common_readout = config["model_params"]["common_readout"]
-    n_agents = config["model_params"]["n_agents"]
+    common_readout = config["model"]["common_readout"]
+    n_agents = config["model"]["n_agents"]
     task = config["task"]
     n_classes = config["datasets"]["n_classes"]
     n_classes_per_ag = config["datasets"]["n_classes_per_digit"]
@@ -38,22 +38,22 @@ def configure_readouts(config):
 
     if task == "family":
 
-        config["model_params"]["agents_params"]["n_out"] = n_classes
+        config["model"]["agents"]["n_out"] = n_classes
         factors = get_factors_list(symbol_config["n_diff_symbols"])
 
         if common_readout:
 
-            config["model_params"]["n_readouts"] = len(factors)
-            config["model_params"]["agents_params"]["n_readouts"] = None
-            config["model_params"]["readout_from"] = None
+            config["model"]["n_readouts"] = len(factors)
+            config["model"]["agents"]["n_readouts"] = None
+            config["model"]["readout_from"] = None
 
         else:
-            config["model_params"]["n_readouts"] = None
-            config["model_params"]["agents_params"]["n_readouts"] = len(factors)
+            config["model"]["n_readouts"] = None
+            config["model"]["agents"]["n_readouts"] = len(factors)
 
     elif type(task) is list:
 
-        config["model_params"]["agents_params"]["n_out"] = n_classes_per_ag
+        config["model"]["agents"]["n_out"] = n_classes_per_ag
 
         def get_nested_readout(task_list, n_readouts):
             try:
@@ -72,31 +72,50 @@ def configure_readouts(config):
                 return len(task_list)
 
         if common_readout:
-            n_readouts = config["model_params"]["n_readouts"] = get_nested_len(task)
-            config["model_params"]["readout_from"] = get_nested_readout(
-                task, n_readouts
-            )
-            config["model_params"]["agents_params"]["n_readouts"] = None
+            n_readouts = config["model"]["n_readouts"] = get_nested_len(task)
+            config["model"]["readout_from"] = get_nested_readout(task, n_readouts)
+            config["model"]["agents"]["n_readouts"] = None
 
         else:
-            config["model_params"]["n_readouts"] = None
-            config["model_params"]["agents_params"]["n_readouts"] = len(task[0])
+            config["model"]["n_readouts"] = None
+            config["model"]["agents"]["n_readouts"] = len(task[0])
 
-    elif task in ["both", "all", "none"]:
+    elif task in ["both", "all", "none", "parity-both"]:
 
-        config["model_params"]["agents_params"]["n_out"] = n_classes_per_ag
+        config["model"]["agents"]["n_out"] = n_classes_per_ag
 
         if common_readout:
-            config["model_params"]["n_readouts"] = n_symbols
-            config["model_params"]["agents_params"]["n_readouts"] = None
-            config["model_params"]["readout_from"] = None
-            config["training"]["decision_params"][-1] = "all"
+            config["model"]["n_readouts"] = n_symbols
+            config["model"]["agents"]["n_readouts"] = None
+            config["model"]["readout_from"] = None
+            config["training"]["decision"][-1] = "all"
         else:
 
-            config["model_params"]["n_readouts"] = None
-            config["model_params"]["agents_params"]["n_readouts"] = n_symbols
-            config["model_params"]["readout_from"] = None
-            config["training"]["decision_params"][-1] = "max"
+            config["model"]["n_readouts"] = None
+            config["model"]["agents"]["n_readouts"] = n_symbols
+            config["model"]["readout_from"] = None
+            config["training"]["decision"][-1] = "max"
+
+    elif task in ["sum", "parity_digits", "parity", "max", "min"]:
+
+        if task == "sum":
+            config["model"]["agents"]["n_out"] = n_classes
+        elif task in ["parity_digits", "max", "min"]:
+            config["model"]["agents"]["n_out"] = n_classes_per_ag
+        else:
+            config["model"]["agents"]["n_out"] = 2
+
+        if common_readout:
+            config["model"]["n_readouts"] = 1
+            config["model"]["agents"]["n_readouts"] = None
+            config["model"]["readout_from"] = None
+            config["training"]["decision"][-1] = "all"
+        else:
+
+            config["model"]["n_readouts"] = None
+            config["model"]["agents"]["n_readouts"] = 1
+            config["model"]["readout_from"] = None
+            config["training"]["decision"][-1] = "max"
 
     else:
         warn(f"can't auto configure readout for task {task}")

@@ -19,8 +19,8 @@ def init_and_train(config, loaders, device):
 
     use_wandb = wandb.run is not None
 
-    agents_params_dict = config["model_params"]["agents_params"]
-    connections_params_dict = config["model_params"]["connections_params"]
+    agents_params_dict = config["model"]["agents"]
+    connections_params_dict = config["model"]["connections"]
 
     deepR_params_dict = config["optimization"]["connections"]
     params_dict = config["optimization"]["agents"]
@@ -41,7 +41,7 @@ def init_and_train(config, loaders, device):
     for use_bottleneck in [False]:
 
         agents_params_dict["use_bottleneck"] = use_bottleneck
-        community = init_community(config["model_params"], device)
+        community = init_community(config["model"], device)
 
         optimizers, schedulers = init_optimizers(
             community, params_dict, deepR_params_dict
@@ -106,7 +106,7 @@ def compute_all_metrics(trained_coms, loaders, config, device):
     n_classes = config["datasets"]["n_classes_per_digit"]
     chosen_timesteps = config["metrics"]["chosen_timesteps"]
 
-    n_agents = config["model_params"]["n_agents"]
+    n_agents = config["model"]["n_agents"]
     n_digits = config["datasets"]["symbol_config"]["n_diff_symbols"]
 
     use_tqdm = config["use_tqdm"]
@@ -155,7 +155,7 @@ def compute_all_metrics(trained_coms, loaders, config, device):
     # metric_names = ['Correlation', 'Masks', 'Bottleneck']
     # all_results = [correlations_results, masks_results, bottleneck_results]
 
-    metric_names = ["bottleneck", "masks"]
+    metric_names = ["bottleneck"]
     metrics = [bottleneck_metric]
 
     metric_results = {

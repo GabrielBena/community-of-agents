@@ -17,8 +17,8 @@ def init_community(model_dict, device=torch.device("cuda")):
         agents_params : parameters of sub-networks
         p_connect : sparsity of interconnections
     """
-    agents_params_dict = model_dict["agents_params"]
-    connections_params_dict = model_dict["connections_params"]
+    agents_params_dict = model_dict["agents"]
+    connections_params_dict = model_dict["connections"]
 
     n_readouts = model_dict["n_readouts"]
     readout_from = model_dict["readout_from"]
@@ -41,7 +41,7 @@ def init_community(model_dict, device=torch.device("cuda")):
         agents,
         n_readouts=n_readouts,
         readout_from=readout_from,
-        **connections_params_dict
+        **connections_params_dict,
     ).to(device)
 
     return community
