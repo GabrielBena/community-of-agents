@@ -10,8 +10,8 @@ datasets:
   symbol_config:
     common_input: true
     data_size:
-      - 30000
-      - 5000
+      - 6000
+      - 1000
     input_size: 60
     n_diff_symbols: 2
     n_symbols: 59
@@ -20,14 +20,15 @@ datasets:
     static: true
     symbol_type: mod_5
   use_cuda: true
+debug_run: true
 metrics:
   chosen_timesteps:
     - 0
     - mid-
     - last
 metrics_only: false
-model_params:
-  agents_params:
+model:
+  agents:
     ag_dropout: 0.0
     cell_type: '<class ''torch.nn.modules.rnn.RNN''>'
     n_hidden: 15
@@ -40,7 +41,7 @@ model_params:
       - true
     use_bottleneck: false
   common_readout: true
-  connections_params:
+  connections:
     binarize: true
     comms_dropout: 0.0
     comms_start: mid
@@ -50,7 +51,7 @@ model_params:
   n_ins:
   n_readouts: 1
   readout_from:
-n_tests: 20
+n_tests: 2
 optimization:
   agents:
     gamma: 0.95
@@ -63,16 +64,15 @@ optimization:
     global_rewire: false
     l1: 1.0e-05
     lr: 0.001
-task: all
-test_run: false
+task: parity-both
 training:
-  decision_params:
+  decision:
     - last
     - all
   early_stop: false
   force_connections: false
   inverse_task: false
-  n_epochs: 30
+  n_epochs: 1
   stopping_acc: 0.95
 use_tqdm: false
 varying_params: {}
