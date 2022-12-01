@@ -54,11 +54,14 @@ def get_all_data_and_save(sweep_path, save_path, max_size=None):
 
     try:
         existing_results = pd.read_pickle(save_path + f'/{sweep_path.split("/")[-1]}')
-        arts = [
-            get_correct_artifact(run)
-            for run, _ in zip(runs, tqdm(range(max_size)))
-            if run.name not in existing_results["name"].values
-        ]
+        print("Existing Results Loaded")
+        arts = []
+        for run, _ in zip(runs, tqdm(range(max_size))):
+            if run.name not in existing_results["name"].values:
+                arts.append(get_correct_artifact(run))
+            else:
+                print("All new results Loaded")
+                break
 
     except FileNotFoundError:
         existing_results = None
