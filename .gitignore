@@ -16,7 +16,6 @@ artifacts
 gifs/
 saves/
 graphs/
-results
 
 
 *.code-workspace
