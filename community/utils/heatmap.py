@@ -125,7 +125,7 @@ def compute_and_plot_heatmap(
 
 
 def compute_and_plot_colormesh(
-    values, method="nearest", log_scale=True, resolution=300, figax=None
+    values, figax=None, method="nearest", log_scale=True, resolution=300
 ):
 
     x_values, y_values, z_values = values
