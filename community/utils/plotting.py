@@ -63,10 +63,7 @@ def plot_grid(
     plt.show()
 
 
-def create_gifs(data, target=None, name="gif", input_size=30, task=None, double=True):
-
-    if task:
-        target = get_task_target(target, task)
+def create_gifs(data, target=None, name="gif", input_size=30, double=True):
 
     try:
         shutil.rmtree("gifs/")
