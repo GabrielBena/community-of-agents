@@ -178,7 +178,8 @@ class Mask_Community(nn.Module):
                     self.update_subnets()
                     p *= self.subnets[get_new_name(name)]
             elif "connections" in name:
-                p *= 0
+                # p *= 0
+                pass
 
         return f_model(x)
 

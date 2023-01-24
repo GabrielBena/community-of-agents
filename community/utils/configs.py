@@ -96,11 +96,11 @@ def configure_readouts(config):
             config["model"]["readout_from"] = None
             config["training"]["decision"][-1] = "max"
 
-    elif task in ["sum", "parity_digits", "parity", "max", "min"]:
+    elif task in ["sum", "parity-digits", "inv_parity-digits", "parity", "max", "min"]:
 
         if task == "sum":
             config["model"]["agents"]["n_out"] = n_classes
-        elif task in ["parity_digits", "max", "min"]:
+        elif task in ["parity-digits", "max", "min", "inv_parity-digits"]:
             config["model"]["agents"]["n_out"] = n_classes_per_ag
         else:
             config["model"]["agents"]["n_out"] = 2

@@ -198,13 +198,13 @@ def train_community(
                 # Forward pass
 
                 # Task Selection
-                data, t_target = process_data(
+                data, target = process_data(
                     data, target, task, conv_com, symbols=symbols
                 )
 
                 if task == "family":
                     t_target, factors = get_task_family_dict(
-                        t_target, n_classes_per_digit
+                        target, n_classes_per_digit
                     )
                 else:
                     t_target = get_task_target(target, task, n_classes)

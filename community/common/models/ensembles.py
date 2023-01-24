@@ -24,6 +24,7 @@ class Community(nn.Module):
         sparsity,
         n_readouts=1,
         readout_from=None,
+        readout_n_hid=None,
         use_deepR=True,
         binarize=False,
         comms_start="1",
@@ -55,7 +56,7 @@ class Community(nn.Module):
         self.use_common_readout = n_readouts is not None
 
         if self.use_common_readout:
-            self.initialize_readout(n_readouts, readout_from)
+            self.initialize_readout(n_readouts, readout_from, readout_n_hid)
 
         self.comms_start = comms_start
 

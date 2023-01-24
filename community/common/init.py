@@ -22,25 +22,46 @@ def init_community(model_dict, device=torch.device("cuda")):
 
     n_readouts = model_dict["n_readouts"]
     readout_from = model_dict["readout_from"]
-    n_ins = model_dict["n_ins"]
     n_agents = model_dict["n_agents"]
 
-    def modified_agent_dict(tag, n_in=None):
+    try:
+        n_ins = model_dict["n_ins"]
+        n_ins[0]
+    except (KeyError, TypeError) as e:
+        n_ins = [None for _ in range(n_agents)]
+
+    try:
+        n_hiddens = model_dict["agents"]["n_hiddens"]
+        n_hiddens[0]
+    except (KeyError, TypeError) as e:
+        n_hiddens = [None for _ in range(n_agents)]
+
+    readout_n_hid = model_dict["readout_n_hid"]
+
+    def modified_agent_dict(tag, n_in=None, n_hid=None):
         new_dict = copy(agents_params_dict)
         if n_in is not None:
             new_dict["n_in"] = n_in
+        if n_hid is not None:
+            new_dict["n_hidden"] = n_hid
+        try:
+            new_dict.pop("n_hiddens")
+        except KeyError:
+            pass
+
         new_dict["tag"] = tag
         return new_dict
 
-    if n_ins is None:
-        agents = [Agent(**modified_agent_dict(n)) for n in range(n_agents)]
-    else:
-        agents = [Agent(**modified_agent_dict(n, n_in)) for n, n_in in enumerate(n_ins)]
+    agents = [
+        Agent(**modified_agent_dict(n, n_in, n_hid))
+        for n, (n_in, n_hid) in enumerate(zip(n_ins, n_hiddens))
+    ]
 
     community = Community(
         agents,
         n_readouts=n_readouts,
         readout_from=readout_from,
+        readout_n_hid=readout_n_hid,
         **connections_params_dict,
     ).to(device)
 
