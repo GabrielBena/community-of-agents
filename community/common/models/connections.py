@@ -15,6 +15,7 @@ class MaskedLinear(nn.Linear):
         bias: bool = False,
         w_mask=None,
         weight_scale=1.0,
+        out_scale=0.1,
         dropout=0.0,
         binarize=False,
         device=None,
@@ -63,6 +64,7 @@ class MaskedLinear(nn.Linear):
         self.binarize = binarize
 
         self.weight_scale = weight_scale
+        self.out_scale = out_scale
         self.reset_parameters_()
 
         self.is_deepR_connect = False
@@ -152,4 +154,6 @@ class Sparse_Connect(nn.Module):
             x = self.dropout(x)
         if self.binarize:
             x = super_spike(x)
+        if self.out_scale:
+            x *= self.out_scale
         return x

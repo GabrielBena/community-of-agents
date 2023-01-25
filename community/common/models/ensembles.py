@@ -195,7 +195,10 @@ class Community(nn.Module):
                         self.connected[i, j] = 1
 
     # Forward function of the community
-    def forward(self, x, forced_comms=None):
+    def forward(self, x, forced_comms=None, state_masks=None):
+
+        if state_masks is not None:
+            state_masks = torch.tensor(state_masks).to(x.device)
 
         # Split_data checks if the data is provided on a per-agent manner or in a one-to-all manner.
         # data can be a double list of len n_timesteps x n_agents or a tensor with second dimension n_agents
@@ -258,6 +261,9 @@ class Community(nn.Module):
 
                 if not self.use_common_readout:
                     outputs[i].append(out)
+
+                if state_masks is not None:
+                    h *= state_masks[i]
 
                 ag_states.append(h)
                 connections[i].append(inputs_connect)

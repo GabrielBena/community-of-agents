@@ -99,6 +99,7 @@ def train_community(
     optimizers,
     schedulers=None,
     config=None,
+    n_epochs=None,
     trials=(True, True),
     joint_training=False,
     use_tqdm=True,
@@ -129,7 +130,7 @@ def train_community(
         config = get_training_dict(wandb.config)
 
     # ----Config----
-    n_epochs = config["n_epochs"]
+    n_epochs = config["n_epochs"] if n_epochs is None else n_epochs
     task = config["task"]
     reg_factor = config["reg_factor"]
     train_connections = config["train_connections"] and config["sparsity"] > 0
