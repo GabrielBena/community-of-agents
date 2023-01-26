@@ -60,6 +60,9 @@ class Community(nn.Module):
 
         self.comms_start = comms_start
 
+    def gather(slef, l, rf):
+        return [l[i] for i in rf]
+
     def initialize_readout(self, n_readouts, readout_from, n_hid=None):
 
         self.multi_readout = type(n_readouts) is list or n_readouts > 1
@@ -80,7 +83,6 @@ class Community(nn.Module):
                 ), f"Provide correct readout scheme {n_readouts, readout_from}"
 
         self.readout_from = readout_from
-        self.gather = lambda l, rf: [l[i] for i in rf]
 
         readout_dims = self.get_readout_dimensions(n_readouts, readout_from, n_hid)
         self.readout = self.create_readout_from_dims(readout_dims)

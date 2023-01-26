@@ -80,6 +80,8 @@ class MaskedLinear(nn.Linear):
             h = self.dropout(h)
         if self.binarize:
             h = super_spike(h)
+        if self.out_scale:
+            h *= self.out_scale
         # print(h.count_nonzero(dim=1).max())
         return h
 
@@ -154,6 +156,4 @@ class Sparse_Connect(nn.Module):
             x = self.dropout(x)
         if self.binarize:
             x = super_spike(x)
-        if self.out_scale:
-            x *= self.out_scale
         return x

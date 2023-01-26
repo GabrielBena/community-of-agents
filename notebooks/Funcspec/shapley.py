@@ -14,7 +14,9 @@ from functools import partial
 import time
 
 
-def masked_inference(excluded, community, data, t_target, decision, task):
+def masked_inference(
+    excluded, community, data, t_target, decision, task, common_readout
+):
 
     excluded = np.array(excluded, dtype=int)
 
@@ -69,7 +71,9 @@ def masked_inference(excluded, community, data, t_target, decision, task):
         (correct.sum(-1) * np.prod(tt_target.shape[:-1]) / tt_target.numel())
         .cpu()
         .data.numpy()
-    )[int(task)]
+    )
+    if not common_readout:
+        acc = acc[int(task)]
 
     return acc
 
@@ -127,6 +131,7 @@ def compute_shapley_values(
             t_target=t_target,
             decision=decision,
             task=task,
+            common_readout=common_readout,
         )
 
         print(f"Task {task} : Performance without ablations : {masked_inf([])}")
