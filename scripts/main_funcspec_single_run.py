@@ -112,9 +112,9 @@ if __name__ == "__main__":
         "use_deepR": False,
         "comms_dropout": 0.0,
         "sparsity": 0.01,
-        "binarize": True,
+        "binarize": False,
         "comms_start": "start",
-        "out_scale" : 0.1,
+        "comms_out_scale": 0.1,
     }
 
     model_config = {
@@ -125,6 +125,7 @@ if __name__ == "__main__":
         "common_readout": False,
         "n_readouts": 1,
         "readout_from": None,
+        "readout_n_hid": None,
     }
 
     config = {
@@ -144,7 +145,9 @@ if __name__ == "__main__":
         },
         "metrics": {"chosen_timesteps": ["mid-", "last"]},
         "varying_params": {},
+        ###------ Task ------
         "task": "parity-both",
+        ### ------ Task ------
         "metrics_only": False,
         "n_tests": 10 if not debug_run else 2,
         "debug_run": debug_run,
@@ -155,7 +158,7 @@ if __name__ == "__main__":
         pyaml.dump(config, config_file)
 
     if debug_run:
-        # os.environ["WANDB_MODE"] = "offline"
+        os.environ["WANDB_MODE"] = "offline"
         pass
 
     # wandb.init(project="funcspec_V2", entity="m2snn", config=config)

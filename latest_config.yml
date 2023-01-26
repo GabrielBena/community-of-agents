@@ -3,8 +3,8 @@ datasets:
   data_type: symbols
   fix_asym: false
   input_size: 3600
-  n_classes: 60
-  n_classes_per_digit: 30
+  n_classes: 20
+  n_classes_per_digit: 10
   permute_dataset: false
   seed:
   symbol_config:
@@ -14,7 +14,7 @@ datasets:
       - 2000
     input_size: 60
     n_diff_symbols: 2
-    n_symbols: 59
+    n_symbols: 19
     nb_steps: 10
     parallel: false
     static: true
@@ -30,26 +30,28 @@ model:
   agents:
     ag_dropout: 0.0
     cell_type: '<class ''torch.nn.modules.rnn.RNN''>'
-    n_hidden: 15
+    n_hidden: 20
     n_in: 3600
     n_layers: 1
-    n_out: 30
+    n_out: 10
     n_readouts: 1
     train_in_out:
       - true
       - true
     use_bottleneck: false
-  common_readout: true
+  common_readout: false
   connections:
-    binarize: true
+    binarize: false
     comms_dropout: 0.0
+    comms_out_scale: 0.1
     comms_start: start
-    sparsity: 0
+    sparsity: 0.01
     use_deepR: false
   n_agents: 2
   n_ins:
   n_readouts: 1
   readout_from:
+  readout_n_hid:
 n_tests: 2
 optimization:
   agents:
@@ -63,7 +65,7 @@ optimization:
     global_rewire: false
     l1: 1.0e-05
     lr: 0.001
-task: both
+task: parity-both
 training:
   decision:
     - last
@@ -73,5 +75,5 @@ training:
   inverse_task: false
   n_epochs: 1
   stopping_acc: 0.95
-use_tqdm: false
+use_tqdm: true
 varying_params: {}

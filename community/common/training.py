@@ -120,6 +120,11 @@ def train_community(
     optimizer_agents, optimizer_connections = optimizers
     training, testing = trials
 
+    try:
+        model: torch.compile(model)
+    except AttributeError:
+        pass
+
     notebook = is_notebook()
 
     assert (

@@ -4,6 +4,7 @@ import torch.nn.functional as F
 import numpy as np
 from deepR.models import weight_sampler_strict_number
 from community.spiking.surrogate import super_spike
+import torch.nn as nn
 
 
 class MaskedLinear(nn.Linear):
@@ -68,6 +69,7 @@ class MaskedLinear(nn.Linear):
         self.reset_parameters_()
 
         self.is_deepR_connect = False
+        self.tanh = nn.Tanh()
 
     @property
     def w(self):
@@ -80,8 +82,11 @@ class MaskedLinear(nn.Linear):
             h = self.dropout(h)
         if self.binarize:
             h = super_spike(h)
-        if self.out_scale:
-            h *= self.out_scale
+            if self.out_scale:
+                h *= self.out_scale
+        else:
+            # weird inplace tanh error
+            h = 0 + torch.tanh(h)
         # print(h.count_nonzero(dim=1).max())
         return h
 
