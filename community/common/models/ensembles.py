@@ -29,6 +29,7 @@ class Community(nn.Module):
         binarize=False,
         comms_start="1",
         comms_dropout=0.0,
+        comms_out_scale=0.1
     ):
 
         super().__init__()
@@ -49,6 +50,7 @@ class Community(nn.Module):
         self.use_deepR = use_deepR
         self.comms_dropout = comms_dropout
         self.binarize = binarize
+        self.comms_out_scale = comms_out_scale
 
         self.init_connections()
         self.is_community = True
@@ -191,6 +193,7 @@ class Community(nn.Module):
                                 p_con,
                                 dropout=self.comms_dropout,
                                 binarize=self.binarize,
+                                out_scale=self.comms_out_scale,
                             )
                         self.tags[i, j] = ag1.tag + ag2.tag
                         self.connections[self.tags[i, j]] = connection

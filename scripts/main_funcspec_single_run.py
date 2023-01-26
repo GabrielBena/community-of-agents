@@ -114,6 +114,7 @@ if __name__ == "__main__":
         "sparsity": 0.01,
         "binarize": True,
         "comms_start": "start",
+        "out_scale" : 0.1,
     }
 
     model_config = {
