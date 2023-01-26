@@ -41,7 +41,7 @@ def get_df(run):
     return get_pandas_from_json(get_correct_artifact(*run))
 
 
-def get_all_data_and_save(sweep_path, save_path, max_size=None):
+def get_all_data_and_save(sweep_path, save_path, max_size=None, reload=False):
 
     api = wandb.Api(timeout=None)
     sweep = api.sweep(sweep_path)
@@ -52,18 +52,28 @@ def get_all_data_and_save(sweep_path, save_path, max_size=None):
     if max_size is None:
         max_size = len(runs)
 
-    try:
-        existing_results = pd.read_pickle(save_path + f'/{sweep_path.split("/")[-1]}')
-        print("Existing Results Loaded")
-        arts = []
-        for run, _ in zip(runs, tqdm(range(max_size))):
-            if run.name not in existing_results["name"].values:
-                arts.append(get_correct_artifact(run))
-            else:
-                print("All new results Loaded")
-                break
+    if not reload:
 
-    except FileNotFoundError:
+        try:
+            existing_results = pd.read_pickle(
+                save_path + f'/{sweep_path.split("/")[-1]}'
+            )
+            print("Existing Results Loaded")
+            arts = []
+            for run, _ in zip(runs, tqdm(range(max_size))):
+                if run.name not in existing_results["name"].values:
+                    arts.append(get_correct_artifact(run))
+                else:
+                    print("All new results Loaded")
+                    break
+
+        except FileNotFoundError:
+            existing_results = None
+
+            arts = [
+                get_correct_artifact(run[0]) for run in zip(runs, tqdm(range(max_size)))
+            ]
+    else:
         existing_results = None
 
         arts = [
@@ -103,6 +113,14 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "-N", "--max_size", default=None, help="max size of table to process", type=int
+    )
+
+    parser.add_argument(
+        "-r",
+        "--reload",
+        default=False,
+        help="Reload results or load existing ones",
+        type=bool,
     )
 
     args = parser.parse_args()
