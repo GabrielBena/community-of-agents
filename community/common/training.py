@@ -1,5 +1,5 @@
 import warnings
-from community.data.tasks import get_task_family_dict
+from community.data.tasks import get_task_family
 import torch
 import numpy as np
 import torch.nn as nn
@@ -12,8 +12,9 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 
 from .init import init_community, init_optimizers
-from ..utils.others import check_grad, is_notebook
+from ..utils.others import check_grad, is_notebook, nested_shape
 from ..utils.wandb_utils import mkdir_or_save_torch
+
 from ..utils.configs import get_training_dict
 
 from .models.ensembles import ConvCommunity
@@ -27,8 +28,51 @@ from deepR.models import step_connections
 
 def get_loss(output, t_target):
 
-    n_target = t_target.shape[:-1]
-    n_decisions = output.shape[:-2]
+    # print(type(output), type(t_target))
+    # print(output, t_target)
+
+    try:
+        loss = F.cross_entropy(output, t_target, reduction="none")
+        output = output.unsqueeze(0)
+
+    except (TypeError, RuntimeError) as e:
+        loss = torch.stack([get_loss(o, t) for o, t in zip(output, t_target)])
+
+    except ValueError:
+        t_target = torch.stack([t_target for _ in range(len(output))])
+        loss = torch.stack([get_loss(o, t) for o, t in zip(output, t_target)])
+
+    return torch.mean(loss)
+
+
+def get_acc(output, t_target):
+
+    try:
+
+        pred = output.argmax(
+            dim=-1, keepdim=True
+        )  # get the index of the max log-probability
+
+        if len(pred.shape) > 2:
+            acc = [get_acc(o, t) for o, t in zip(output, t_target)]
+        else:
+
+            correct = pred.eq(t_target.view_as(pred))
+            acc = ((correct.sum() / t_target.numel()).cpu().data.numpy()).mean()
+
+    except (AttributeError, RuntimeError) as e:
+        acc = [get_acc(o, t) for o, t in zip(output, t_target)]
+    except TypeError:
+        t_target = torch.stack([t_target for _ in range(len(output))])
+        acc = [get_acc(o, t) for o, t in zip(output, t_target)]
+
+    return acc
+
+
+def get_loss2(output, t_target):
+
+    n_target = nested_shape(t_target)
+    n_decisions = nested_shape(output)
 
     if len(n_decisions) == 1:
         n_decisions = n_decisions[0]
@@ -77,6 +121,17 @@ def get_loss(output, t_target):
         )
 
     return loss.mean(), t_target, output
+
+
+def nested_round(acc):
+    try:
+        round = np.round(acc, 2) * 100
+        if isinstance(round, float):
+            return round
+        else:
+            return [float(r) for r in round]
+    except TypeError:
+        return [nested_round(a) for a in acc]
 
 
 def binary_conn(target, ag):
@@ -209,9 +264,7 @@ def train_community(
                 )
 
                 if task == "family":
-                    t_target, factors = get_task_family_dict(
-                        target, n_classes_per_digit
-                    )
+                    t_target, factors = get_task_family(target, n_classes_per_digit)
                 else:
                     t_target = get_task_target(target, task, n_classes)
 
@@ -232,13 +285,19 @@ def train_community(
                 output, *_ = model(data, conns)
                 output, deciding_ags = get_decision(output, *decision, target=t_target)
 
-                if (
-                    deciding_ags is not None
-                    and train_loader.batch_size in deciding_ags.shape
-                ):
-                    deciding_agents.append(deciding_ags.cpu().data.numpy())
+                try:
 
-                loss, t_target, output = get_loss(output, t_target)
+                    if (
+                        deciding_ags is not None
+                        and train_loader.batch_size in deciding_ags.shape
+                    ):
+                        deciding_agents.append(deciding_ags.cpu().data.numpy())
+                except AttributeError:
+
+                    deciding_ags = None
+
+                loss = get_loss(output, t_target)
+                acc = get_acc(output, t_target)
 
                 if reg_loss:
                     reg = F.mse_loss(
@@ -247,20 +306,20 @@ def train_community(
                     )
                     loss += reg * reg_factor
 
+                """
                 pred = output.argmax(
                     dim=-1, keepdim=True
                 )  # get the index of the max log-probability
 
                 correct = pred.eq(t_target.view_as(pred))
 
-                """
                 if output.shape[0] == 1 : # not joint_training : 
                     correct = correct.sum().cpu().data.item()
                     train_accs.append(correct/t_target.numel())
                 else : 
                     correct = correct.flatten(start_dim=-2).sum(-1).cpu().data.numpy()
                     train_accs.append(correct/t_target[0].numel())
-                """
+                
 
                 pred = output.argmax(dim=-1)
                 correct = pred.eq(t_target.view_as(pred))
@@ -269,6 +328,7 @@ def train_community(
                     .cpu()
                     .data.numpy()
                 )
+                """
                 train_accs.append(acc)
 
                 loss.backward()
@@ -300,9 +360,7 @@ def train_community(
                         len(train_loader.dataset),
                         100.0 * batch_idx / len(train_loader),
                         loss.item(),
-                        np.round(100 * acc.mean(), 2)
-                        if type(acc) is not float and not show_all_acc
-                        else np.round(100 * acc),
+                        np.mean(acc) if not show_all_acc else nested_round(acc),
                         np.mean(deciding_agents),
                     )
                 )
@@ -398,6 +456,7 @@ def test_community(
     data, target = next(iter(test_loader))
     data, target = process_data(data, target, task, conv_com, symbols=symbols)
     out, states, fconns = model(data.to(device))
+
     with torch.no_grad():
         for data, target in test_loader:
 
@@ -409,7 +468,7 @@ def test_community(
             data, t_target = process_data(data, target, task, conv_com, symbols=symbols)
 
             if task == "family":
-                t_target, factors = get_task_family_dict(t_target, n_classes_per_digit)
+                t_target, factors = get_task_family(t_target, n_classes_per_digit)
             else:
                 t_target = get_task_target(target, task, n_classes)
 
@@ -425,20 +484,26 @@ def test_community(
 
             output, *_ = model(data, conns)
             output, deciding_ags = get_decision(output, *decision, target=t_target)
-            if (
-                deciding_ags is not None
-                and deciding_ags.shape[0] == test_loader.batch_size
-            ):
-                deciding_agents.append(deciding_ags.cpu().data.numpy())
+            try:
 
-            loss, t_target, output = get_loss(output, t_target)
+                if (
+                    deciding_ags is not None
+                    and train_loader.batch_size in deciding_ags.shape
+                ):
+                    deciding_agents.append(deciding_ags.cpu().data.numpy())
+            except AttributeError:
+
+                deciding_ags = None
+
+            loss = get_loss(output, t_target)
 
             test_loss += loss
+            test_acc = get_acc(output, t_target)
+
+            """
             pred = output.argmax(
                 dim=-1, keepdim=True
             )  # get the index of the max log-probability
-
-            """
             c = pred.eq(t_target.view_as(pred))
             if output.shape[0]==1 : #not joint_training : 
                 correct += c.sum().cpu().data.item()
@@ -446,7 +511,6 @@ def test_community(
             else : 
                 correct += c.flatten(start_dim=-2).sum(-1).cpu().data.numpy()
                 acc += c.flatten(start_dim=-2).sum(-1).cpu().data.numpy()/t_target[0].numel()
-            """
             pred = output.argmax(dim=-1)
             c = pred.eq(t_target.view_as(pred))
             test_acc = (
@@ -455,8 +519,10 @@ def test_community(
                 .data.numpy()
             )
 
-            correct += c
-            acc += test_acc
+            correct += c    
+            """
+
+            acc += np.mean(test_acc)
 
     test_loss /= len(test_loader)
     acc /= len(test_loader)

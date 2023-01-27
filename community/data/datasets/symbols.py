@@ -436,19 +436,27 @@ class SymbolsDataset(Dataset):
         n_diff_symbols,
         **others,
     ):
-
         symbol_size = self.symbol_size
 
-        # probas = self.get_probabilities(n_symbols+1)
-
-        if self.common_input:
-            probas = np.ones((n_symbols + 1) // n_diff_symbols) / (
+        try:
+            if self.data_config["adjust_probabilites"]:
+                self.probas = self.get_probabilities((n_symbols + 1) // n_diff_symbols)
+            else:
+                self.probas = np.ones((n_symbols + 1) // n_diff_symbols) / (
+                    (n_symbols + 1) // n_diff_symbols
+                )
+        except KeyError:
+            self.probas = np.ones((n_symbols + 1) // n_diff_symbols) / (
                 (n_symbols + 1) // n_diff_symbols
             )
+
+        if self.common_input:
             labels = (
                 np.stack(
                     [
-                        np.random.multinomial(1, probas, size=(data_size)).argmax(-1)
+                        np.random.multinomial(1, self.probas, size=(data_size)).argmax(
+                            -1
+                        )
                         for _ in range(n_diff_symbols)
                     ],
                     -1,
@@ -469,13 +477,12 @@ class SymbolsDataset(Dataset):
             )  # , torch.from_numpy(jitter)
 
         else:
-            probas = np.ones((n_symbols + 1) // n_diff_symbols) / (
-                (n_symbols + 1) // n_diff_symbols
-            )
             labels = (
                 np.stack(
                     [
-                        np.random.multinomial(1, probas, size=(data_size)).argmax(-1)
+                        np.random.multinomial(1, self.probas, size=(data_size)).argmax(
+                            -1
+                        )
                         for _ in range(n_diff_symbols)
                     ],
                     -1,

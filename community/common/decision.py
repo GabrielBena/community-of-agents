@@ -29,19 +29,31 @@ def max_decision_2(outputs):
 
 
 def max_decision(outputs):
-    device = outputs.device
-    n_agents = outputs.shape[0]
-    max_out = lambda i: torch.max(outputs[i, ...], axis=-1)
-    _, deciding_ags = torch.max(
-        torch.stack([max_out(i)[0] for i in range(n_agents)]), axis=0
-    )
-    mask_1 = deciding_ags.unsqueeze(0).unsqueeze(-1).expand_as(outputs)
-    mask_2 = torch.einsum(
-        "b, b... -> b...", torch.arange(n_agents).to(device), torch.ones_like(outputs)
-    )
-    mask = mask_1 == mask_2
 
-    return (outputs * mask).sum(0), deciding_ags
+    if isinstance(outputs, torch.Tensor):
+
+        device = outputs.device
+        n_agents = outputs.shape[0]
+        max_out = lambda i: torch.max(outputs[i, ...], axis=-1)
+        _, deciding_ags = torch.max(
+            torch.stack([max_out(i)[0] for i in range(n_agents)]), axis=0
+        )
+        mask_1 = deciding_ags.unsqueeze(0).unsqueeze(-1).expand_as(outputs)
+        mask_2 = torch.einsum(
+            "b, b... -> b...",
+            torch.arange(n_agents).to(device),
+            torch.ones_like(outputs),
+        )
+        mask = mask_1 == mask_2
+
+        return (outputs * mask).sum(0), deciding_ags
+    else:
+        try:
+            outputs = torch.stack([*outputs], 0)
+            return max_decision(outputs)
+        except TypeError:
+            maxs = [max_decision(out) for out in zip(*outputs)]
+            return [list(m) for m in zip(*maxs)]
 
 
 def max_decision_3(outputs):
@@ -55,8 +67,11 @@ def get_decision(outputs, temporal_decision="last", agent_decision="0", target=N
 
     outputs = get_temporal_decision(outputs, temporal_decision)
 
-    if len(outputs.shape) == 2:
-        return outputs, None
+    try:
+        if len(outputs.shape) == 2:
+            return outputs, None
+    except AttributeError:
+        pass
 
     for ag_decision in agent_decision.split("_"):
         outputs, deciding_ags = get_agent_decision(outputs, ag_decision)

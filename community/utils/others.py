@@ -9,6 +9,20 @@ from tqdm import tqdm
 # ------ Others ------
 
 
+def nested_shape(output):
+    if hasattr(output, "shape"):
+        return output.shape
+    else:
+        return [nested_shape(o) for o in output]
+
+
+def nested_len(output):
+    if hasattr(output, "shape"):
+        return len(output.shape)
+    else:
+        return [nested_len(o) for o in output]
+
+
 def rescue_code(function):
     import inspect
 

@@ -5,6 +5,7 @@ import torch.nn.init as init
 from copy import deepcopy
 import numpy as np
 import scipy
+from .readout import readout_process
 
 
 class LeakyRNN(nn.RNNCell):
@@ -63,19 +64,16 @@ class Agent(nn.Module):
         n_in,
         n_hidden,
         n_layers,
-        n_out,
         tag,
-        n_readouts=1,
         train_in_out=(True, True),
         cell_type=nn.RNN,
         use_bottleneck=False,
         ag_dropout=0.0,
-        density=1.0,
     ):
 
         super().__init__()
 
-        self.dims = [n_in, n_hidden, n_out]
+        self.dims = [n_in, n_hidden, 0]
 
         self.tag = str(tag) if type(tag) is not str else tag
 
@@ -92,7 +90,9 @@ class Agent(nn.Module):
 
         self.use_bottleneck = use_bottleneck
         self.dropout = nn.Dropout(ag_dropout) if ag_dropout > 0 else None
+        self.readout = None
 
+        """
         if self.use_bottleneck:
             if n_out == 100:
                 n_bot = 10
@@ -102,7 +102,6 @@ class Agent(nn.Module):
             readout = [nn.Linear(n_bot, n_out)]
         else:
             readout = [nn.Linear(n_hidden, n_out)]
-
         readout[0].weight.requires_grad = train_in_out[1]
         readout[0].bias.requires_grad = train_in_out[1]
 
@@ -115,7 +114,8 @@ class Agent(nn.Module):
 
             self.readout = nn.ModuleList(readout)
 
-            self.init_readout_weights(self.readout)
+            self.init_readout_weights(self.readout)    
+        """
 
         self.cell_params("weight_ih_l0").requires_grad = train_in_out[0]
         self.cell_params("bias_ih_l0").requires_grad = train_in_out[0]
@@ -174,11 +174,14 @@ class Agent(nn.Module):
         output = x
         if self.dropout:
             output = self.dropout(output)
+
+        """
         if self.use_bottleneck:
             output = self.bottleneck(output)
+        """
 
-        if self.use_readout:
-            output = torch.cat([r(output) for r in self.readout])
+        if self.readout:
+            output = readout_process(self.readout, self.readout_from, output)
 
         if softmax:
             output = F.log_softmax(output, dim=-1)

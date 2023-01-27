@@ -26,38 +26,33 @@ def get_training_dict(config):
     return training_dict
 
 
-def configure_readouts(config):
+def configure_readouts(config, task=None):
 
-    common_readout = config["model"]["common_readout"]
-    n_agents = config["model"]["n_agents"]
-    task = config["task"]
-    n_classes = config["datasets"]["n_classes"]
-    n_classes_per_ag = config["datasets"]["n_classes_per_digit"]
-    symbol_config = config["datasets"]["symbol_config"]
-    n_symbols = symbol_config["n_diff_symbols"]
+    task = config["task"] if task is None else task
+    readout_from = config["model"]["readout"]["readout_from"]
 
-    if task == "family":
+    if isinstance(task, list):
 
-        config["model"]["agents"]["n_out"] = n_classes
-        factors = get_factors_list(symbol_config["n_diff_symbols"])
-
-        if common_readout:
-
-            config["model"]["n_readouts"] = len(factors)
-            config["model"]["agents"]["n_readouts"] = None
-            config["model"]["readout_from"] = None
-
+        if isinstance(readout_from, list):
+            assert len(task) == len(readout_from)
+            readout_config = [
+                configure_single_readout(config, t, rf)
+                for (t, rf) in zip(task, readout_from)
+            ]
         else:
-            config["model"]["n_readouts"] = None
-            config["model"]["agents"]["n_readouts"] = len(factors)
+            readout_config = [configure_readouts(config, t) for t in task]
 
-    elif type(task) is list:
+        readout_config = {
+            k: [r[k] for r in readout_config] for k in readout_config[0].keys()
+        }
 
+        """
         config["model"]["agents"]["n_out"] = n_classes_per_ag
 
         def get_nested_readout(task_list, n_readouts):
             try:
                 return [[int(t) for t in task_list] for _ in range(n_readouts)]
+
             except TypeError:
                 return [
                     get_nested_readout(t, n_r) for t, n_r in zip(task_list, n_readouts)
@@ -79,47 +74,81 @@ def configure_readouts(config):
         else:
             config["model"]["n_readouts"] = None
             config["model"]["agents"]["n_readouts"] = len(task[0])
+        """
+
+    else:
+        readout_config = configure_single_readout(config, task)
+
+    return readout_config
+
+
+def configure_single_readout(config, task, readout_from=None, n_hid=None):
+
+    n_classes = config["datasets"]["n_classes"]
+    n_classes_per_ag = config["datasets"]["n_classes_per_digit"]
+    symbol_config = config["datasets"]["symbol_config"]
+    n_symbols = symbol_config["n_diff_symbols"]
+
+    readout_config = {}
+
+    readout_config["readout_from"] = (
+        readout_from
+        if readout_from is not None
+        else config["model"]["readout"]["readout_from"]
+    )
+
+    readout_config["n_hid"] = (
+        n_hid if n_hid is not None else config["model"]["readout"]["n_hid"]
+    )
+
+    # dummy_target = torch.zeros(2, 10)
+    # n_out = get_task_target(dummy_target, task, n_classes_per_ag)[1]
+    # readout_config["n_out"] = n_out
+
+    try:
+        task = int(task)
+        readout_config["n_readouts"] = 1
+        readout_config["n_out"] = n_classes_per_ag
+        return readout_config
+
+    except ValueError:
+        pass
+
+    if task == "family":
+
+        factors = get_factors_list(symbol_config["n_diff_symbols"])
+        readout_config["n_readouts"] = len(factors)
+        readout_config["n_out"] = [n_classes for _ in range(len(factors))]
 
     elif task in ["both", "all", "none", "parity-both"]:
 
-        config["model"]["agents"]["n_out"] = n_classes_per_ag
+        readout_config["n_readouts"] = n_symbols
+        readout_config["n_out"] = [n_classes_per_ag for _ in range(n_symbols)]
 
-        if common_readout:
-            config["model"]["n_readouts"] = n_symbols
-            config["model"]["agents"]["n_readouts"] = None
-            config["model"]["readout_from"] = None
-            config["training"]["decision"][-1] = "all"
-        else:
+    elif task in [
+        "sum",
+        "parity-digits",
+        "inv_parity-digits",
+        "parity",
+        "max",
+        "min",
+        "count-max",
+        "count-min",
+    ]:
 
-            config["model"]["n_readouts"] = None
-            config["model"]["agents"]["n_readouts"] = n_symbols
-            config["model"]["readout_from"] = None
-            config["training"]["decision"][-1] = "max"
-
-    elif task in ["sum", "parity-digits", "inv_parity-digits", "parity", "max", "min"]:
-
+        readout_config["n_readouts"] = 1
         if task == "sum":
-            config["model"]["agents"]["n_out"] = n_classes
-        elif task in ["parity-digits", "max", "min", "inv_parity-digits"]:
-            config["model"]["agents"]["n_out"] = n_classes_per_ag
-        else:
-            config["model"]["agents"]["n_out"] = 2
-
-        if common_readout:
-            config["model"]["n_readouts"] = 1
-            config["model"]["agents"]["n_readouts"] = None
-            config["model"]["readout_from"] = None
-            config["training"]["decision"][-1] = "all"
-        else:
-
-            config["model"]["n_readouts"] = None
-            config["model"]["agents"]["n_readouts"] = 1
-            config["model"]["readout_from"] = None
-            config["training"]["decision"][-1] = "max"
+            readout_config["n_out"] = n_classes
+        elif task == "parity":
+            readout_config["n_out"] = 2
+        else:  # task in ["parity-digits", "max", "min", "inv_parity-digits"]:
+            readout_config["n_out"] = n_classes_per_ag
 
     else:
         warn(f"can't auto configure readout for task {task}")
         print(f" Warning ! Can't auto configure readout for task {task}")
+
+    return readout_config
 
 
 def find_and_change(config, param_name, param_value):

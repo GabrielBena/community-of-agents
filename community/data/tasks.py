@@ -39,7 +39,10 @@ def rotation_conflict_task(datas, digits, n_angles=4):
 get_digits = lambda target: target.T
 
 
-def get_single_task(task, target, n_classes):
+def get_single_task(task, target, n_classes=None):
+
+    if n_classes is None:
+        n_classes = len(target[:, 0].unique())
 
     target_mult = lambda tgt: torch.stack(
         [t * (n_classes**i) for (i, t) in enumerate(tgt.T)]
@@ -62,6 +65,7 @@ def get_single_task(task, target, n_classes):
     elif "parity" in task:
         digits = target.T
         parity = (digits.sum(0)) % 2  # 0 when same parity
+
         if "digits" in task:
             return torch.where(parity.bool(), digits[0], digits[1])
         elif "both" in task:
@@ -81,13 +85,15 @@ def get_single_task(task, target, n_classes):
     elif "count" in task:
 
         if "max" in task:
-            new_target = torch.where(
-                target.argmax(-1).bool(), target[:, 1], target[:, 0]
+            new_target = (
+                torch.where(target.argmax(-1).bool(), target[:, 1], target[:, 0]),
+                n_classes,
             )
             new_target[target[:, 0] == target[:, 1]] = 0
         elif "min" in task:
-            new_target = torch.where(
-                target.argmin(-1).bool(), target[:, 1], target[:, 0]
+            new_target = (
+                torch.where(target.argmin(-1).bool(), target[:, 1], target[:, 0]),
+                n_classes,
             )
             new_target[target[:, 0] == target[:, 1]] = 3
         elif "equal" in task:
@@ -129,19 +135,18 @@ def get_task_target(target, task, n_classes, temporal_target=False):
     """
 
     if temporal_target:
-
-        return get_task_target(target, task, n_classes, False).unique(dim=0)
+        targets = get_task_target(target, task, n_classes, False)
+        return targets.unique(dim=0)
 
     elif type(task) is list:
         targets = [get_task_target(target, t, n_classes) for t in task]
-
         try:
             return torch.stack(targets)
         except (ValueError, RuntimeError) as e:
             return targets
 
     elif task == "family":
-        return get_task_family_dict(target, n_classes)
+        return get_task_family(target, n_classes)
 
     else:
         new_target = deepcopy(target)
@@ -166,10 +171,11 @@ def get_factors_list(n_digits, device=torch.device("cpu")):
         if torch.tensor(p).sum() >= 0 and torch.tensor(p).any()
     ]
     key_f = lambda p: (p == 1).sum() + (p == -1).sum() * 0.1
+
     return sorted(factors_list, key=key_f)
 
 
-def get_task_family_dict(target, n_classes_per_dig):
+def get_task_family(target, n_classes_per_dig):
 
     n_digits = target.shape[-1]
     device = target.device
@@ -184,7 +190,7 @@ def get_task_family_dict(target, n_classes_per_dig):
         0,
     )
 
-    return task_family, factors_list
+    return task_family, factors_list, n_classes_per_dig * n_digits
 
 
 # ------ Continual Learning Tasks ------ :

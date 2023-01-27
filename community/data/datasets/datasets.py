@@ -1,6 +1,7 @@
 import torch
 from torch.utils.data import Dataset
 from torchvision import datasets, transforms
+import torchvision.transforms.functional as tF
 import numpy as np
 from community.data.datasets.mnist import Custom_EMNIST, DoubleMNIST
 from community.data.datasets.symbols import SymbolsDataset
@@ -191,3 +192,18 @@ def get_datasets_symbols(
     ]
 
     return dataloaders, datasets
+
+
+def get_omni_dataset(root="../../data/", size=16):
+    transform = transforms.Compose(
+        [
+            lambda img: tF.resize(img, [size, size]),
+            transforms.ToTensor(),
+            transforms.Normalize((0.1307,), (0.3081,)),
+            lambda tensor: -tensor,
+        ]
+    )
+
+    omni = datasets.Omniglot(root, transform=transform, background=False)
+
+    return omni

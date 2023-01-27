@@ -33,13 +33,10 @@ model:
     n_hidden: 20
     n_in: 3600
     n_layers: 1
-    n_out: 10
-    n_readouts: 1
     train_in_out:
       - true
       - true
     use_bottleneck: false
-  common_readout: false
   connections:
     binarize: false
     comms_dropout: 0.0
@@ -49,9 +46,10 @@ model:
     use_deepR: false
   n_agents: 2
   n_ins:
-  n_readouts: 1
-  readout_from:
-  readout_n_hid:
+  readout:
+    common_readout: true
+    n_hid:
+    readout_from:
 n_tests: 2
 optimization:
   agents:

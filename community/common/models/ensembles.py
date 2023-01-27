@@ -6,6 +6,12 @@ import numpy as np
 
 from .connections import MaskedLinear, Sparse_Connect
 from .agents import Agent
+from .readout import (
+    get_readout_dimensions,
+    create_readout_from_dims,
+    init_readout_weights,
+    readout_process,
+)
 from ...utils.model import get_output_shape
 from copy import deepcopy
 
@@ -22,14 +28,8 @@ class Community(nn.Module):
         self,
         agents,
         sparsity,
-        n_readouts=1,
-        readout_from=None,
-        readout_n_hid=None,
-        use_deepR=True,
-        binarize=False,
-        comms_start="1",
-        comms_dropout=0.0,
-        comms_out_scale=0.1
+        readout_config,
+        comms_config,
     ):
 
         super().__init__()
@@ -47,115 +47,29 @@ class Community(nn.Module):
         ) * sparsity
 
         self.sparse_connections = sparse_connections
-        self.use_deepR = use_deepR
-        self.comms_dropout = comms_dropout
-        self.binarize = binarize
-        self.comms_out_scale = comms_out_scale
+        self.readout_config = readout_config
+        self.comms_config = comms_config
 
         self.init_connections()
         self.is_community = True
 
-        self.use_common_readout = n_readouts is not None
+        self.use_common_readout = readout_config["common_readout"]
+        self.readout = None
+        self.initialize_readout()
 
-        if self.use_common_readout:
-            self.initialize_readout(n_readouts, readout_from, readout_n_hid)
+    def initialize_readout(self):
 
-        self.comms_start = comms_start
-
-    def gather(slef, l, rf):
-        return [l[i] for i in rf]
-
-    def initialize_readout(self, n_readouts, readout_from, n_hid=None):
-
-        self.multi_readout = type(n_readouts) is list or n_readouts > 1
-
-        if readout_from is None:
-            if type(n_readouts) is list:
-                readout_from = [list(range(self.n_agents)) for r in n_readouts]
-            else:
-                readout_from = [list(range(self.n_agents)) for r in range(n_readouts)]
+        self.readout_dims = get_readout_dimensions(self.agents, **self.readout_config)
+        readout = create_readout_from_dims(self.readout_dims)
+        if self.readout_config["common_readout"]:
+            self.readout = readout
+            init_readout_weights(self.readout)
         else:
-            if type(n_readouts) is list:
-                assert len(readout_from) == len(
-                    n_readouts
-                ), f"Provide correct readout scheme {n_readouts, readout_from}"
-            else:
-                assert (
-                    len(readout_from) == n_readouts
-                ), f"Provide correct readout scheme {n_readouts, readout_from}"
-
-        self.readout_from = readout_from
-
-        readout_dims = self.get_readout_dimensions(n_readouts, readout_from, n_hid)
-        self.readout = self.create_readout_from_dims(readout_dims)
-
-    def init_readout_weights(self, readout):
-        try:
-            nn.init.kaiming_uniform_(readout.weight, nonlinearity="relu")
-        except AttributeError:
-            [self.init_readout_weights(r) for r in self.readout]
-
-    def get_readout_dimensions(self, n_readout, readout_from, n_hid):
-
-        if type(n_readout) is list:
-
-            return [
-                self.get_readout_dimensions(nr, rf, n_hid)
-                for nr, rf in zip(n_readout, readout_from)
-            ]
-
-        else:
-            try:
-                readout_dims = [
-                    [
-                        np.sum([ag.dims[-2] for ag in self.gather(self.agents, rf)]),
-                        self.agents[0].dims[-1],
-                    ]
-                    for rf in readout_from
-                ]
-            except TypeError:
-                readout_dims = [
-                    [
-                        np.sum(
-                            [
-                                ag.dims[-2]
-                                for ag in self.gather(self.agents, readout_from)
-                            ]
-                        ),
-                        self.agents[0].dims[-1],
-                    ]
-                    for _ in range(n_readout)
-                ]
-
-        def insert_dim(readout_dims, dim, idx=1):
-            try:
-                [insert_dim(r, dim) for r in readout_dims]
-            except (TypeError, AttributeError) as e:
-                readout_dims.insert(idx, dim)
-
-        if n_hid is not None:
-            insert_dim(readout_dims, n_hid)
-
-        return readout_dims
-
-    def create_readout_from_dims(self, readout_dims):
-
-        try:
-            readout = nn.ModuleList(
-                [self.create_readout_from_dims(r_dim) for r_dim in readout_dims]
-            )
-        except (TypeError, IndexError) as e:
-            readout = [
-                nn.Linear(d1, d2) for d1, d2 in zip(readout_dims[:-1], readout_dims[1:])
-            ]
-
-            if len(readout) == 1:
-                readout = readout[0]
-            else:
-                readout.insert(1, nn.ReLU())
-                readout = nn.Sequential(*readout)
-
-        return readout
+            for ag in self.agents:
+                r = deepcopy(readout)
+                init_readout_weights(r)
+                ag.readout = r
+                ag.readout_from = self.readout_config["readout_from"]
 
     # Initializes connections in_between agents with the given sparsity matrix
     def init_connections(self):
@@ -183,17 +97,20 @@ class Community(nn.Module):
 
                         dims = [n_in, n_out]
                         sparsity_list = [p_con]
-                        if self.use_deepR:
+                        if self.comms_config["use_deepR"]:
                             connection = Sparse_Connect(
-                                dims, sparsity_list, self.comms_dropout, self.binarize
+                                dims,
+                                sparsity_list,
+                                self.comms_config["comms_dropout"],
+                                self.comms_config["binarize"],
                             )
                         else:
                             connection = MaskedLinear(
                                 *dims,
                                 p_con,
-                                dropout=self.comms_dropout,
-                                binarize=self.binarize,
-                                out_scale=self.comms_out_scale,
+                                dropout=self.comms_config["comms_dropout"],
+                                binarize=self.comms_config["binarize"],
+                                out_scale=self.comms_config["comms_out_scale"],
                             )
                         self.tags[i, j] = ag1.tag + ag2.tag
                         self.connections[self.tags[i, j]] = connection
@@ -211,13 +128,13 @@ class Community(nn.Module):
         nb_steps = len(x)
 
         try:
-            self.min_t_comms = int(self.comms_start)
+            self.min_t_comms = int(self.comms_config["comms_start"])
         except ValueError:
-            if self.comms_start == "start":
+            if self.comms_config["comms_start"] == "start":
                 self.min_t_comms = 1
-            elif self.comms_start == "mid":
+            elif self.comms_config["comms_start"] == "mid":
                 self.min_t_comms = nb_steps // 2
-            elif self.comms_start == "last":
+            elif self.comms_config["comms_start"] == "last":
                 self.min_t_comms = nb_steps - 1
             else:
                 raise NotImplementedError
@@ -272,36 +189,32 @@ class Community(nn.Module):
 
                 ag_states.append(h)
                 connections[i].append(inputs_connect)
+
             # Store states and outputs of agent
             for i, state in enumerate(ag_states):
                 states[i].append(state)
 
             if self.use_common_readout:
+                out = readout_process(
+                    self.readout,
+                    self.readout_config["readout_from"],
+                    [s[-1] for s in states],
+                )
 
-                def readout_process(readout, readout_from, input):
-
-                    try:
-                        gathered_input = torch.cat(
-                            [s[-1] for s in self.gather(input, readout_from)], -1
-                        )
-                        out = readout(gathered_input)[0]
-                    except (NotImplementedError, TypeError) as e:
-                        out = torch.stack(
-                            [
-                                readout_process(r, rf, input)
-                                for r, rf in zip(readout, readout_from)
-                            ]
-                        )
-
-                    return out
-
-                out = readout_process(self.readout, self.readout_from, states)
                 outputs.append(out)
 
         if not self.use_common_readout:
-            outputs = torch.stack([torch.stack(o) for o in outputs], 1)
+            try:
+                outputs = torch.stack([torch.stack(o) for o in outputs], 1)
+            except TypeError:
+                outputs = [list(o) for o in zip(*outputs)]
+                pass
+
         else:
-            outputs = torch.stack(outputs, 0)
+            try:
+                outputs = torch.stack(outputs, 0)
+            except TypeError:
+                pass
 
         if self.n_layers > 1:
             states = torch.stack(
@@ -316,7 +229,7 @@ class Community(nn.Module):
         except TypeError:
             connections = torch.tensor(connections)
 
-        return outputs.squeeze(), states, connections
+        return outputs, states, connections
 
     @property
     def w_rec_global(self):
@@ -339,7 +252,7 @@ class Community(nn.Module):
         """
         Returns dictionnary of number of active connections of community
         """
-        if self.use_deepR:
+        if self.comms_config["use_deepR"]:
             return {
                 tag: (c.thetas[0] > 0).int().sum()
                 for tag, c in zip(self.connections.keys(), self.connections.values())
