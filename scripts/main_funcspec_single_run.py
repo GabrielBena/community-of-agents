@@ -11,7 +11,7 @@ from yaml.loader import SafeLoader
 import pandas as pd
 import numpy as np
 
-from community.data.datasets import get_datasets_alphabet, get_datasets_symbols
+from community.data.datasets.datasets import get_datasets_alphabet, get_datasets_symbols
 from community.funcspec.single_model_loop import train_and_compute_metrics
 import wandb
 
