@@ -64,6 +64,8 @@ class Community(nn.Module):
         if self.readout_config["common_readout"]:
             self.readout = readout
             init_readout_weights(self.readout)
+            for ag in self.agents:
+                ag.readout_from = self.readout_config["readout_from"]
         else:
             for ag in self.agents:
                 r = deepcopy(readout)

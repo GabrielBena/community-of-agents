@@ -85,15 +85,13 @@ def get_single_task(task, target, n_classes=None):
     elif "count" in task:
 
         if "max" in task:
-            new_target = (
-                torch.where(target.argmax(-1).bool(), target[:, 1], target[:, 0]),
-                n_classes,
+            new_target = torch.where(
+                target.argmax(-1).bool(), target[:, 1], target[:, 0]
             )
             new_target[target[:, 0] == target[:, 1]] = 0
         elif "min" in task:
-            new_target = (
-                torch.where(target.argmin(-1).bool(), target[:, 1], target[:, 0]),
-                n_classes,
+            new_target = torch.where(
+                target.argmin(-1).bool(), target[:, 1], target[:, 0]
             )
             new_target[target[:, 0] == target[:, 1]] = 3
         elif "equal" in task:

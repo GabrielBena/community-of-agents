@@ -51,6 +51,7 @@ if __name__ == "__main__":
         "common_input": True,
         "n_diff_symbols": n_digits,
         "parallel": False,
+        "adjust_probabilites": False,
     }
 
     if symbol_config["static"]:
@@ -149,7 +150,7 @@ if __name__ == "__main__":
         "metrics": {"chosen_timesteps": ["mid-", "last"]},
         "varying_params": {},
         ###------ Task ------
-        "task": "parity-both",
+        "task": "count-max",
         ### ------ Task ------
         "metrics_only": False,
         "n_tests": 10 if not debug_run else 2,
@@ -186,6 +187,9 @@ if __name__ == "__main__":
         task = config["task"] = [
             [str(i), str((i + 1) % n_agents)] for i in range(n_agents)
         ]
+
+    if "count" in config["task"]:
+        config["datasets"]["symbol_config"]["adjust probabilities"] = True
 
     readout_config = configure_readouts(config)
     config["model"]["readout"].update(readout_config)

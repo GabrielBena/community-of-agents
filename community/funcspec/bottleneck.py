@@ -113,7 +113,6 @@ def readout_retrain(
 
         for name, p in f_community.named_parameters():
             if "readout" in name:  # and "agents.0" in name:
-
                 p.requires_grad = True
             else:
                 p.requires_grad = train_all_param

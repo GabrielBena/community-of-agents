@@ -66,7 +66,7 @@ def get_acc(output, t_target):
         t_target = torch.stack([t_target for _ in range(len(output))])
         acc = [get_acc(o, t) for o, t in zip(output, t_target)]
 
-    return acc
+    return np.array(acc)
 
 
 def get_loss2(output, t_target):
@@ -125,11 +125,8 @@ def get_loss2(output, t_target):
 
 def nested_round(acc):
     try:
-        round = np.round(acc, 2) * 100
-        if isinstance(round, float):
-            return round
-        else:
-            return [float(r) for r in round]
+        round = np.round(np.array(acc) * 100, 0).astype(float)
+        return round
     except TypeError:
         return [nested_round(a) for a in acc]
 
@@ -488,7 +485,7 @@ def test_community(
 
                 if (
                     deciding_ags is not None
-                    and train_loader.batch_size in deciding_ags.shape
+                    and test_loader.batch_size in deciding_ags.shape
                 ):
                     deciding_agents.append(deciding_ags.cpu().data.numpy())
             except AttributeError:
@@ -522,7 +519,7 @@ def test_community(
             correct += c    
             """
 
-            acc += np.mean(test_acc)
+            acc += test_acc
 
     test_loss /= len(test_loader)
     acc /= len(test_loader)
@@ -530,11 +527,9 @@ def test_community(
     deciding_agents = np.array(deciding_agents)
 
     desc = str(
-        " | Test set: Loss: {:.3f}, Accuracy: {:.3f}%".format(
+        " | Test set: Loss: {:.3f}, Accuracy: {}%".format(
             test_loss,
-            np.round(100 * acc).mean()
-            if type(acc) is not float
-            else np.round(100 * acc),
+            nested_round(acc) if not isinstance(acc, float) else np.round(100 * acc),
         )
     )
 
@@ -544,7 +539,9 @@ def test_community(
     return desc, test_loss.cpu().data.item(), acc, deciding_agents
 
 
-def plot_confusion_mat(model, test_loader, config, device=torch.device("cuda")):
+def plot_confusion_mat(
+    model, test_loader, config, n_classes, device=torch.device("cuda")
+):
 
     accs = []
     targets, t_targets = [], []
@@ -559,11 +556,13 @@ def plot_confusion_mat(model, test_loader, config, device=torch.device("cuda")):
 
         data, target = process_data(data, target, task, conv_com, symbols=symbols)
 
-        t_target = get_task_target(target, task, n_classes).to(device)
+        data, t_target = data.to(device), get_task_target(target, task, n_classes).to(
+            device
+        )
 
         outputs, states, conns = model(data)
         # print((outputs[-1][0] == outputs[-1][1]).all())
-        output, deciding_ags = get_decision(outputs, decision, target)
+        output, deciding_ags = get_decision(outputs, *decision, target)
 
         loss = F.cross_entropy(output, t_target)
 
