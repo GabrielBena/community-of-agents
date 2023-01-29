@@ -4,7 +4,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scipy.optimize import fmin_cobyla
 from typing import Any, AnyStr, Callable, Optional, Tuple
-import ray
+
 
 
 class SymbolsDataset(Dataset):
