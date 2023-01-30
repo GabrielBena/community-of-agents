@@ -25,7 +25,7 @@ from tqdm.notebook import tqdm as tqdm_n
 if __name__ == "__main__":
 
     # Use for debugging
-    debug_run = True
+    debug_run = False
 
     if debug_run:
         print("Debugging Mode is activated ! Only doing mock training")
@@ -154,6 +154,12 @@ if __name__ == "__main__":
         "debug_run": debug_run,
         "use_tqdm": True,
     }
+
+    try :
+        os.environ["PBS_ARRAY_INDEX"]
+        config['use_tqdm'] = False
+    except KeyError : 
+        pass
 
     with open("latest_config.yml", "w") as config_file:
         pyaml.dump(config, config_file)
