@@ -8,6 +8,7 @@ datasets:
   permute_dataset: false
   seed:
   symbol_config:
+    adjust_probas: false
     common_input: true
     data_size:
       - 10000
@@ -65,7 +66,7 @@ optimization:
     global_rewire: false
     l1: 1.0e-05
     lr: 0.001
-task: parity-both
+task: count-max
 training:
   decision:
     - last

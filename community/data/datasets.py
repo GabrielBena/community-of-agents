@@ -376,7 +376,7 @@ class SymbolsDataset(Dataset):
             symbols = [np.zeros((s_size + 1, s_size + 1)) for n in range(n_diff)]
             step = s_size // n_diff
 
-            symbol_orders = np.array([0, 2, 1, 3])
+            symbol_orders = np.array([3, 1, 2, 3])
             if len(symbol_orders) < n_diff:
                 symbol_orders = np.concatenate(
                     (symbol_orders, np.arange(len(symbol_orders), n_diff))
@@ -418,21 +418,7 @@ class SymbolsDataset(Dataset):
         min_tns = lambda tns: ((tns - (np.ones_like(tns) / len(tns))) ** 2).sum()
         min_f = lambda x: min_tns(get_tns(x))
 
-        constraints = []
-
         f_cons_0 = lambda x: np.ones(n_classes).dot(x) - 1
-
-        # cons_0 = LinearConstraint(np.ones(n_classes), 1, 1)
-        cons_0 = {"type": "eq", "fun": f_cons_0}
-
-        """
-        for k in range(n_classes) : 
-            A = np.zeros(n_classes)
-            A[k] = 1
-            print(A)
-            constraints.append(LinearConstraint(A, 0, np.inf))
-
-        """
 
         x_init = np.ones(n_classes) / n_classes
 
@@ -748,12 +734,15 @@ class SymbolsDataset(Dataset):
 
         symbol_size = self.symbol_size
 
-        # probas = self.get_probabilities(n_symbols+1)
-
-        if self.common_input:
+        if self.data_config["adjust_probas"]:
+            probas = self.get_probabilities((n_symbols + 1) // n_diff_symbols)
+        else:
             probas = np.ones((n_symbols + 1) // n_diff_symbols) / (
                 (n_symbols + 1) // n_diff_symbols
             )
+
+        if self.common_input:
+
             labels = (
                 np.stack(
                     [
@@ -778,9 +767,6 @@ class SymbolsDataset(Dataset):
             )  # , torch.from_numpy(jitter)
 
         else:
-            probas = np.ones((n_symbols + 1) // n_diff_symbols) / (
-                (n_symbols + 1) // n_diff_symbols
-            )
             labels = (
                 np.stack(
                     [

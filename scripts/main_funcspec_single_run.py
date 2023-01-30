@@ -12,6 +12,7 @@ import pandas as pd
 import numpy as np
 
 from community.data.datasets import get_datasets_alphabet, get_datasets_symbols
+from community.data.tasks import get_task_target
 from community.funcspec.single_model_loop import train_and_compute_metrics
 import wandb
 
@@ -51,6 +52,7 @@ if __name__ == "__main__":
         "common_input": True,
         "n_diff_symbols": n_digits,
         "parallel": False,
+        "adjust_probas": False,
     }
 
     if symbol_config["static"]:
@@ -72,7 +74,6 @@ if __name__ == "__main__":
     }
 
     if dataset_config["data_type"] == "symbols":
-
         dataset_config["input_size"] = symbol_config["input_size"] ** 2
     else:
         dataset_config["input_size"] = 784
@@ -146,7 +147,7 @@ if __name__ == "__main__":
         "metrics": {"chosen_timesteps": ["mid-", "last"]},
         "varying_params": {},
         ###------ Task ------
-        "task": "parity-both",
+        "task": "count-max",
         ### ------ Task ------
         "metrics_only": False,
         "n_tests": 10 if not debug_run else 2,
@@ -183,6 +184,8 @@ if __name__ == "__main__":
         task = config["task"] = [
             [str(i), str((i + 1) % n_agents)] for i in range(n_agents)
         ]
+    if config["task"] == "count-max":
+        config["datasets"]["symbol_config"]["adjust_probas"] = True
 
     configure_readouts(config)
 
