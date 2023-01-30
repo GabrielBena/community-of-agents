@@ -8,10 +8,12 @@ def gather(l, rf):
 
 
 def init_readout_weights(readout):
-    try:
-        nn.init.kaiming_uniform_(readout.weight, nonlinearity="relu")
-    except AttributeError:
-        [init_readout_weights(r) for r in readout]
+    if not isinstance(readout, nn.ReLU):
+
+        try:
+            nn.init.kaiming_uniform_(readout.weight, nonlinearity="relu")
+        except AttributeError:
+            [init_readout_weights(r) for r in readout]
 
 
 def gather(l, gather_from):
@@ -24,9 +26,11 @@ def get_readout_dimensions(
 
     nested_params = readout_from, n_readouts, n_hid, n_out
     n_agents = len(agents)
-    agent_dims = [ag.dims for ag in agents]
+
     if isinstance(n_readouts, list):
+        # every parameters must be follow the same nested structure
         assert len(torch.tensor([len(p) for p in nested_params]).unique()) == 1
+        # return nested recursive
         return [
             get_readout_dimensions(agents, common_readout, *n_params)
             for n_params in zip(*nested_params)

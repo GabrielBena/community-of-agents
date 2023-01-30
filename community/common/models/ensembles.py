@@ -121,9 +121,6 @@ class Community(nn.Module):
     # Forward function of the community
     def forward(self, x, forced_comms=None, state_masks=None):
 
-        if state_masks is not None:
-            state_masks = torch.tensor(state_masks).to(x.device)
-
         # Split_data checks if the data is provided on a per-agent manner or in a one-to-all manner.
         # data can be a double list of len n_timesteps x n_agents or a tensor with second dimension n_agents
         split_data = (type(x) is torch.Tensor and len(x.shape) > 3) or type(x) is list
@@ -187,7 +184,7 @@ class Community(nn.Module):
                     outputs[i].append(out)
 
                 if state_masks is not None:
-                    h *= state_masks[i]
+                    h *= torch.tensor(state_masks[i]).to(x.device)
 
                 ag_states.append(h)
                 connections[i].append(inputs_connect)
@@ -630,3 +627,8 @@ class ConvCommunity(nn.Module):
                 nb_connections[tag] = nb_connected
 
         return nb_connections
+
+
+class UnifiedRNN(nn.Module):
+    def __init__(self) -> None:
+        super().__init__()
