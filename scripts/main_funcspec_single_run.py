@@ -145,7 +145,7 @@ if __name__ == "__main__":
             "force_connections": False,
         },
         "metrics": {"chosen_timesteps": ["mid-", "last"]},
-        "varying_params": {"n_classes_per_digit": 20},
+        "varying_params": {},
         ###------ Task ------
         "task": "parity-both",
         ### ------ Task ------

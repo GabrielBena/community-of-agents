@@ -11,8 +11,8 @@ datasets:
     adjust_probas: false
     common_input: true
     data_size:
+      - 50000
       - 10000
-      - 2000
     input_size: 60
     n_diff_symbols: 2
     n_symbols: 19
@@ -21,7 +21,7 @@ datasets:
     static: true
     symbol_type: mod_5
   use_cuda: true
-debug_run: true
+debug_run: false
 metrics:
   chosen_timesteps:
     - mid-
@@ -53,7 +53,7 @@ model:
   n_readouts: 1
   readout_from:
   readout_n_hid:
-n_tests: 2
+n_tests: 10
 optimization:
   agents:
     gamma: 0.95
@@ -74,8 +74,7 @@ training:
   early_stop: false
   force_connections: false
   inverse_task: false
-  n_epochs: 1
+  n_epochs: 25
   stopping_acc: 0.95
-use_tqdm: true
-varying_params:
-  n_classes_per_digit: 20
+use_tqdm: false
+varying_params: {}

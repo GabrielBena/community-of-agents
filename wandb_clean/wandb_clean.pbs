@@ -1,0 +1,13 @@
+#PBS -lselect=1:ncpus=4:mem=64gb
+#PBS -lwalltime=72:00:00
+
+
+
+# Load modules for any applications
+module load anaconda3/personal
+source activate community
+
+# Change to the directory the job was submitted from
+cd ~/community-of-agents
+
+wandb sync --clean
