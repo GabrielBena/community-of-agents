@@ -52,19 +52,16 @@ def get_acc(output, t_target):
         pred = output.argmax(
             dim=-1, keepdim=True
         )  # get the index of the max log-probability
-
         if len(pred.shape) > 2:
             acc = [get_acc(o, t) for o, t in zip(output, t_target)]
         else:
-
             correct = pred.eq(t_target.view_as(pred))
-            acc = ((correct.sum() / t_target.numel()).cpu().data.numpy()).mean()
+            acc = (correct.sum() / t_target.numel()).cpu().data.numpy()
 
     except (AttributeError, RuntimeError) as e:
         acc = [get_acc(o, t) for o, t in zip(output, t_target)]
     except TypeError:
-        t_target = torch.stack([t_target for _ in range(len(output))])
-        acc = [get_acc(o, t) for o, t in zip(output, t_target)]
+        acc = [get_acc(o, t_target) for o in output]
 
     return np.array(acc)
 
@@ -564,7 +561,7 @@ def plot_confusion_mat(
         # print((outputs[-1][0] == outputs[-1][1]).all())
         output, deciding_ags = get_decision(outputs, *decision, target)
 
-        loss = F.cross_entropy(output, t_target)
+        loss = get_loss(output, t_target)
 
         pred = output.argmax(dim=-1, keepdim=True)
         correct = pred.eq(t_target.view_as(pred)).cpu().data

@@ -42,9 +42,9 @@ def get_readout_dimensions(
         if readout_from is None:
             if common_readout:
                 readout_from = np.arange(n_agents)
-
             else:
                 readout_from = [0]
+
         if n_hid is None:
 
             readout_dims = [
@@ -97,6 +97,8 @@ def readout_process(readout, readout_from, input):
             gathered_input = torch.cat([*input], -1)
         elif isinstance(readout_from, tuple):
             gathered_input = torch.cat([s for s in gather(input, readout_from)], -1)
+        else:
+            gathered_input = torch.cat([s for s in gather(input, [readout_from])], -1)
         try:
             out = readout(gathered_input).squeeze()
         except NotImplementedError:
