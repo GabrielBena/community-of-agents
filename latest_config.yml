@@ -66,7 +66,7 @@ optimization:
     global_rewire: false
     l1: 1.0e-05
     lr: 0.001
-task: count-max
+task: parity-both
 training:
   decision:
     - last
@@ -77,4 +77,5 @@ training:
   n_epochs: 1
   stopping_acc: 0.95
 use_tqdm: true
-varying_params: {}
+varying_params:
+  n_classes_per_digit: 20

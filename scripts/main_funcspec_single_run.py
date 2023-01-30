@@ -25,14 +25,14 @@ from tqdm.notebook import tqdm as tqdm_n
 if __name__ == "__main__":
 
     # Use for debugging
-    debug_run = False
+    debug_run = True
 
     if debug_run:
         print("Debugging Mode is activated ! Only doing mock training")
 
     use_cuda = True
     device = torch.device("cuda" if use_cuda and torch.cuda.is_available() else "cpu")
-    print(f"Training on {device}")
+    # print(f"Training on {device}")
 
     n_agents = 2
     n_digits = n_agents
@@ -145,9 +145,9 @@ if __name__ == "__main__":
             "force_connections": False,
         },
         "metrics": {"chosen_timesteps": ["mid-", "last"]},
-        "varying_params": {},
+        "varying_params": {"n_classes_per_digit": 20},
         ###------ Task ------
-        "task": "count-max",
+        "task": "parity-both",
         ### ------ Task ------
         "metrics_only": False,
         "n_tests": 10 if not debug_run else 2,
@@ -187,11 +187,38 @@ if __name__ == "__main__":
     if config["task"] == "count-max":
         config["datasets"]["symbol_config"]["adjust_probas"] = True
 
+    if "n_classes_per_digit" in varying_params:
+        config["datasets"]["n_classes"] = (
+            config["datasets"]["n_classes_per_digit"] * config["model"]["n_agents"]
+        )
+        config["datasets"]["symbol_config"]["n_symbols"] = (
+            config["datasets"]["n_classes"] - 1
+        )
+    elif "n_classes" in varying_params:
+        config["datasets"]["n_classes_per_digit"] = (
+            config["datasets"]["n_classes"] // config["model"]["n_agents"]
+        )
+        config["datasets"]["symbol_config"]["n_symbols"] = (
+            config["datasets"]["n_classes"] - 1
+        )
+    elif "n_symbols" in varying_params:
+        config["datasets"]["n_classes"] = (
+            config["datasets"]["symbol_config"]["n_symbols"] - 1
+        )
+        config["datasets"]["n_classes_per_digit"] = (
+            config["datasets"]["n_classes"] // config["model"]["n_agents"]
+        )
+
     configure_readouts(config)
 
     metric_results, metric_datas, training_results = {}, [], []
 
     pbar = range(config["n_tests"])
+
+    # print(
+    #    f'Training {n_agents} agents of size {n_hidden} on task {task} using {"common"*common_readout + "separate"*(1-common_readout)} readout and decision {decision}, with {sparsity * n_hidden**2} connections'
+    # )
+
     if config["use_tqdm"]:
         pbar = tqdm(pbar, desc="Trials : ")
 
