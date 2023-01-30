@@ -14,6 +14,7 @@ warnings.filterwarnings("ignore")
 from community.common.training import train_community
 from community.common.init import init_community, init_optimizers
 from community.utils.others import is_notebook
+from community.utils.configs import configure_readouts
 from community.utils.wandb_utils import get_wandb_artifact, mkdir_or_save_torch
 
 # ------ Bottleneck Metric ------ :
@@ -22,16 +23,12 @@ from community.utils.wandb_utils import get_wandb_artifact, mkdir_or_save_torch
 def readout_retrain(
     community,
     loaders,
-    n_classes=10,
-    n_agents=2,
-    n_digits=2,
-    deepR_params_dict={},
+    config,
     n_epochs=3,
     train_all_param=False,
     force_connections=False,
     use_tqdm=False,
     device=torch.device("cuda"),
-    symbols=False,
     chosen_timesteps=["0", "mid-", "last"],
     task="all",
     n_hid=None,
@@ -67,6 +64,18 @@ def readout_retrain(
 
     train_outs = []
 
+    n_agents = config["model"]["n_agents"]
+    n_classes = config["datasets"]["n_classes"]
+    symbols = config["datasets"]["data_type"] == "symbols"
+
+    f_config = copy.deepcopy(config)
+    f_config["model"]["readout"]["common_readout"] = False
+    f_config["task"] = task
+    f_config["model"]["readout"]["n_hid"] = n_hid
+
+    readout_config = configure_readouts(f_config)
+    f_config["model"]["readout"].update(readout_config)
+
     for training_timestep in pbar:
 
         single_losses = [[] for target in range(n_agents)]
@@ -74,9 +83,14 @@ def readout_retrain(
         # for target in range(2) :
 
         f_community = copy.deepcopy(community)
+        f_community.readout_config = f_config["model"]["readout"]
+        f_community.initialize_readout()
+        f_community.to(device)
 
+        """
         for f_agent in f_community.agents:
-
+            
+            
             n_in = (
                 f_agent.bottleneck.out_features
                 if f_agent.use_bottleneck
@@ -112,9 +126,10 @@ def readout_retrain(
         f_community.readout = None
 
         # return f_community
+        """
 
         for name, p in f_community.named_parameters():
-            if "readout" in name and "agents.0" in name:
+            if "readout" in name:  # and "agents.0" in name:
                 p.requires_grad = True
             else:
                 p.requires_grad = train_all_param
@@ -122,9 +137,7 @@ def readout_retrain(
         lr_ag, gamma = 1e-3, 0.9
         params_dict = {"lr": lr_ag, "gamma": gamma, "reg_readout": None}
 
-        optimizers, schedulers = init_optimizers(
-            f_community, params_dict, deepR_params_dict
-        )
+        optimizers, schedulers = init_optimizers(f_community, params_dict)
 
         try:
             min_acc = community.best_acc * 0.95
@@ -141,7 +154,7 @@ def readout_retrain(
             "decision": (training_timestep, "both"),
             "stopping_acc": None,
             "early_stop": False,
-            "deepR_params_dict": deepR_params_dict,
+            "deepR_params_dict": {},
             "data_type": "symbols" if symbols else None,
             "force_connections": force_connections,
             "n_classes": n_classes,
@@ -173,7 +186,7 @@ def readout_retrain(
 
     test_accs = test_accs.max(0)  # n_agents x n_targets x timesteps
 
-    return {"accs": test_accs}  # n_agents x n_targets x n_timesteps
+    return {"accs": test_accs}, f_community  # n_agents x n_targets x n_timesteps
 
 
 def compute_bottleneck_metrics(

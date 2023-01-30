@@ -6,7 +6,6 @@ from scipy.optimize import fmin_cobyla
 from typing import Any, AnyStr, Callable, Optional, Tuple
 
 
-
 class SymbolsDataset(Dataset):
     def __init__(self, data_config, plot=False) -> None:
         super().__init__()
@@ -67,7 +66,8 @@ class SymbolsDataset(Dataset):
             symbols = [np.zeros((s_size + 1, s_size + 1)) for n in range(n_diff)]
             step = s_size // n_diff
 
-            symbol_orders = np.array([0, s_size // 2, s_size - 2, 1])
+            # symbol_orders = np.array([0, s_size // 2 - 1, s_size - 2, 1])
+            symbol_orders = [0, 3]
             if len(symbol_orders) < n_diff:
                 symbol_orders = np.concatenate(
                     (symbol_orders, np.arange(len(symbol_orders), n_diff))

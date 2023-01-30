@@ -66,7 +66,7 @@ def init_community(model_dict, device=torch.device("cuda")):
     return community
 
 
-def init_optimizers(community, params_dict, deepR_params_dict):
+def init_optimizers(community, params_dict, deepR_params_dict=None):
     """
     Optimizers initialization
     Args :
