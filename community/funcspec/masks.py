@@ -165,7 +165,7 @@ class Mask_Community(nn.Module):
                 for i in range(len(self.model.agents))
             ]
         )
-        return sums / total
+        return sums / total  # , sums
 
     def forward(self, x, conns=0.0):
         f_model = copy.deepcopy(self.model)

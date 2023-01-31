@@ -66,7 +66,6 @@ if __name__ == "__main__":
             "input_size": 60,
             "static": True,
             "symbol_type": "mod_5",
-            "common_input": dataset_config["common_input"],
             "n_diff_symbols": n_digits,
             "parallel": False,
             "adjust_probas": False,
@@ -225,8 +224,8 @@ if __name__ == "__main__":
         pbar0 = tqdm(pbar0, position=0, desc="Varying Params")
 
     for v_params in pbar0:
-        
-        if config['use_tqdm'] : 
+
+        if config["use_tqdm"]:
             pbar0.set_description(f"Varying Params : {v_params}{sweep_params}")
 
         wandb.config.update({"varying_params": v_params}, allow_val_change=True)
@@ -289,7 +288,7 @@ if __name__ == "__main__":
 
             if dataset_config["data_type"] == "symbols":
                 loaders, datasets = get_datasets_symbols(
-                    symbol_config,
+                    config["datasets"],
                     dataset_config["batch_size"],
                     dataset_config["use_cuda"],
                 )

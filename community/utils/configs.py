@@ -21,6 +21,7 @@ def get_training_dict(config):
         "sparsity": config["model"]["connections"]["sparsity"],
         "n_classes": config["datasets"]["n_classes"],
         "n_classes_per_digit": config["datasets"]["n_classes_per_digit"],
+        "common_input": config["datasets"]["common_input"],
     }
 
     return training_dict

@@ -35,6 +35,7 @@ def readout_retrain(
     chosen_timesteps=["0", "mid-", "last"],
     task="all",
     n_hid=None,
+    retrain_common=False,
 ):
     """
     Retrains the bottleneck-readout connections of each sub-network for each sub-task and stores performance.
@@ -75,12 +76,48 @@ def readout_retrain(
 
         f_community = copy.deepcopy(community)
 
-        for f_agent in f_community.agents:
+        if not retrain_common:
 
+            for f_agent in f_community.agents:
+
+                n_in = (
+                    f_agent.bottleneck.out_features
+                    if f_agent.use_bottleneck
+                    else f_agent.dims[-2]
+                )
+                n_out = n_classes
+                if n_hid is not None:
+                    dims = [n_in, n_hid, n_out]
+                else:
+                    dims = [n_in, n_out]
+
+                readout = [
+                    [nn.Linear(d1, d2) for d1, d2 in zip(dims[:-1], dims[1:])]
+                    for _ in range(n_digits)
+                ]
+
+                readout_final = []
+                for r in readout:
+                    if n_hid is not None:
+                        r.insert(1, nn.ReLU())
+                        r = nn.Sequential(*r)
+                        readout_final.append(r)
+                    else:
+                        readout_final.append(r[0])
+
+                f_agent.readout = nn.ModuleList(readout_final)
+
+                f_agent.use_readout = True
+                f_agent.n_readouts = n_digits
+                f_agent.to(device)
+
+            f_community.use_common_readout = False
+            f_community.readout = None
+        else:
             n_in = (
-                f_agent.bottleneck.out_features
-                if f_agent.use_bottleneck
-                else f_agent.dims[-2]
+                2 * f_community.agents[0].bottleneck.out_features
+                if f_community.agents[0].use_bottleneck
+                else 2 * f_community.agents[0].dims[-2]
             )
             n_out = n_classes
             if n_hid is not None:
@@ -102,14 +139,10 @@ def readout_retrain(
                 else:
                     readout_final.append(r[0])
 
-            f_agent.readout = nn.ModuleList(readout_final)
-
-            f_agent.use_readout = True
-            f_agent.n_readouts = n_digits
-            f_agent.to(device)
-
-        f_community.use_common_readout = False
-        f_community.readout = None
+            f_community.readout = nn.ModuleList(readout_final)
+            f_community.use_common_readout = True
+            f_community.readout_from = [np.arange(n_agents) for r in readout_final]
+            f_community.to(device)
 
         for name, p in f_community.named_parameters():
             if "readout" in name:  # and "agents.0" in name:

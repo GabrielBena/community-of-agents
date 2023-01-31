@@ -60,7 +60,6 @@ def masked_inference(
     state_masks = [
         np.array([i not in mu for i in np.arange(n_hid)]) for mu in masked_units
     ]
-
     output, *_ = community(data, state_masks=state_masks)
     output, deciding_ags = get_decision(output, *decision, target=t_target)
     loss, tt_target, output = get_loss(output, t_target)
@@ -72,18 +71,26 @@ def masked_inference(
         .cpu()
         .data.numpy()
     )
+
     if not common_readout:
         acc = acc[int(task)]
 
     return acc
 
 
-def get_data(task, datasets, n_classes_per_digit):
-    data, target = datasets[1].data[0][:512], datasets[1].data[1][:512]
-    data, target = process_data(data, target, task, symbols=True)
+def get_data(task, loaders, n_classes_per_digit, symbols):
+
+    data, target = [], []
+    for (d, t), _ in zip(loaders[1], range(4)):
+        data.append(d)
+        target.append(t)
+
+    data, target = torch.cat(data), torch.cat(target)
+    # data, target = datasets[1].data[0][:512], datasets[1].data[1][:512]
+    data, target = process_data(data, target, task, symbols=symbols)
     t_target = get_task_target(target, task, n_classes_per_digit)
 
-    return data, t_target
+    return data.float(), t_target
 
 
 def compute_shapley_values(
@@ -92,6 +99,7 @@ def compute_shapley_values(
     n_permutations,
     datasets,
     config,
+    parallel=False,
 ):
 
     permutation_space = msa.make_permutation_space(
@@ -104,7 +112,8 @@ def compute_shapley_values(
     input(f"Number of combinations to go through : {len(complement_space)}")
 
     n_classes_per_digit = config["datasets"]["n_classes_per_digit"]
-    common_readout = config["model"]["common_readout"]
+    symbols = config["datasets"]["data_type"] == "symbols"
+    common_readout = community.use_common_readout
 
     torch.set_num_threads(1)
     community.to("cpu")
@@ -118,7 +127,7 @@ def compute_shapley_values(
         else:
             decision = ["last", "max"]
 
-        data, t_target = get_data(task, datasets, n_classes_per_digit)
+        data, t_target = get_data(task, datasets, n_classes_per_digit, symbols)
 
         n_processes = mp.cpu_count()
         # set_start_method('spawn', force=True)
@@ -136,18 +145,29 @@ def compute_shapley_values(
 
         print(f"Task {task} : Performance without ablations : {masked_inf([])}")
 
-        try:
+        if parallel:
+
+            try:
+                all_accs.append(
+                    pool.map(
+                        masked_inf,
+                        tqdm(complement_space),
+                    )
+                )
+            except KeyboardInterrupt:
+                exit()
+            finally:
+                pool.terminate()
+                pool.join()
+        else:
             all_accs.append(
-                pool.map(
-                    masked_inf,
-                    tqdm(complement_space),
+                list(
+                    map(
+                        masked_inf,
+                        tqdm(complement_space),
+                    )
                 )
             )
-        except KeyboardInterrupt:
-            exit()
-        finally:
-            pool.terminate()
-            pool.join()
 
     contributions = [dict(zip(combination_space, accs)) for accs in all_accs]
     lesion_effects = [dict(zip(complement_space, accs)) for accs in all_accs]

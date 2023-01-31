@@ -142,6 +142,7 @@ def train_community(
     deepR_params_dict = config["deepR_params_dict"]
     symbols = config["data_type"] == "symbols"
     force_connections = config["force_connections"]
+    common_input = config["common_input"]
 
     n_classes = config["n_classes"]
     n_classes_per_digit = config["n_classes_per_digit"]
@@ -182,7 +183,9 @@ def train_community(
 
     # dummy fwd for shapes
     data, target = next(iter(train_loader))
-    data, target = process_data(data, target, task, conv_com, symbols=True)
+    data, target = process_data(
+        data, target, task, conv_com, symbols=symbols, common_input=common_input
+    )
     out, states, fconns = model(data.to(device))
 
     # try:
@@ -205,7 +208,12 @@ def train_community(
 
                 # Task Selection
                 data, target = process_data(
-                    data, target, task, conv_com, symbols=symbols
+                    data,
+                    target,
+                    task,
+                    conv_com,
+                    symbols=symbols,
+                    common_input=common_input,
                 )
 
                 if task == "family":
@@ -382,6 +390,7 @@ def test_community(
 
     n_classes = config["n_classes"]
     n_classes_per_digit = config["n_classes_per_digit"]
+    common_input = config["common_input"]
 
     task = config["task"]
     decision = config["decision"]
@@ -396,7 +405,9 @@ def test_community(
         torch.manual_seed(seed)
 
     data, target = next(iter(test_loader))
-    data, target = process_data(data, target, task, conv_com, symbols=symbols)
+    data, target = process_data(
+        data, target, task, conv_com, symbols=symbols, common_input=common_input
+    )
     out, states, fconns = model(data.to(device))
     with torch.no_grad():
         for data, target in test_loader:
@@ -406,7 +417,9 @@ def test_community(
             else:
                 data, target = data.to(device), target.to(device)
 
-            data, t_target = process_data(data, target, task, conv_com, symbols=symbols)
+            data, t_target = process_data(
+                data, target, task, conv_com, symbols=symbols, common_input=common_input
+            )
 
             if task == "family":
                 t_target, factors = get_task_family_dict(t_target, n_classes_per_digit)
@@ -486,12 +499,15 @@ def plot_confusion_mat(model, test_loader, config, device=torch.device("cuda")):
     task = config["task"]
     symbols = config["data_type"] == "symbols"
     decision = config["decision"]
+    common_input = config["common_input"]
 
     conv_com = type(model) is ConvCommunity
 
     for batch_idx, (data, target) in enumerate(test_loader):
 
-        data, target = process_data(data, target, task, conv_com, symbols=symbols)
+        data, target = process_data(
+            data, target, task, conv_com, symbols=symbols, common_input=common_input
+        )
 
         t_target = get_task_target(target, task, n_classes).to(device)
 

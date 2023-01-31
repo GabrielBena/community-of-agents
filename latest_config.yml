@@ -67,5 +67,5 @@ training:
   inverse_task: false
   n_epochs: 25
   stopping_acc: 0.95
-use_tqdm: false
+use_tqdm: 2
 varying_params: {}

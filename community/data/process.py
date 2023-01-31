@@ -86,6 +86,7 @@ def process_data(
     symbols=False,
     varying_temporal=False,
     n_steps=2,
+    common_input=False,
 ):
 
     if symbols:
@@ -112,5 +113,7 @@ def process_data(
             data, target = varying_temporal_data(
                 data, target, n_steps=n_steps, conv_com=conv_com, transpose_and_cat=True
             )
+        if common_input:
+            data = data.reshape(data.shape[0], data.shape[2], -1)
 
     return data, target
