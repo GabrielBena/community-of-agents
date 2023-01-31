@@ -25,13 +25,13 @@ from tqdm.notebook import tqdm as tqdm_n
 if __name__ == "__main__":
 
     # Use for debugging
-    debug_run = True
+    debug_run = False
 
     if debug_run:
         print("Debugging Mode is activated ! Only doing mock training")
 
-    use_cuda = True
-    device = torch.device("cuda" if use_cuda and torch.cuda.is_available() else "cpu")
+    use_cuda = torch.cuda.is_available()
+    device = torch.device("cuda" if use_cuda  else "cpu")
     # print(f"Training on {device}")
 
     n_agents = 2
@@ -43,7 +43,7 @@ if __name__ == "__main__":
     n_classes = n_classes_per_digit * n_digits
 
     dataset_config = {
-        "batch_size": 512,
+        "batch_size": 512 if use_cuda else 256,
         "data_sizes": None if not debug_run else data_sizes // 5,
         "use_cuda": use_cuda,
         "fix_asym": True,
@@ -227,7 +227,7 @@ if __name__ == "__main__":
     for v_params in pbar0:
         pbar0.set_description(f"Varying Params : {v_params}{sweep_params}")
 
-        # wandb.config.update({"varying_params": v_params}, allow_val_change=True)
+        wandb.config.update({"varying_params": v_params}, allow_val_change=True)
 
         for param_name, param in v_params.items():
             wandb.define_metric(param_name)
