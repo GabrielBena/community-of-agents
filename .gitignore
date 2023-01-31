@@ -8,6 +8,8 @@ __pycache__
 *.pyc
 core*
 
+latest_config.yml
+
 # C extensions
 *.so
 
