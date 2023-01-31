@@ -34,7 +34,10 @@ def configure_readouts(config):
     n_classes = config["datasets"]["n_classes"]
     n_classes_per_ag = config["datasets"]["n_classes_per_digit"]
     symbol_config = config["datasets"]["symbol_config"]
-    n_symbols = symbol_config["n_diff_symbols"]
+    try:
+        n_symbols = symbol_config["n_diff_symbols"]
+    except KeyError:
+        n_symbols = 2
 
     if task == "family":
 
@@ -96,22 +99,25 @@ def configure_readouts(config):
             config["model"]["readout_from"] = None
             config["training"]["decision"][-1] = "max"
 
-    elif task in [
-        "sum",
-        "parity-digits",
-        "inv_parity-digits",
-        "parity",
-        "max",
-        "min",
-        "count-min",
-        "count-max",
-        "count-equal",
-    ]:
+    elif (
+        task
+        in [
+            "sum",
+            "max",
+            "min",
+            "0",
+            "1",
+        ]
+        or "parity" in task
+        or "count" in task
+    ):
 
         if task == "sum":
             config["model"]["agents"]["n_out"] = n_classes
         elif task in ["parity", "count-equal"]:
             config["model"]["agents"]["n_out"] = 2
+        elif task in ["parity-equal"]:
+            config["model"]["agents"]["n_out"] = n_classes_per_ag + 1
         else:
             config["model"]["agents"]["n_out"] = n_classes_per_ag
 

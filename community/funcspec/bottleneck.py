@@ -113,7 +113,6 @@ def readout_retrain(
 
         for name, p in f_community.named_parameters():
             if "readout" in name:  # and "agents.0" in name:
-
                 p.requires_grad = True
             else:
                 p.requires_grad = train_all_param
@@ -172,7 +171,7 @@ def readout_retrain(
 
     test_accs = test_accs.max(0)  # n_agents x n_targets x timesteps
 
-    return {"accs": test_accs}  # n_agents x n_targets x n_timesteps
+    return {"accs": test_accs}, f_community  # n_agents x n_targets x n_timesteps
 
 
 def compute_bottleneck_metrics(

@@ -72,6 +72,12 @@ def get_single_task(task, target, n_classes):
                 ],
                 -1,
             )
+        elif "equal" in task:
+            tgt = torch.where(parity.bool(), digits[0], digits[1])
+            tgt[
+                (digits[0] == digits[1]) | (digits[0] == (digits[1] - 1) % n_classes)
+            ] = (n_classes + 1)
+            return tgt
         else:
             return parity
 

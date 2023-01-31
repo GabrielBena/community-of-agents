@@ -102,7 +102,7 @@ def train_community(
     n_epochs=None,
     trials=(True, True),
     joint_training=False,
-    use_tqdm=True,
+    use_tqdm=2,
     device=torch.device("cuda"),
     show_all_acc=True,
 ):
@@ -119,11 +119,6 @@ def train_community(
 
     optimizer_agents, optimizer_connections = optimizers
     training, testing = trials
-
-    try:
-        model: torch.compile(model)
-    except AttributeError:
-        pass
 
     notebook = is_notebook()
 
@@ -189,6 +184,11 @@ def train_community(
     data, target = next(iter(train_loader))
     data, target = process_data(data, target, task, conv_com, symbols=True)
     out, states, fconns = model(data.to(device))
+
+    # try:
+    #    model = torch.compile(model)
+    # except AttributeError:
+    #    pass
 
     for epoch in pbar:
         if training:

@@ -27,12 +27,25 @@ def init_and_train(config, loaders, device):
 
     use_tqdm = config["use_tqdm"]
 
-    for v_param_name, v_param in wandb.config["varying_params"].items():
-        assert _finditem(config, v_param_name) == v_param
-        if use_wandb:
-            wandb.log({v_param_name: v_param})
-            if v_param_name == "sparsity":
-                wandb.log({"q_measure": (1 - v_param) / (2 * (1 + v_param))})
+    try:
+        for v_param_name, v_param in wandb.config["varying_params"].items():
+            assert _finditem(config, v_param_name) == v_param
+            if use_wandb:
+                wandb.log({v_param_name: v_param})
+                if v_param_name == "sparsity":
+                    wandb.log({"q_measure": (1 - v_param) / (2 * (1 + v_param))})
+    except KeyError:
+        pass
+
+    try:
+        for v_param_name, v_param in wandb.config["sweep_params"].items():
+            assert _finditem(config, v_param_name) == v_param
+            if use_wandb:
+                wandb.log({v_param_name: v_param})
+                if v_param_name == "sparsity":
+                    wandb.log({"q_measure": (1 - v_param) / (2 * (1 + v_param))})
+    except KeyError:
+        pass
 
     # ------  Train ------
 
@@ -57,7 +70,7 @@ def init_and_train(config, loaders, device):
                 schedulers,
                 config=training_dict,
                 device=device,
-                use_tqdm=1 if use_tqdm else False,
+                use_tqdm=use_tqdm,
             )
 
             test_accs = train_out["test_accs"]
@@ -107,7 +120,10 @@ def compute_all_metrics(trained_coms, loaders, config, device):
     chosen_timesteps = config["metrics"]["chosen_timesteps"]
 
     n_agents = config["model"]["n_agents"]
-    n_digits = config["datasets"]["symbol_config"]["n_diff_symbols"]
+    try:
+        n_digits = config["datasets"]["symbol_config"]["n_diff_symbols"]
+    except KeyError:
+        n_digits = 2
 
     use_tqdm = config["use_tqdm"]
 
@@ -135,7 +151,7 @@ def compute_all_metrics(trained_coms, loaders, config, device):
 
     community = trained_coms["Without Bottleneck"]
     # print('Bottlenecks Retrain')
-    bottleneck_results = readout_retrain(
+    bottleneck_results, _ = readout_retrain(
         community,
         loaders,
         n_classes,

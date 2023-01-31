@@ -29,7 +29,7 @@ class Community(nn.Module):
         binarize=False,
         comms_start="1",
         comms_dropout=0.0,
-        comms_out_scale=0.1
+        comms_out_scale=0.1,
     ):
 
         super().__init__()
@@ -94,6 +94,20 @@ class Community(nn.Module):
             nn.init.kaiming_uniform_(readout.weight, nonlinearity="relu")
         except AttributeError:
             [self.init_readout_weights(r) for r in self.readout]
+
+    @property
+    def min_t_comms(self):
+        if self.comms_start == "start":
+            min_t_comms = 1
+        elif self.comms_start == "mid":
+            min_t_comms = self.nb_steps // 2
+        elif self.comms_start == "last":
+            min_t_comms = self.nb_steps - 1
+        elif isinstance(self.comms_start, int):
+            min_t_comms = self.comms_start
+        else:
+            raise NotImplementedError
+        return min_t_comms
 
     def get_readout_dimensions(self, n_readout, readout_from, n_hid):
 
@@ -208,20 +222,7 @@ class Community(nn.Module):
         # Split_data checks if the data is provided on a per-agent manner or in a one-to-all manner.
         # data can be a double list of len n_timesteps x n_agents or a tensor with second dimension n_agents
         split_data = (type(x) is torch.Tensor and len(x.shape) > 3) or type(x) is list
-        nb_steps = len(x)
-
-        try:
-            self.min_t_comms = int(self.comms_start)
-        except ValueError:
-            if self.comms_start == "start":
-                self.min_t_comms = 1
-            elif self.comms_start == "mid":
-                self.min_t_comms = nb_steps // 2
-            elif self.comms_start == "last":
-                self.min_t_comms = nb_steps - 1
-            else:
-                raise NotImplementedError
-
+        self.nb_steps = len(x)
         outputs = [[] for ag in self.agents] if not self.use_common_readout else []
         states = [[None] for ag in self.agents]
         connections = [[] for ag in self.agents]

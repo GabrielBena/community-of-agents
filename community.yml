@@ -4,7 +4,7 @@ channels:
   - conda
   - conda-forge
 dependencies:
-  - python=3.9
+  - python
   - numpy
   - matplotlib
   - scipy
@@ -16,8 +16,8 @@ dependencies:
   - pyaml
   - pip
   - seaborn
-  - ray
   - pip : 
+    - ray
     - tqdm
     - wandb
     - torchsummary

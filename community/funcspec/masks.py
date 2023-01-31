@@ -98,8 +98,9 @@ class Mask_Community(nn.Module):
 
         self.scores = nn.ParameterDict()
         self.is_community = False
+
         self.include_ih = include_ih
-        self.include_readout = False
+        self.include_readout = include_readout
 
         for name, p in self.get_model_params(self.model).items():
             if (not "ih" in name or include_ih) and (
@@ -168,17 +169,14 @@ class Mask_Community(nn.Module):
 
     def forward(self, x, conns=0.0):
         f_model = copy.deepcopy(self.model)
+
         for (name, p) in self.get_model_params(f_model).items():
-            if (not "ih" in name or self.include_ih) and (
-                not "readout" in name or self.include_readout
-            ):
-                try:
-                    p *= self.subnets[get_new_name(name)]
-                except RuntimeError:  # subnets on cpu
-                    self.update_subnets()
-                    p *= self.subnets[get_new_name(name)]
-            elif "connections" in name:
-                # p *= 0
+            try:
+                p *= self.subnets[get_new_name(name)]
+            except RuntimeError:  # subnets on cpu
+                self.update_subnets()
+                p *= self.subnets[get_new_name(name)]
+            except KeyError:  # not using this parameter :
                 pass
 
         return f_model(x)
@@ -239,13 +237,14 @@ def train_mask(
     symbols=False,
     force_connections=False,
     include_ih=False,
+    include_r=False,
     multi_objectives=True,
 ):
     masked_community = Mask_Community(
         community,
         sparsity,
         include_ih=include_ih,
-        include_readout=not community.use_common_readout,
+        include_readout=include_r,
     ).to(device)
 
     """
@@ -276,7 +275,7 @@ def train_mask(
         "check_gradients": False,
         "reg_factor": 0.0,
         "train_connections": False,
-        "decision_params": d_params,
+        "decision": d_params,
         "stopping_acc": None,
         "early_stop": False,
         "deepR_params_dict": {},
@@ -333,7 +332,7 @@ def find_optimal_sparsity(
             "check_gradients": False,
             "reg_factor": 0.0,
             "train_connections": False,
-            "decision_params": d_params,
+            "decision": d_params,
             "stopping_acc": None,
             "early_stop": False,
             "deepR_params_dict": {},
@@ -387,18 +386,13 @@ def train_and_get_mask_metric(
     community,
     initial_sparsity,
     loaders,
-    n_tests=5,
+    config,
     n_epochs=1,
-    n_classes=10,
     lr=0.1,
-    decision_params=["last", "all"],
     use_optimal_sparsity=False,
     device=torch.device("cuda"),
     use_tqdm=False,
-    symbols=False,
-    include_ih=False,
     chosen_timesteps=["last"],
-    multi_objectives=True,
 ):
     """
     Initializes and trains masks on community model.
@@ -429,12 +423,27 @@ def train_and_get_mask_metric(
     elif use_tqdm:
         position = 0
 
+    decision_params = config["training"]["decision"]
+    n_classes = config["datasets"]["n_classes_per_digit"]
+    symbols = config["datasets"]["data_type"] == "symbols"
+    if symbols:
+        include_ih = config["datasets"]["symbol_config"]["common_input"]
+    else:
+        include_ih = False
+
+    include_r = config["model"]["common_readout"]
+
     notebook = is_notebook()
     tqdm_f = tqdm_n if notebook else tqdm
 
     pbar = chosen_timesteps
     if use_tqdm:
         pbar = tqdm_f(pbar, position=position, desc="Mask Metric Trials : ", leave=None)
+
+    if config["model"]["common_readout"]:
+        multi_objectives = config["model"]["n_readouts"] > 1
+    else:
+        multi_objectives = config["model"]["agents"]["n_readouts"] > 1
 
     for ts in pbar:
 
@@ -463,6 +472,8 @@ def train_and_get_mask_metric(
                 position + 1 if use_tqdm else False,
                 symbols=symbols,
                 include_ih=include_ih,
+                include_r=include_r,
+                multi_objectives=multi_objectives,
             )
 
             if use_optimal_sparsity:

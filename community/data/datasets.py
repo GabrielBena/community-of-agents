@@ -1,7 +1,7 @@
 import torch
 from torch.utils.data import Dataset
-from torchvision import datasets, transforms
-from torchvision.datasets import EMNIST
+from torchvision import transforms
+from torchvision.datasets import EMNIST, MNIST, FashionMNIST
 import numpy as np
 import numpy.random as rd
 from typing import Any, Callable, Dict, List, Optional
@@ -127,7 +127,7 @@ class Custom_MNIST(MNIST):
             return np.min([len(idx) for idx in self.d_idxs])
 
 
-class Custom_EMNIST(datasets.EMNIST):
+class Custom_EMNIST(EMNIST):
     def __init__(
         self,
         root: str,
@@ -198,17 +198,16 @@ class DoubleMNIST(Dataset):
             [transforms.ToTensor(), transforms.Normalize((0.1307,), (0.3081,))]
         )
 
-        dataset = datasets.MNIST(
-            root, train=train, download=True, transform=self.transform
-        )
+        dataset = MNIST(root, train=train, download=True, transform=self.transform)
         self.mnist_dataset = dataset
 
         self.fix_asym = fix_asym
         self.secondary_index = torch.randperm(len(self.mnist_dataset))
         if self.fix_asym:
             self.new_idxs = self.get_forbidden_indexs()
+            # self.secondary_index = self.secondary_index[: len(self.new_idxs)]
         else:
-            self.new_idxs = [i for i in range(len(dataset))]
+            self.new_idxs = torch.arange(len(dataset))
 
         self.permute = permute
         if self.permute:
@@ -254,6 +253,17 @@ class DoubleMNIST(Dataset):
     def __len__(self):
         # return len(self.mnist_dataset)
         return len(self.new_idxs)
+
+    @property
+    def data(self):
+        datas = [
+            [
+                d[torch.tensor(idx)]
+                for d in [self.mnist_dataset.data, self.mnist_dataset.targets]
+            ]
+            for idx in [self.new_idxs, self.secondary_index[self.new_idxs]]
+        ]
+        return [torch.stack(d, 1) for i, d in enumerate(zip(*datas))]
 
 
 class MultiDataset(Dataset):
@@ -837,13 +847,14 @@ class SymbolsDataset(Dataset):
 def get_datasets_alphabet(
     root,
     batch_size=256,
+    data_sizes=None,
     use_cuda=True,
     fix_asym=False,
     n_classes=10,
-    split_classes=True,
+    split_classes=False,
 ):
 
-    train_kwargs = {"batch_size": batch_size, "shuffle": True}
+    train_kwargs = {"batch_size": batch_size, "shuffle": True, "drop_last": True}
     test_kwargs = {"batch_size": batch_size, "shuffle": False, "drop_last": True}
     if use_cuda:
         cuda_kwargs = {"num_workers": 0, "pin_memory": True}
@@ -857,13 +868,14 @@ def get_datasets_alphabet(
     kwargs = train_kwargs, test_kwargs
 
     single_digits = [
-        datasets.MNIST(root, train=t, download=True, transform=transform)
-        for t in [True, False]
+        MNIST(root, train=t, download=True, transform=transform) for t in [True, False]
     ]
-    double_digits = [DoubleMNIST(root, train=t, fix_asym=False) for t in [True, False]]
+    double_digits = [
+        DoubleMNIST(root, train=t, fix_asym=fix_asym) for t in [True, False]
+    ]
 
     single_fashion = [
-        datasets.FashionMNIST(root, train=t, transform=transform, download=True)
+        FashionMNIST(root, train=t, transform=transform, download=True)
         for t in [True, False]
     ]
 
@@ -905,30 +917,32 @@ def get_datasets_alphabet(
         for (s1, s2) in zip(single_digits, single_letters[0])
     ]
     double_letters = [
-        MultiDataset([s1, s2], fix_asym=fix_asym, shuffle=True)
+        MultiDataset([s1, s2], fix_asym=False, shuffle=True)
         for (s1, s2) in zip(single_letters[0], single_letters[1])
     ]
 
-    single_loaders_dig = [
-        torch.utils.data.DataLoader(d, **k) for d, k in zip(single_digits, kwargs)
+    datasets = [
+        single_digits,
+        double_digits,
+        double_letters,
+        multi_datasets,
+        single_letters,
     ]
-    double_loaders_dig = [
-        torch.utils.data.DataLoader(d, **k) for d, k in zip(double_digits, kwargs)
-    ]
-    double_loaders_letters = [
-        torch.utils.data.DataLoader(d, **k) for d, k in zip(double_letters, kwargs)
-    ]
-    multi_loaders = [
-        torch.utils.data.DataLoader(d, **k) for d, k in zip(multi_datasets, kwargs)
+    if data_sizes is not None:
+        datasets = [
+            [
+                torch.utils.data.Subset(d, torch.arange(d_size))
+                for d, d_size in zip(dsets, data_sizes)
+            ]
+            for dsets in datasets
+        ]
+
+    loaders = [
+        [torch.utils.data.DataLoader(d, **k) for d, k in zip(dsets, kwargs)]
+        for dsets in datasets
     ]
 
-    return (
-        multi_loaders,
-        double_loaders_dig,
-        double_loaders_letters,
-        single_loaders_dig,
-        single_letters,
-    )
+    return loaders
 
 
 def get_datasets_symbols(

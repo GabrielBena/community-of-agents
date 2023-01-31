@@ -98,7 +98,8 @@ class Agent(nn.Module):
                 n_bot = 10
             else:
                 n_bot = 5
-            bottleneck = [nn.Linear(n_hidden, n_bot)]
+            self.bottleneck = nn.Sequential(*[nn.Linear(n_hidden, n_bot), nn.ReLU()])
+            self.bottleneck.out_features = n_bot
             readout = [nn.Linear(n_bot, n_out)]
         else:
             readout = [nn.Linear(n_hidden, n_out)]
@@ -114,7 +115,6 @@ class Agent(nn.Module):
                 readout.extend([deepcopy(readout[0]) for _ in range(n_readouts - 1)])
 
             self.readout = nn.ModuleList(readout)
-
             self.init_readout_weights(self.readout)
 
         self.cell_params("weight_ih_l0").requires_grad = train_in_out[0]

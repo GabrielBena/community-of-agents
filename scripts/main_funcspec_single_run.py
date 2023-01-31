@@ -25,7 +25,7 @@ from tqdm.notebook import tqdm as tqdm_n
 if __name__ == "__main__":
 
     # Use for debugging
-    debug_run = False
+    debug_run = True
 
     if debug_run:
         print("Debugging Mode is activated ! Only doing mock training")
@@ -37,32 +37,14 @@ if __name__ == "__main__":
     n_agents = 2
     n_digits = n_agents
 
+    data_sizes = np.array([50000, 10000])
+
     n_classes_per_digit = 10
     n_classes = n_classes_per_digit * n_digits
 
-    print(f"Training for {n_classes} classes")
-
-    symbol_config = {
-        "data_size": [50000, 10000],
-        "nb_steps": 50,
-        "n_symbols": n_classes - 1,
-        "input_size": 60,
-        "static": True,
-        "symbol_type": "mod_5",
-        "common_input": True,
-        "n_diff_symbols": n_digits,
-        "parallel": False,
-        "adjust_probas": False,
-    }
-
-    if symbol_config["static"]:
-        symbol_config["nb_steps"] = 10
-        symbol_config["data_size"] = [
-            d if not debug_run else d // 5 for d in symbol_config["data_size"]
-        ]
-
     dataset_config = {
         "batch_size": 256,
+        "data_sizes": data_sizes if not debug_run else data_sizes // 5,
         "use_cuda": use_cuda,
         "fix_asym": False,
         "permute_dataset": False,
@@ -70,13 +52,40 @@ if __name__ == "__main__":
         "data_type": "symbols",
         "n_classes": n_classes,
         "n_classes_per_digit": n_classes_per_digit,
-        "symbol_config": symbol_config,
     }
 
     if dataset_config["data_type"] == "symbols":
+
+        print(f"Training for {n_classes} classes")
+
+        symbol_config = {
+            "data_size": dataset_config["data_sizes"],
+            "nb_steps": 50,
+            "n_symbols": n_classes - 1,
+            "input_size": 60,
+            "static": True,
+            "symbol_type": "mod_5",
+            "common_input": True,
+            "n_diff_symbols": n_digits,
+            "parallel": False,
+            "adjust_probas": False,
+        }
+
+        if symbol_config["static"]:
+            symbol_config["nb_steps"] = 10
+
         dataset_config["input_size"] = symbol_config["input_size"] ** 2
+
+        dataset_config["symbol_config"] = symbol_config
+
     else:
+        if data_type in ["double_d", "single_d"]:
+
+            dataset_config["n_classes_per_digit"] = 10
+            dataset_config["n_classes"] = n_classes_per_digit * n_digits
+
         dataset_config["input_size"] = 784
+        dataset_config["symbol_config"] = {}
 
     agents_config = {
         "n_in": dataset_config["input_size"],
@@ -155,10 +164,10 @@ if __name__ == "__main__":
         "use_tqdm": True,
     }
 
-    try :
+    try:
         os.environ["PBS_ARRAY_INDEX"]
-        config['use_tqdm'] = False
-    except KeyError : 
+        config["use_tqdm"] = False
+    except KeyError:
         pass
 
     with open("latest_config.yml", "w") as config_file:
@@ -238,10 +247,10 @@ if __name__ == "__main__":
             all_loaders = get_datasets_alphabet(
                 "data/",
                 dataset_config["batch_size"],
+                dataset_config["data_sizes"],
                 dataset_config["use_cuda"],
                 dataset_config["fix_asym"],
-                dataset_config["permute_dataset"],
-                dataset_config["seed"],
+                dataset_config["n_classes_per_digit"],
             )
             loaders = all_loaders[
                 ["multi", "double_d", "double_l", "single_d" "single_l"].index(
