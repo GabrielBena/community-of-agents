@@ -31,7 +31,7 @@ if __name__ == "__main__":
         print("Debugging Mode is activated ! Only doing mock training")
 
     use_cuda = torch.cuda.is_available()
-    device = torch.device("cuda" if use_cuda  else "cpu")
+    device = torch.device("cuda" if use_cuda else "cpu")
     # print(f"Training on {device}")
 
     n_agents = 2
@@ -44,7 +44,8 @@ if __name__ == "__main__":
 
     dataset_config = {
         "batch_size": 512 if use_cuda else 256,
-        "data_sizes": None if not debug_run else data_sizes // 5,
+        "data_sizes": None if (not debug_run) else data_sizes // 10,
+        "common_input": False,
         "use_cuda": use_cuda,
         "fix_asym": True,
         "permute_dataset": False,
@@ -65,7 +66,7 @@ if __name__ == "__main__":
             "input_size": 60,
             "static": True,
             "symbol_type": "mod_5",
-            "common_input": True,
+            "common_input": dataset_config["common_input"],
             "n_diff_symbols": n_digits,
             "parallel": False,
             "adjust_probas": False,
@@ -75,11 +76,10 @@ if __name__ == "__main__":
             symbol_config["nb_steps"] = 10
 
         dataset_config["input_size"] = symbol_config["input_size"] ** 2
-
         dataset_config["symbol_config"] = symbol_config
 
     else:
-        if dataset_config["data_type"] in ["double_d", "single_d"]:
+        if dataset_config["data_type"] in ["digits", "double_d", "single_d"]:
 
             dataset_config["n_classes_per_digit"] = 10
             dataset_config["n_classes"] = n_classes_per_digit * n_digits

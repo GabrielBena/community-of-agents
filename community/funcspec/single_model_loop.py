@@ -13,6 +13,7 @@ from community.common.init import init_community, init_optimizers
 from community.utils.configs import get_training_dict, _finditem
 import copy
 from time import sleep
+import warnings
 
 
 def init_and_train(config, loaders, device):
@@ -27,25 +28,26 @@ def init_and_train(config, loaders, device):
 
     use_tqdm = config["use_tqdm"]
 
-    try:
-        for v_param_name, v_param in wandb.config["varying_params"].items():
-            assert _finditem(config, v_param_name) == v_param
-            if use_wandb:
-                wandb.log({v_param_name: v_param})
-                if v_param_name == "sparsity":
-                    wandb.log({"q_measure": (1 - v_param) / (2 * (1 + v_param))})
-    except KeyError:
-        pass
-
-    try:
-        for v_param_name, v_param in wandb.config["sweep_params"].items():
-            assert _finditem(config, v_param_name) == v_param
-            if use_wandb:
-                wandb.log({v_param_name: v_param})
-                if v_param_name == "sparsity":
-                    wandb.log({"q_measure": (1 - v_param) / (2 * (1 + v_param))})
-    except KeyError:
-        pass
+    # Check varying parameters :
+    sentinel = object()
+    for key in ["varying_params", "sweep_params"]:
+        try:
+            for v_param_name, v_param in wandb.config[key].items():
+                found = _finditem(config, v_param_name, sentinel)
+                if found is sentinel:
+                    warnings.warn("Parameter {v_param_name} couldn't be found ! ")
+                else:
+                    assert (
+                        found == v_param
+                    ), f"{found} is different from expected {v_param} !"
+                    if use_wandb:
+                        wandb.log({v_param_name: v_param})
+                        if v_param_name == "sparsity":
+                            wandb.log(
+                                {"q_measure": (1 - v_param) / (2 * (1 + v_param))}
+                            )
+        except KeyError:
+            pass
 
     # ------  Train ------
 
@@ -160,7 +162,7 @@ def compute_all_metrics(trained_coms, loaders, config, device):
         deepR_params_dict=deepR_params_dict,
         n_epochs=1,
         device=device,
-        use_tqdm=1 if use_tqdm else False,
+        use_tqdm=use_tqdm,
         symbols=symbols,
         chosen_timesteps=chosen_timesteps,
         n_hid=30,
