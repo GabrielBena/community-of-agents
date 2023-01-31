@@ -289,6 +289,10 @@ class MultiDataset(Dataset):
         else:
             self.new_idxs = torch.arange(len(self.small_dataset))
 
+        self.data_idxs = torch.stack(
+            [s_idx[self.new_idxs] for s_idx in self.secondary_idxs]
+        )
+
     def valid_idx(self, idx):
         idx1, idx2 = self.secondary_idxs[0][idx], self.secondary_idxs[1][idx]
         _, target_1 = self.datasets[0][idx1]
@@ -315,8 +319,8 @@ class MultiDataset(Dataset):
         # get images and labels here
         # returned images must be tensor
         # labels should be int
-        idx = self.new_idxs[idx]
-        idxs = [s_idx[idx] for s_idx in self.secondary_idxs]
+
+        idxs = self.data_idxs[:, idx]
 
         samples = [d[idx] for (d, idx) in zip(self.datasets, idxs)]
         datas, labels = [d[0] for d in samples], [d[1] for d in samples]
@@ -324,6 +328,14 @@ class MultiDataset(Dataset):
             return torch.stack(datas), torch.tensor(labels)
         except:
             return datas, labels
+
+    @property
+    def data(self):
+        datas = [
+            [d[idx] for d in [dataset.data, dataset.targets]]
+            for idx, dataset in zip(self.data_idxs, self.datasets)
+        ]
+        return [torch.stack(d, 1) for i, d in enumerate(zip(*datas))]
 
 
 class SymbolsDataset(Dataset):

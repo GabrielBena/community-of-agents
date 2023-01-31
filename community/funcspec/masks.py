@@ -239,6 +239,7 @@ def train_mask(
     include_ih=False,
     include_r=False,
     multi_objectives=True,
+    common_input=False,
 ):
     masked_community = Mask_Community(
         community,
@@ -283,6 +284,7 @@ def train_mask(
         "force_connections": force_connections,
         "n_classes": n_classes,
         "n_classes_per_digit": n_classes,
+        "common_input": include_ih,
     }
 
     train_out = train_community(
@@ -426,10 +428,7 @@ def train_and_get_mask_metric(
     decision_params = config["training"]["decision"]
     n_classes = config["datasets"]["n_classes_per_digit"]
     symbols = config["datasets"]["data_type"] == "symbols"
-    if symbols:
-        include_ih = config["datasets"]["symbol_config"]["common_input"]
-    else:
-        include_ih = False
+    include_ih = config["datasets"]["common_input"]
 
     include_r = config["model"]["common_readout"]
 

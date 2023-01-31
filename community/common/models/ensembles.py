@@ -296,7 +296,10 @@ class Community(nn.Module):
 
                     return out
 
-                out = readout_process(self.readout, self.readout_from, states)
+                try:
+                    out = readout_process(self.readout, self.readout_from, states)
+                except RuntimeError:
+                    out = readout_process(self.readout, self.readout_from, out)
                 outputs.append(out)
 
         if not self.use_common_readout:

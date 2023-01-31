@@ -43,13 +43,14 @@ if __name__ == "__main__":
     n_classes = n_classes_per_digit * n_digits
 
     dataset_config = {
-        "batch_size": 256,
-        "data_sizes": data_sizes if not debug_run else data_sizes // 5,
+        "batch_size": 512 if use_cuda else 256,
+        "data_sizes": None if (not debug_run) else data_sizes // 10,
+        "common_input": False,
         "use_cuda": use_cuda,
         "fix_asym": False,
         "permute_dataset": False,
         "seed": None,
-        "data_type": "symbols",
+        "data_type": "double_d",
         "n_classes": n_classes,
         "n_classes_per_digit": n_classes_per_digit,
     }
@@ -59,13 +60,12 @@ if __name__ == "__main__":
         print(f"Training for {n_classes} classes")
 
         symbol_config = {
-            "data_size": dataset_config["data_sizes"],
+            "data_size": data_sizes if not debug_run else data_sizes // 5,
             "nb_steps": 50,
             "n_symbols": n_classes - 1,
             "input_size": 60,
             "static": True,
             "symbol_type": "mod_5",
-            "common_input": True,
             "n_diff_symbols": n_digits,
             "parallel": False,
             "adjust_probas": False,
@@ -75,11 +75,10 @@ if __name__ == "__main__":
             symbol_config["nb_steps"] = 10
 
         dataset_config["input_size"] = symbol_config["input_size"] ** 2
-
         dataset_config["symbol_config"] = symbol_config
 
     else:
-        if data_type in ["double_d", "single_d"]:
+        if dataset_config["data_type"] in ["digits", "double_d", "single_d"]:
 
             dataset_config["n_classes_per_digit"] = 10
             dataset_config["n_classes"] = n_classes_per_digit * n_digits
@@ -155,6 +154,7 @@ if __name__ == "__main__":
         },
         "metrics": {"chosen_timesteps": ["mid-", "last"]},
         "varying_params": {},
+        "sweep_params": {},
         ###------ Task ------
         "task": "parity-both",
         ### ------ Task ------
@@ -177,8 +177,8 @@ if __name__ == "__main__":
         os.environ["WANDB_MODE"] = "offline"
         pass
 
-    # wandb.init(project="funcspec_V2", entity="m2snn", config=config)
-    wandb.init(project="Funcspec", entity="gbena", config=config)
+    wandb.init(project="funcspec_V2", entity="m2snn", config=config)
+    # wandb.init(project="Funcspec", entity="gbena", config=config)
 
     run_dir = wandb.run.dir + "/"
 
@@ -188,7 +188,7 @@ if __name__ == "__main__":
     }
 
     # WAndB tracking :
-    varying_params = wandb.config["varying_params"]
+    varying_params = wandb.config["sweep_params"]
 
     for param_name, param in varying_params.items():
         wandb.define_metric(param_name)
@@ -241,7 +241,9 @@ if __name__ == "__main__":
 
         if dataset_config["data_type"] == "symbols":
             loaders, datasets = get_datasets_symbols(
-                symbol_config, dataset_config["batch_size"], dataset_config["use_cuda"]
+                config["datasets"],
+                dataset_config["batch_size"],
+                dataset_config["use_cuda"],
             )
         else:
             all_loaders = get_datasets_alphabet(

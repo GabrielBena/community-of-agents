@@ -114,6 +114,8 @@ def process_data(
                 data, target, n_steps=n_steps, conv_com=conv_com, transpose_and_cat=True
             )
         if common_input:
-            data = data.reshape(data.shape[0], data.shape[2], -1)
+            # print(data.shape)
+            data = data.transpose(1, 2)
+            data = data.reshape(data.shape[0], data.shape[1], -1)
 
     return data, target

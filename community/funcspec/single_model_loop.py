@@ -29,26 +29,20 @@ def init_and_train(config, loaders, device):
     use_tqdm = config["use_tqdm"]
 
     # Check varying parameters :
+    all_varying = wandb.config["varying_params"].copy()
+    all_varying.update(wandb.config["sweep_params"])
     sentinel = object()
-    for key in ["varying_params", "sweep_params"]:
-        try:
-            for v_param_name, v_param in wandb.config[key].items():
-                found = _finditem(config, v_param_name, sentinel)
-                if found is sentinel:
-                    warnings.warn("Parameter {v_param_name} couldn't be found ! ")
-                else:
-                    assert (
-                        found == v_param
-                    ), f"{found} is different from expected {v_param} !"
-                    if use_wandb:
-                        wandb.log({v_param_name: v_param})
-                        if v_param_name == "sparsity":
-                            wandb.log(
-                                {"q_measure": (1 - v_param) / (2 * (1 + v_param))}
-                            )
-        except KeyError:
-            pass
 
+    for v_param_name, v_param in all_varying.items():
+        found = _finditem(config, v_param_name, sentinel)
+        if found is sentinel:
+            warnings.warn("Parameter {v_param_name} couldn't be found ! ")
+        else:
+            assert found == v_param, f"{found} is different from expected {v_param} !"
+            if use_wandb:
+                wandb.log({v_param_name: v_param})
+                if v_param_name == "sparsity":
+                    wandb.log({"q_measure": (1 - v_param) / (2 * (1 + v_param))})
     # ------  Train ------
 
     train_outs = {}
@@ -188,6 +182,9 @@ def compute_all_metrics(trained_coms, loaders, config, device):
 
 def define_and_log(metrics, config, best_acc):
 
+    all_varying = wandb.config["varying_params"].copy()
+    all_varying.update(wandb.config["sweep_params"])
+
     diff_metric = lambda metric: (metric[0] - metric[1]) / (metric[0] + metric[1])
     global_diff_metric = (
         lambda metric: np.abs(diff_metric(metric[0]) - diff_metric(metric[1])) / 2
@@ -204,7 +201,7 @@ def define_and_log(metrics, config, best_acc):
         metric_data.setdefault("best_acc", [])
         metric_data["best_acc"].append(best_acc)
 
-        for v_param_name, v_param in config["varying_params"].items():
+        for v_param_name, v_param in all_varying.items():
             metric_data.setdefault(v_param_name, [])
             metric_data[v_param_name].append(v_param)
 

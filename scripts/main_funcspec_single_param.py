@@ -25,7 +25,7 @@ from tqdm.notebook import tqdm as tqdm_n
 if __name__ == "__main__":
 
     # Use for debugging
-    debug_run = False
+    debug_run = True
 
     if debug_run:
         print("Debugging Mode is activated ! Only doing mock training")
@@ -173,7 +173,7 @@ if __name__ == "__main__":
         "task": "parity-digits",
         ### ------ Task ------
         "metrics_only": False,
-        "n_tests": 5 if not debug_run else 2,
+        "n_tests": 5 if not debug_run else 1,
         "debug_run": debug_run,
         "use_tqdm": 2,
     }
@@ -188,7 +188,7 @@ if __name__ == "__main__":
         pyaml.dump(config, config_file)
 
     if debug_run:
-        os.environ["WANDB_MODE"] = "offline"
+        # os.environ["WANDB_MODE"] = "offline"
         pass
 
     wandb.init(project="funcspec_V2", entity="m2snn", config=config)
@@ -221,7 +221,9 @@ if __name__ == "__main__":
 
     pbar0 = varying_params
     if config["use_tqdm"]:
-        pbar0 = tqdm(pbar0, position=0, desc="Varying Params")
+        pbar0 = tqdm(pbar0, position=0, desc="Varying Params", leave=None)
+
+    metric_results, metric_datas, training_results = {}, [], []
 
     for v_params in pbar0:
 
@@ -273,8 +275,6 @@ if __name__ == "__main__":
 
         configure_readouts(config)
 
-        metric_results, metric_datas, training_results = {}, [], []
-
         pbar = range(config["n_tests"])
 
         # print(
@@ -282,7 +282,7 @@ if __name__ == "__main__":
         # )
 
         if config["use_tqdm"]:
-            pbar = tqdm(pbar, desc="Trials : ", position=1)
+            pbar = tqdm(pbar, desc="Trials : ", position=1, leave=None)
 
         for test in pbar:
 
@@ -320,38 +320,38 @@ if __name__ == "__main__":
                 metric_results.setdefault(m_name, [])
                 metric_results[m_name].append(metric)
 
-        final_data = pd.concat([pd.DataFrame.from_dict(d) for d in metric_datas])
-        data_table = wandb.Table(dataframe=final_data)
-        wandb.log({"Metric Results": data_table})
+    final_data = pd.concat([pd.DataFrame.from_dict(d) for d in metric_datas])
+    data_table = wandb.Table(dataframe=final_data)
+    wandb.log({"Metric Results": data_table})
 
-        try:
-            metric_results = {k: np.stack(v, -1) for k, v in metric_results.items()}
-        except ValueError:
-            pass
+    try:
+        metric_results = {k: np.stack(v, -1) for k, v in metric_results.items()}
+    except ValueError:
+        pass
 
-        final_log = {}
+    final_log = {}
 
-        try:
-            bottleneck_global_diff = final_data["bottleneck_global_diff"].mean()
-            final_log["bottleneck_global_diff"] = bottleneck_global_diff
-        except KeyError:
-            pass
+    try:
+        bottleneck_global_diff = final_data["bottleneck_global_diff"].mean()
+        final_log["bottleneck_global_diff"] = bottleneck_global_diff
+    except KeyError:
+        pass
 
-        best_test_acc = final_data["best_acc"].mean()
-        final_log["best_test_acc"] = best_test_acc
+    best_test_acc = final_data["best_acc"].mean()
+    final_log["best_test_acc"] = best_test_acc
 
-        bottleneck_det = final_data["bottleneck_det"].mean()
-        final_log["bottleneck_det"] = bottleneck_det
+    bottleneck_det = final_data["bottleneck_det"].mean()
+    final_log["bottleneck_det"] = bottleneck_det
 
-        wandb.log(final_log)
+    wandb.log(final_log)
 
-        for name, file in zip(
-            ["training_results", "metric_results"],
-            [training_results, metric_results],
-        ):
-            mkdir_or_save_torch(file, name, run_dir)
-            artifact = wandb.Artifact(name=name, type="dict")
-            artifact.add_file(run_dir + name)
-            wandb.log_artifact(artifact)
+    for name, file in zip(
+        ["training_results", "metric_results"],
+        [training_results, metric_results],
+    ):
+        mkdir_or_save_torch(file, name, run_dir)
+        artifact = wandb.Artifact(name=name, type="dict")
+        artifact.add_file(run_dir + name)
+        wandb.log_artifact(artifact)
 
     wandb.finish()

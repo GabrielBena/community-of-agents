@@ -22,7 +22,7 @@ def masked_inference(
 
     n_hid, n_agents = community.agent_dims[1], community.n_agents
     masked_units = [
-        excluded[(i * n_hid < excluded) * (excluded < (i + 1) * n_hid)] - i * n_hid
+        excluded[(i * n_hid <= excluded) * (excluded < (i + 1) * n_hid)] - i * n_hid
         for i in range(n_agents)
     ]
 
@@ -78,7 +78,7 @@ def masked_inference(
     return acc
 
 
-def get_data(task, loaders, n_classes_per_digit, symbols):
+def get_data(task, loaders, n_classes_per_digit, symbols, common_input):
 
     data, target = [], []
     for (d, t), _ in zip(loaders[1], range(4)):
@@ -87,7 +87,9 @@ def get_data(task, loaders, n_classes_per_digit, symbols):
 
     data, target = torch.cat(data), torch.cat(target)
     # data, target = datasets[1].data[0][:512], datasets[1].data[1][:512]
-    data, target = process_data(data, target, task, symbols=symbols)
+    data, target = process_data(
+        data, target, task, symbols=symbols, common_input=common_input
+    )
     t_target = get_task_target(target, task, n_classes_per_digit)
 
     return data.float(), t_target
@@ -114,6 +116,7 @@ def compute_shapley_values(
     n_classes_per_digit = config["datasets"]["n_classes_per_digit"]
     symbols = config["datasets"]["data_type"] == "symbols"
     common_readout = community.use_common_readout
+    common_input = config["datasets"]["common_input"]
 
     torch.set_num_threads(1)
     community.to("cpu")
@@ -127,7 +130,9 @@ def compute_shapley_values(
         else:
             decision = ["last", "max"]
 
-        data, t_target = get_data(task, datasets, n_classes_per_digit, symbols)
+        data, t_target = get_data(
+            task, datasets, n_classes_per_digit, symbols, common_input
+        )
 
         n_processes = mp.cpu_count()
         # set_start_method('spawn', force=True)

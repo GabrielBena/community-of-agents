@@ -36,6 +36,7 @@ def readout_retrain(
     task="all",
     n_hid=None,
     retrain_common=False,
+    common_input=False,
 ):
     """
     Retrains the bottleneck-readout connections of each sub-network for each sub-task and stores performance.
@@ -114,11 +115,7 @@ def readout_retrain(
             f_community.use_common_readout = False
             f_community.readout = None
         else:
-            n_in = (
-                2 * f_community.agents[0].bottleneck.out_features
-                if f_community.agents[0].use_bottleneck
-                else 2 * f_community.agents[0].dims[-2]
-            )
+            n_in = 2 * f_community.agents[0].dims[-2]
             n_out = n_classes
             if n_hid is not None:
                 dims = [n_in, n_hid, n_out]
@@ -177,6 +174,7 @@ def readout_retrain(
             "force_connections": force_connections,
             "n_classes": n_classes,
             "n_classes_per_digit": n_classes,
+            "common_input": common_input,
         }
 
         train_outs.append(
