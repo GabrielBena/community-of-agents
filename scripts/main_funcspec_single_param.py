@@ -47,7 +47,7 @@ if __name__ == "__main__":
         "data_sizes": None if (not debug_run) else data_sizes // 10,
         "common_input": False,
         "use_cuda": use_cuda,
-        "fix_asym": True,
+        "fix_asym": False,
         "permute_dataset": False,
         "seed": None,
         "data_type": "double_d",
@@ -239,7 +239,11 @@ if __name__ == "__main__":
                 [str(i), str((i + 1) % n_agents)] for i in range(n_agents)
             ]
         if config["task"] == "count-max":
-            config["datasets"]["symbol_config"]["adjust_probas"] = True
+            try:
+                config["datasets"]["adjust_probas"] = True
+                config["datasets"]["symbol_config"]["adjust_probas"] = True
+            except KeyError:
+                pass
 
         if "parity" in config["task"]:
             dataset_config["fix_asym"] = True
