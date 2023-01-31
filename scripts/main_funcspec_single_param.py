@@ -225,7 +225,9 @@ if __name__ == "__main__":
         pbar0 = tqdm(pbar0, position=0, desc="Varying Params")
 
     for v_params in pbar0:
-        pbar0.set_description(f"Varying Params : {v_params}{sweep_params}")
+        
+        if config['use_tqdm'] : 
+            pbar0.set_description(f"Varying Params : {v_params}{sweep_params}")
 
         wandb.config.update({"varying_params": v_params}, allow_val_change=True)
 
