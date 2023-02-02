@@ -29,16 +29,19 @@ def init_and_train(config, loaders, device):
     use_tqdm = config["use_tqdm"]
 
     # Check varying parameters :
-    all_varying = wandb.config["varying_params"].copy()
-    all_varying.update(wandb.config["sweep_params"])
+    varying_params_all = wandb.config["varying_params_local"].copy()
+    varying_params_all.update(wandb.config["varying_params_sweep"])
+
     sentinel = object()
 
-    for v_param_name, v_param in all_varying.items():
+    for v_param_name, v_param in varying_params_all.items():
         found = _finditem(config, v_param_name, sentinel)
         if found is sentinel:
             warnings.warn("Parameter {v_param_name} couldn't be found ! ")
         else:
-            assert found == v_param, f"{found} is different from expected {v_param} !"
+            assert (
+                found == v_param
+            ), f"{v_param_name} is different ({found}) than expected ({v_param}) !"
             if use_wandb:
                 wandb.log({v_param_name: v_param})
                 if v_param_name == "sparsity":
@@ -47,63 +50,64 @@ def init_and_train(config, loaders, device):
 
     train_outs = {}
     trained_coms = {}
-    for use_bottleneck in [False]:
+    # for use_bottleneck in [True, False]:
 
-        agents_params_dict["use_bottleneck"] = use_bottleneck
-        community = init_community(config["model"], device)
+    use_bottleneck = agents_params_dict["use_bottleneck"]
+    community = init_community(config["model"], device)
 
-        optimizers, schedulers = init_optimizers(
-            community, params_dict, deepR_params_dict
+    optimizers, schedulers = init_optimizers(community, params_dict, deepR_params_dict)
+
+    if not config["metrics_only"]:
+
+        training_dict = get_training_dict(config)
+        train_out = train_community(
+            community,
+            *loaders,
+            optimizers,
+            schedulers,
+            config=training_dict,
+            device=device,
+            use_tqdm=use_tqdm,
         )
 
-        if not config["metrics_only"]:
+        test_accs = train_out["test_accs"]
+        if len(test_accs.shape) == 1:
+            best_test_acc = np.max(test_accs)
+        else:
+            best_test_acc = np.max(test_accs, 0).mean()
 
-            training_dict = get_training_dict(config)
-            train_out = train_community(
-                community,
-                *loaders,
-                optimizers,
-                schedulers,
-                config=training_dict,
-                device=device,
-                use_tqdm=use_tqdm,
-            )
+        mean_d_ags = train_out["deciding_agents"].mean()
 
-            test_accs = train_out["test_accs"]
-            if len(test_accs.shape) == 1:
-                best_test_acc = np.max(test_accs)
-            else:
-                best_test_acc = np.max(test_accs, 0).mean()
+        metric_names = [
+            "Best Test Acc",  # + "_bottleneck" * use_bottleneck,
+            "Mean Decision",  # + "_bottleneck" * use_bottleneck,
+        ]
+        for metric, metric_name in zip([best_test_acc, mean_d_ags], metric_names):
 
-            mean_d_ags = train_out["deciding_agents"].mean()
-
-            metric_names = [
-                "Best Test Acc" + "_bottleneck" * use_bottleneck,
-                "Mean Decision" + "_bottleneck" * use_bottleneck,
-            ]
-            for metric, metric_name in zip([best_test_acc, mean_d_ags], metric_names):
-
-                try:
-                    for m, sub_metric in enumerate(metric):
-                        if use_wandb:
-                            wandb.define_metric(metric_name + f"_{m}")
-                        if use_wandb:
-                            wandb.define_metric(metric_name + f"_{m}")
-                        if use_wandb:
-                            wandb.log({metric_name + f"_{m}": sub_metric})
-                except:
+            try:
+                for m, sub_metric in enumerate(metric):
                     if use_wandb:
-                        wandb.define_metric(metric_name)
+                        wandb.define_metric(metric_name + f"_{m}")
                     if use_wandb:
-                        wandb.define_metric(metric_name)
+                        wandb.define_metric(metric_name + f"_{m}")
                     if use_wandb:
-                        wandb.log({metric_name: metric})
+                        wandb.log({metric_name + f"_{m}": sub_metric})
+            except:
+                if use_wandb:
+                    wandb.define_metric(metric_name)
+                if use_wandb:
+                    wandb.define_metric(metric_name)
+                if use_wandb:
+                    wandb.log({metric_name: metric})
 
-            community.best_acc = best_test_acc
-            train_outs[f'With{(1-use_bottleneck)*"out"} Bottleneck'] = train_out
-            trained_coms[f'With{(1-use_bottleneck)*"out"} Bottleneck'] = copy.deepcopy(
-                community
-            )
+        community.best_acc = best_test_acc
+
+        # train_outs[f'With{(1-use_bottleneck)*"out"} Bottleneck'] = train_out
+        # trained_coms[f'With{(1-use_bottleneck)*"out"} Bottleneck'] = copy.deepcopy(
+        #    community
+        # )
+
+        train_outs, trained_coms = train_out, copy.deepcopy(community)
 
     return trained_coms, train_outs
 
@@ -123,7 +127,7 @@ def compute_all_metrics(trained_coms, loaders, config, device):
 
     use_tqdm = config["use_tqdm"]
 
-    community = trained_coms["Without Bottleneck"]
+    # community = trained_coms["Without Bottleneck"]
 
     """
     # print('Correlations')
@@ -145,7 +149,7 @@ def compute_all_metrics(trained_coms, loaders, config, device):
     # masks_props, masks_accs, _, masks_states, masks_spars = list(masks_results.values())
     # masks_metric, masks_accs, masks_spars = masks_props.mean(0), masks_accs.mean(0).max(-1), masks_spars.mean(0)
 
-    community = trained_coms["Without Bottleneck"]
+    community = trained_coms  # ["Without Bottleneck"]
     # print('Bottlenecks Retrain')
     bottleneck_results, _ = readout_retrain(
         community,
@@ -182,8 +186,8 @@ def compute_all_metrics(trained_coms, loaders, config, device):
 
 def define_and_log(metrics, config, best_acc):
 
-    all_varying = wandb.config["varying_params"].copy()
-    all_varying.update(wandb.config["sweep_params"])
+    varying_params_all = wandb.config["varying_params_local"].copy()
+    varying_params_all.update(wandb.config["varying_params_sweep"])
 
     diff_metric = lambda metric: (metric[0] - metric[1]) / (metric[0] + metric[1])
     global_diff_metric = (
@@ -201,7 +205,7 @@ def define_and_log(metrics, config, best_acc):
         metric_data.setdefault("best_acc", [])
         metric_data["best_acc"].append(best_acc)
 
-        for v_param_name, v_param in all_varying.items():
+        for v_param_name, v_param in varying_params_all.items():
             metric_data.setdefault(v_param_name, [])
             metric_data[v_param_name].append(v_param)
 

@@ -58,7 +58,6 @@ optimization:
     global_rewire: false
     l1: 1.0e-05
     lr: 0.001
-sweep_params: {}
 task: parity-digits
 training:
   decision:
@@ -70,4 +69,6 @@ training:
   n_epochs: 1
   stopping_acc: 0.95
 use_tqdm: 2
-varying_params: {}
+varying_params_local: {}
+varying_params_sweep:
+  use_bottleneck: true

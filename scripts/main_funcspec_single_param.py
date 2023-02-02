@@ -1,7 +1,4 @@
 from warnings import warn
-from community.data.tasks import get_factors_list, get_task_family_dict
-from community.utils.configs import configure_readouts, find_and_change
-from community.utils.wandb_utils import mkdir_or_save_torch, update_dict
 import torch
 import torch.nn as nn
 from torchvision import *
@@ -11,6 +8,13 @@ from yaml.loader import SafeLoader
 import pandas as pd
 import numpy as np
 
+from community.data.tasks import get_factors_list, get_task_family_dict
+from community.utils.configs import (
+    configure_readouts,
+    find_and_change,
+    ensure_config_coherence,
+)
+from community.utils.wandb_utils import mkdir_or_save_torch, update_dict
 from community.data.datasets import get_datasets_alphabet, get_datasets_symbols
 from community.data.tasks import get_task_target
 from community.funcspec.single_model_loop import train_and_compute_metrics
@@ -167,8 +171,8 @@ if __name__ == "__main__":
             "force_connections": False,
         },
         "metrics": {"chosen_timesteps": ["mid-", "last"]},
-        "sweep_params": {},
-        "varying_params": {},
+        "varying_params_sweep": {"use_bottleneck": True},
+        "varying_params_local": {},
         ###------ Task ------
         "task": "parity-digits",
         ### ------ Task ------
@@ -202,108 +206,77 @@ if __name__ == "__main__":
     }
     # WAndB tracking :
 
-    sweep_params = wandb.config["sweep_params"]
-
-    for param_name, param in sweep_params.items():
-        wandb.define_metric(param_name)
-        if param is not None:
-            find_and_change(config, param_name, param)
+    # varying_params_sweep = wandb.config["varying_params_sweep"]
 
     n = config["model"]["agents"]["n_hidden"]
 
-    varying_params = [
+    varying_params_local = [
         {"sparsity": s}
         for s in np.unique(
-            np.array([1, 2, 10, n**2 // 100, n**2 // 10, n**2 // 2, n**2])
+            np.array(
+                [1, n**2]
+            )  # np.array([1, 2, 10, n**2 // 100, n**2 // 10, n**2 // 2, n**2])
             / n**2
         )
     ]
 
-    pbar0 = varying_params
+    # varying_params_local = [{"use_bottleneck": t} for t in [True, False]]
+
+    pbar_0 = varying_params_local
     if config["use_tqdm"]:
-        pbar0 = tqdm(pbar0, position=0, desc="Varying Params", leave=None)
+        pbar_0 = tqdm(pbar_0, position=0, desc="Varying Params", leave=None)
 
     metric_results, metric_datas, training_results = {}, [], []
 
-    for v_params in pbar0:
+    for v_params_local in pbar_0:
 
-        if config["use_tqdm"]:
-            pbar0.set_description(f"Varying Params : {v_params}{sweep_params}")
+        v_params_all = v_params_local.copy()
+        v_params_all.update(wandb.config["varying_params_sweep"])
 
-        wandb.config.update({"varying_params": v_params}, allow_val_change=True)
-
-        for param_name, param in v_params.items():
+        for param_name, param in v_params_all.items():
             wandb.define_metric(param_name)
             if param is not None:
                 find_and_change(config, param_name, param)
 
-        if config["task"] == "shared_goals":
-            task = config["task"] = [
-                [str(i), str((i + 1) % n_agents)] for i in range(n_agents)
-            ]
-        if config["task"] == "count-max":
-            try:
-                config["datasets"]["adjust_probas"] = True
-                config["datasets"]["symbol_config"]["adjust_probas"] = True
-            except KeyError:
-                pass
+        if config["use_tqdm"]:
+            pbar_0.set_description(f"Varying Params : {v_params_all}")
 
-        if "parity" in config["task"]:
-            dataset_config["fix_asym"] = True
+        wandb.config.update(
+            {"varying_params_local": v_params_local}, allow_val_change=True
+        )
 
-        if "n_classes_per_digit" in v_params:
-            config["datasets"]["n_classes"] = (
-                config["datasets"]["n_classes_per_digit"] * config["model"]["n_agents"]
-            )
-            config["datasets"]["symbol_config"]["n_symbols"] = (
-                config["datasets"]["n_classes"] - 1
-            )
-        elif "n_classes" in varying_params:
-            config["datasets"]["n_classes_per_digit"] = (
-                config["datasets"]["n_classes"] // config["model"]["n_agents"]
-            )
-            config["datasets"]["symbol_config"]["n_symbols"] = (
-                config["datasets"]["n_classes"] - 1
-            )
-        elif "n_symbols" in v_params:
-            config["datasets"]["n_classes"] = (
-                config["datasets"]["symbol_config"]["n_symbols"] - 1
-            )
-            config["datasets"]["n_classes_per_digit"] = (
-                config["datasets"]["n_classes"] // config["model"]["n_agents"]
-            )
-
+        ensure_config_coherence(config, v_params_all)
         configure_readouts(config)
 
-        pbar = range(config["n_tests"])
+        pbar_1 = range(config["n_tests"])
 
         # print(
         #    f'Training {n_agents} agents of size {n_hidden} on task {task} using {"common"*common_readout + "separate"*(1-common_readout)} readout and decision {decision}, with {sparsity * n_hidden**2} connections'
         # )
 
         if config["use_tqdm"]:
-            pbar = tqdm(pbar, desc="Trials : ", position=1, leave=None)
+            pbar_1 = tqdm(pbar_1, desc="Trials : ", position=1, leave=None)
 
-        for test in pbar:
+        for test in pbar_1:
 
             if dataset_config["data_type"] == "symbols":
                 loaders, datasets = get_datasets_symbols(
                     config["datasets"],
-                    dataset_config["batch_size"],
-                    dataset_config["use_cuda"],
+                    config["datasets"]["batch_size"],
+                    config["datasets"]["use_cuda"],
                 )
             else:
                 all_loaders = get_datasets_alphabet(
                     "data/",
-                    dataset_config["batch_size"],
-                    dataset_config["data_sizes"],
-                    dataset_config["use_cuda"],
-                    dataset_config["fix_asym"],
-                    dataset_config["n_classes_per_digit"],
+                    config["datasets"]["batch_size"],
+                    config["datasets"]["data_sizes"],
+                    config["datasets"]["use_cuda"],
+                    config["datasets"]["fix_asym"],
+                    config["datasets"]["n_classes_per_digit"],
                 )
                 loaders = all_loaders[
                     ["multi", "double_d", "double_l", "single_d" "single_l"].index(
-                        dataset_config["data_type"]
+                        config["datasets"]["data_type"]
                     )
                 ]
 

@@ -173,3 +173,41 @@ def get_new_config(config, key_prefix="config"):
         else:
             new_config[key_prefix + "." + k1] = v1
     return new_config
+
+
+def ensure_config_coherence(config, v_params):
+    if config["task"] == "shared_goals":
+        task = config["task"] = [
+            [str(i), str((i + 1) % n_agents)] for i in range(n_agents)
+        ]
+    if config["task"] == "count-max":
+        try:
+            config["datasets"]["adjust_probas"] = True
+            config["datasets"]["symbol_config"]["adjust_probas"] = True
+        except KeyError:
+            pass
+
+    if "parity" in config["task"]:
+        config["datasets"]["fix_asym"] = True
+
+    if "n_classes_per_digit" in v_params:
+        config["datasets"]["n_classes"] = (
+            config["datasets"]["n_classes_per_digit"] * config["model"]["n_agents"]
+        )
+        config["datasets"]["symbol_config"]["n_symbols"] = (
+            config["datasets"]["n_classes"] - 1
+        )
+    elif "n_classes" in v_params:
+        config["datasets"]["n_classes_per_digit"] = (
+            config["datasets"]["n_classes"] // config["model"]["n_agents"]
+        )
+        config["datasets"]["symbol_config"]["n_symbols"] = (
+            config["datasets"]["n_classes"] - 1
+        )
+    elif "n_symbols" in v_params:
+        config["datasets"]["n_classes"] = (
+            config["datasets"]["symbol_config"]["n_symbols"] - 1
+        )
+        config["datasets"]["n_classes_per_digit"] = (
+            config["datasets"]["n_classes"] // config["model"]["n_agents"]
+        )
