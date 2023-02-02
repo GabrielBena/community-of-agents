@@ -29,7 +29,7 @@ from tqdm.notebook import tqdm as tqdm_n
 if __name__ == "__main__":
 
     # Use for debugging
-    debug_run = True
+    debug_run = False
 
     if debug_run:
         print("Debugging Mode is activated ! Only doing mock training")
@@ -171,7 +171,7 @@ if __name__ == "__main__":
             "force_connections": False,
         },
         "metrics": {"chosen_timesteps": ["mid-", "last"]},
-        "varying_params_sweep": {"use_bottleneck": True},
+        "varying_params_sweep": {},
         "varying_params_local": {},
         ###------ Task ------
         "task": "parity-digits",
@@ -213,9 +213,7 @@ if __name__ == "__main__":
     varying_params_local = [
         {"sparsity": s}
         for s in np.unique(
-            np.array(
-                [1, n**2]
-            )  # np.array([1, 2, 10, n**2 // 100, n**2 // 10, n**2 // 2, n**2])
+            np.array([1, 2, 10, n**2 // 100, n**2 // 10, n**2 // 2, n**2])
             / n**2
         )
     ]
