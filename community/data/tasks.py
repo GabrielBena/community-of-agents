@@ -118,6 +118,8 @@ def get_single_task(task, target, n_classes):
 
     elif task == "bitor":
         return digits[0] | digits[1]
+    elif task == "bitxor":
+        return digits[0] ^ digits[1]
 
     else:
         raise ValueError(
