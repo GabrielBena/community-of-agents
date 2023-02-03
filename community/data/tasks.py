@@ -39,6 +39,18 @@ def rotation_conflict_task(datas, digits, n_angles=4):
 get_digits = lambda target: target.T
 
 
+def dec2bin(x):
+    bits = int((torch.floor(torch.log2(x)) + 1).max())
+    # mask = 2 ** torch.arange(bits).to(x.device, x.dtype)
+    mask = 2 ** torch.arange(bits - 1, -1, -1).to(x.device, x.dtype)
+    return x.unsqueeze(-1).bitwise_and(mask).ne(0).to(x.dtype)
+
+
+def bin2dec(b, bits):
+    mask = 2 ** torch.arange(bits - 1, -1, -1).to(b.device, b.dtype)
+    return torch.sum(mask * b, -1)
+
+
 def get_single_task(task, target, n_classes):
 
     target_mult = lambda tgt: torch.stack(
@@ -46,7 +58,7 @@ def get_single_task(task, target, n_classes):
     )
 
     # composed names of task should be with -
-
+    digits = target.T
     try:
         t = int(task)
         return target[..., t]
@@ -60,7 +72,6 @@ def get_single_task(task, target, n_classes):
         return target
 
     elif "parity" in task:
-        digits = target.T
         parity = (digits.sum(0)) % 2  # 0 when same parity
         if "digits" in task:
             return torch.where(parity.bool(), digits[0], digits[1])
@@ -118,8 +129,17 @@ def get_single_task(task, target, n_classes):
 
     elif task == "bitor":
         return digits[0] | digits[1]
-    elif task == "bitxor":
-        return digits[0] ^ digits[1]
+
+    elif "bitxor" in task:
+        xor = digits[0] ^ digits[1]
+
+        if "last" in task:
+            n_last = int(task.split("-")[-1])
+            xor = dec2bin(xor)
+            xor = xor[..., -n_last:]
+            xor = bin2dec(xor, n_last)
+
+        return xor
 
     else:
         raise ValueError(

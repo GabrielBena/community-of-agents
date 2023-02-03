@@ -1,6 +1,7 @@
 from typing import Type
 from warnings import warn
 from community.data.tasks import get_factors_list
+import numpy as np
 
 
 def get_training_dict(config):
@@ -111,12 +112,21 @@ def configure_readouts(config):
         ]
         or "parity" in task
         or "count" in task
+        or "bit" in task
     ):
 
         if task == "sum":
             config["model"]["agents"]["n_out"] = n_classes
         elif task in ["parity", "count-equal"]:
             config["model"]["agents"]["n_out"] = 2
+        elif "bit" in task:
+            if "last" in task:
+                n_last = int(task.split("-")[-1])
+                config["model"]["agents"]["n_out"] = int(2**n_last)
+            else:
+                n_bit = np.floor(np.log2(n_classes_per_ag - 1)) + 1
+                config["model"]["agents"]["n_out"] = int(2**n_bit)
+
         elif task in ["parity-equal"]:
             config["model"]["agents"]["n_out"] = n_classes_per_ag + 1
         else:
@@ -176,6 +186,8 @@ def get_new_config(config, key_prefix="config"):
 
 
 def ensure_config_coherence(config, v_params):
+
+    n_agents = config["model"]["n_agents"]
     if config["task"] == "shared_goals":
         task = config["task"] = [
             [str(i), str((i + 1) % n_agents)] for i in range(n_agents)

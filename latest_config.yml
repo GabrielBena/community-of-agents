@@ -1,17 +1,28 @@
 datasets:
   batch_size: 512
-  common_input: false
+  common_input: true
   data_sizes:
     - 6000
     - 1000
-  data_type: double_d
+  data_type: symbols
   fix_asym: false
-  input_size: 784
-  n_classes: 20
-  n_classes_per_digit: 10
+  input_size: 3600
+  n_classes: 16
+  n_classes_per_digit: 8
   permute_dataset: false
   seed:
-  symbol_config: {}
+  symbol_config:
+    adjust_probas: false
+    data_size:
+      - 12000
+      - 2000
+    input_size: 60
+    n_diff_symbols: 2
+    n_symbols: 15
+    nb_steps: 10
+    parallel: false
+    static: true
+    symbol_type: mod_5
   use_cuda: true
 debug_run: true
 metrics:
@@ -24,9 +35,9 @@ model:
     ag_dropout: 0.0
     cell_type: '<class ''torch.nn.modules.rnn.RNN''>'
     n_hidden: 20
-    n_in: 784
+    n_in: 3600
     n_layers: 1
-    n_out: 10
+    n_out: 8
     n_readouts: 1
     train_in_out:
       - true
@@ -58,7 +69,7 @@ optimization:
     global_rewire: false
     l1: 1.0e-05
     lr: 0.001
-task: parity-digits
+task: bitxor
 training:
   decision:
     - last
@@ -70,5 +81,4 @@ training:
   stopping_acc: 0.95
 use_tqdm: 2
 varying_params_local: {}
-varying_params_sweep:
-  use_bottleneck: true
+varying_params_sweep: {}

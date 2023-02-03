@@ -43,18 +43,18 @@ if __name__ == "__main__":
 
     data_sizes = np.array([60000, 10000])
 
-    n_classes_per_digit = 10
+    n_classes_per_digit = 8
     n_classes = n_classes_per_digit * n_digits
 
     dataset_config = {
         "batch_size": 512 if use_cuda else 256,
         "data_sizes": None if (not debug_run) else data_sizes // 10,
-        "common_input": False,
+        "common_input": True,
         "use_cuda": use_cuda,
         "fix_asym": False,
         "permute_dataset": False,
         "seed": None,
-        "data_type": "double_d",
+        "data_type": "symbols",
         "n_classes": n_classes,
         "n_classes_per_digit": n_classes_per_digit,
     }
@@ -164,7 +164,7 @@ if __name__ == "__main__":
         },
         "training": {
             "decision": ["last", "all"],
-            "n_epochs": 25 if not debug_run else 1,
+            "n_epochs": 30 if not debug_run else 1,
             "inverse_task": False,
             "stopping_acc": 0.95,
             "early_stop": False,
@@ -174,7 +174,7 @@ if __name__ == "__main__":
         "varying_params_sweep": {},
         "varying_params_local": {},
         ###------ Task ------
-        "task": "parity-digits",
+        "task": "bitxor",
         ### ------ Task ------
         "metrics_only": False,
         "n_tests": 5 if not debug_run else 1,
@@ -208,12 +208,20 @@ if __name__ == "__main__":
 
     # varying_params_sweep = wandb.config["varying_params_sweep"]
 
+    v_params_sweep = config["varying_params_sweep"]
+
+    for param_name, param in v_params_sweep.items():
+        wandb.define_metric(param_name)
+        if param is not None:
+            find_and_change(config, param_name, param)
+
     n = config["model"]["agents"]["n_hidden"]
 
     varying_params_local = [
         {"sparsity": s}
         for s in np.unique(
-            np.array([1, 2, 10, n**2 // 100, n**2 // 10, n**2 // 2, n**2])
+            # np.array([1, 2, 10, n**2 // 100, n**2 // 10, n**2 // 2, n**2])
+            np.geomspace(1, n**2, 10)
             / n**2
         )
     ]

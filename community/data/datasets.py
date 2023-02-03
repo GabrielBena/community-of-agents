@@ -51,6 +51,7 @@ class Custom_MNIST(MNIST):
     def _load_data(self):
         data, targets = super()._load_data()
         if self.truncate:
+            print(self.truncate)
             try:
                 truncate_mask = (
                     np.stack([np.array(targets) == t for t in self.truncate])
@@ -191,14 +192,22 @@ class DoubleMNIST(Dataset):
 
     """
 
-    def __init__(self, root, train=True, fix_asym=True, permute=False, seed=None):
+    def __init__(
+        self, root, train=True, fix_asym=True, permute=False, seed=None, truncate=None
+    ):
         super().__init__()
 
         self.transform = transforms.Compose(
             [transforms.ToTensor(), transforms.Normalize((0.1307,), (0.3081,))]
         )
 
-        dataset = MNIST(root, train=train, download=True, transform=self.transform)
+        dataset = Custom_MNIST(
+            root,
+            train=train,
+            download=True,
+            transform=self.transform,
+            truncate=truncate,
+        )
         self.mnist_dataset = dataset
 
         self.fix_asym = fix_asym
@@ -877,13 +886,19 @@ def get_datasets_alphabet(
         [transforms.ToTensor(), transforms.Normalize((0.1307,), (0.3081,))]
     )
 
+    truncate_digits = np.arange(n_classes)
+
     kwargs = train_kwargs, test_kwargs
 
     single_digits = [
-        MNIST(root, train=t, download=True, transform=transform) for t in [True, False]
+        Custom_MNIST(
+            root, train=t, download=True, transform=transform, truncate=truncate_digits
+        )
+        for t in [True, False]
     ]
     double_digits = [
-        DoubleMNIST(root, train=t, fix_asym=fix_asym) for t in [True, False]
+        DoubleMNIST(root, train=t, fix_asym=fix_asym, truncate=truncate_digits)
+        for t in [True, False]
     ]
 
     single_fashion = [

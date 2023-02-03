@@ -184,7 +184,7 @@ def train_community(
     # dummy fwd for shapes
     data, target = next(iter(train_loader))
     data, target = process_data(
-        data, target, task, conv_com, symbols=symbols, common_input=common_input
+        data, target, symbols=symbols, common_input=common_input, task=task
     )
     out, states, fconns = model(data.to(device))
 
