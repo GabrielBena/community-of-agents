@@ -57,6 +57,7 @@ if __name__ == "__main__":
         "data_type": "symbols",
         "n_classes": n_classes,
         "n_classes_per_digit": n_classes_per_digit,
+        'nb_steps' : 2
     }
 
     if dataset_config["data_type"] == "symbols":
@@ -65,7 +66,7 @@ if __name__ == "__main__":
 
         symbol_config = {
             "data_size": data_sizes if not debug_run else data_sizes // 5,
-            "nb_steps": 50,
+            "nb_steps": dataset_config['nb_steps'],
             "n_symbols": n_classes - 1,
             "input_size": 60,
             "static": True,
@@ -75,8 +76,8 @@ if __name__ == "__main__":
             "adjust_probas": False,
         }
 
-        if symbol_config["static"]:
-            symbol_config["nb_steps"] = 10
+        if not symbol_config["static"]:
+            symbol_config["nb_steps"] = 50
 
         dataset_config["input_size"] = symbol_config["input_size"] ** 2
         dataset_config["symbol_config"] = symbol_config
@@ -141,20 +142,6 @@ if __name__ == "__main__":
         "readout_n_hid": None,
     }
 
-    """
-    varying_params = [
-        [
-            {"sparsity": s, "n_hidden": n}
-            for s in np.array([1, 2, 10, n**2 // 2, n**2]) / n**2
-        ]
-        for n in np.linspace(10, 100, 5, dtype=int)
-    ]
-    try:
-        varying_params = [v_p for v_params in varying_params for v_p in v_params]
-    except TypeError:
-        pass
-    """
-
     config = {
         "model": model_config,
         "datasets": dataset_config,
@@ -177,7 +164,7 @@ if __name__ == "__main__":
         "task": "bitxor",
         ### ------ Task ------
         "metrics_only": False,
-        "n_tests": 5 if not debug_run else 1,
+        "n_tests": 4 if not debug_run else 1,
         "debug_run": debug_run,
         "use_tqdm": 2,
     }
@@ -194,6 +181,8 @@ if __name__ == "__main__":
     if debug_run:
         # os.environ["WANDB_MODE"] = "offline"
         pass
+    
+    # WAndB tracking :
 
     wandb.init(project="funcspec_V2", entity="m2snn", config=config)
     # wandb.init(project="Funcspec", entity="gbena", config=config)
@@ -204,13 +193,11 @@ if __name__ == "__main__":
         "training": run_dir + "training_results",
         "metrics": run_dir + "metric_results",
     }
-    # WAndB tracking :
 
-    # varying_params_sweep = wandb.config["varying_params_sweep"]
+    varying_params_sweep = wandb.config["varying_params_sweep"]
 
-    v_params_sweep = config["varying_params_sweep"]
-
-    for param_name, param in v_params_sweep.items():
+    # Adjust Parameters based on wandb sweep
+    for param_name, param in varying_params_sweep.items():
         wandb.define_metric(param_name)
         if param is not None:
             find_and_change(config, param_name, param)
@@ -228,6 +215,7 @@ if __name__ == "__main__":
 
     # varying_params_local = [{"use_bottleneck": t} for t in [True, False]]
 
+    ensure_config_coherence(config, varying_params_sweep)
 
     if dataset_config["data_type"] == "symbols":
         loaders, datasets = get_datasets_symbols(
@@ -256,12 +244,13 @@ if __name__ == "__main__":
 
     metric_results, metric_datas, training_results = {}, [], []
 
+    #Go through local sweep
     for v_params_local in pbar_0:
 
         v_params_all = v_params_local.copy()
         v_params_all.update(wandb.config["varying_params_sweep"])
 
-        for param_name, param in v_params_all.items():
+        for param_name, param in v_params_local.items():
             wandb.define_metric(param_name)
             if param is not None:
                 find_and_change(config, param_name, param)
@@ -278,13 +267,10 @@ if __name__ == "__main__":
 
         pbar_1 = range(config["n_tests"])
 
-        # print(
-        #    f'Training {n_agents} agents of size {n_hidden} on task {task} using {"common"*common_readout + "separate"*(1-common_readout)} readout and decision {decision}, with {sparsity * n_hidden**2} connections'
-        # )
-
         if config["use_tqdm"]:
             pbar_1 = tqdm(pbar_1, desc="Trials : ", position=1, leave=None)
 
+        #Repetitions per varying parameters
         for test in pbar_1:
 
             # config = update_dict(config, wandb.config)
