@@ -1,6 +1,6 @@
 from warnings import warn
 from community.data.tasks import get_factors_list, get_task_family_dict
-from community.utils.configs import configure_readouts, find_and_change
+from community.utils.configs import configure_readouts, find_and_change, ensure_config_coherence
 from community.utils.wandb_utils import mkdir_or_save_torch, update_dict
 import torch
 import torch.nn as nn
@@ -25,32 +25,32 @@ from tqdm.notebook import tqdm as tqdm_n
 if __name__ == "__main__":
 
     # Use for debugging
-    debug_run = True
+    debug_run = False
 
     if debug_run:
         print("Debugging Mode is activated ! Only doing mock training")
 
-    use_cuda = True
-    device = torch.device("cuda" if use_cuda and torch.cuda.is_available() else "cpu")
+    use_cuda = torch.cuda.is_available()
+    device = torch.device("cuda" if use_cuda else "cpu")
     # print(f"Training on {device}")
 
     n_agents = 2
     n_digits = n_agents
 
-    data_sizes = np.array([50000, 10000])
+    data_sizes = np.array([60000, 10000])
 
-    n_classes_per_digit = 10
+    n_classes_per_digit = 8
     n_classes = n_classes_per_digit * n_digits
 
     dataset_config = {
         "batch_size": 512 if use_cuda else 256,
         "data_sizes": None if (not debug_run) else data_sizes // 10,
-        "common_input": False,
+        "common_input": True,
         "use_cuda": use_cuda,
         "fix_asym": False,
         "permute_dataset": False,
         "seed": None,
-        "data_type": "double_d",
+        "data_type": "symbols",
         "n_classes": n_classes,
         "n_classes_per_digit": n_classes_per_digit,
     }
@@ -146,22 +146,22 @@ if __name__ == "__main__":
         },
         "training": {
             "decision": ["last", "all"],
-            "n_epochs": 25 if not debug_run else 1,
+            "n_epochs": 30 if not debug_run else 1,
             "inverse_task": False,
             "stopping_acc": 0.95,
             "early_stop": False,
             "force_connections": False,
         },
         "metrics": {"chosen_timesteps": ["mid-", "last"]},
-        "varying_params": {},
-        "sweep_params": {},
+        "varying_params_sweep": {},
+        "varying_params_local": {},
         ###------ Task ------
-        "task": "parity-both",
+        "task": "bitxor",
         ### ------ Task ------
         "metrics_only": False,
-        "n_tests": 10 if not debug_run else 2,
+        "n_tests": 5 if not debug_run else 1,
         "debug_run": debug_run,
-        "use_tqdm": True,
+        "use_tqdm": 2,
     }
 
     try:
@@ -174,7 +174,7 @@ if __name__ == "__main__":
         pyaml.dump(config, config_file)
 
     if debug_run:
-        os.environ["WANDB_MODE"] = "offline"
+        # os.environ["WANDB_MODE"] = "offline"
         pass
 
     wandb.init(project="funcspec_V2", entity="m2snn", config=config)
@@ -195,34 +195,7 @@ if __name__ == "__main__":
         if param is not None:
             find_and_change(config, param_name, param)
 
-    if config["task"] == "shared_goals":
-        task = config["task"] = [
-            [str(i), str((i + 1) % n_agents)] for i in range(n_agents)
-        ]
-    if config["task"] == "count-max":
-        config["datasets"]["symbol_config"]["adjust_probas"] = True
-
-    if "n_classes_per_digit" in varying_params:
-        config["datasets"]["n_classes"] = (
-            config["datasets"]["n_classes_per_digit"] * config["model"]["n_agents"]
-        )
-        config["datasets"]["symbol_config"]["n_symbols"] = (
-            config["datasets"]["n_classes"] - 1
-        )
-    elif "n_classes" in varying_params:
-        config["datasets"]["n_classes_per_digit"] = (
-            config["datasets"]["n_classes"] // config["model"]["n_agents"]
-        )
-        config["datasets"]["symbol_config"]["n_symbols"] = (
-            config["datasets"]["n_classes"] - 1
-        )
-    elif "n_symbols" in varying_params:
-        config["datasets"]["n_classes"] = (
-            config["datasets"]["symbol_config"]["n_symbols"] - 1
-        )
-        config["datasets"]["n_classes_per_digit"] = (
-            config["datasets"]["n_classes"] // config["model"]["n_agents"]
-        )
+    ensure_config_coherence(config, varying_params)
 
     configure_readouts(config)
 

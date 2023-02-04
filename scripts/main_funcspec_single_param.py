@@ -228,6 +228,28 @@ if __name__ == "__main__":
 
     # varying_params_local = [{"use_bottleneck": t} for t in [True, False]]
 
+
+    if dataset_config["data_type"] == "symbols":
+        loaders, datasets = get_datasets_symbols(
+            config["datasets"],
+            config["datasets"]["batch_size"],
+            config["datasets"]["use_cuda"],
+        )
+    else:
+        all_loaders = get_datasets_alphabet(
+            "data/",
+            config["datasets"]["batch_size"],
+            config["datasets"]["data_sizes"],
+            config["datasets"]["use_cuda"],
+            config["datasets"]["fix_asym"],
+            config["datasets"]["n_classes_per_digit"],
+        )
+        loaders = all_loaders[
+            ["multi", "double_d", "double_l", "single_d" "single_l"].index(
+                config["datasets"]["data_type"]
+            )
+                ]
+
     pbar_0 = varying_params_local
     if config["use_tqdm"]:
         pbar_0 = tqdm(pbar_0, position=0, desc="Varying Params", leave=None)
@@ -264,27 +286,6 @@ if __name__ == "__main__":
             pbar_1 = tqdm(pbar_1, desc="Trials : ", position=1, leave=None)
 
         for test in pbar_1:
-
-            if dataset_config["data_type"] == "symbols":
-                loaders, datasets = get_datasets_symbols(
-                    config["datasets"],
-                    config["datasets"]["batch_size"],
-                    config["datasets"]["use_cuda"],
-                )
-            else:
-                all_loaders = get_datasets_alphabet(
-                    "data/",
-                    config["datasets"]["batch_size"],
-                    config["datasets"]["data_sizes"],
-                    config["datasets"]["use_cuda"],
-                    config["datasets"]["fix_asym"],
-                    config["datasets"]["n_classes_per_digit"],
-                )
-                loaders = all_loaders[
-                    ["multi", "double_d", "double_l", "single_d" "single_l"].index(
-                        config["datasets"]["data_type"]
-                    )
-                ]
 
             # config = update_dict(config, wandb.config)
 
