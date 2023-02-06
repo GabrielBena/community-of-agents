@@ -70,14 +70,15 @@ class Agent(nn.Module):
         cell_type=nn.RNN,
         use_bottleneck=False,
         ag_dropout=0.0,
-        density=1.0,
+        readout_n_hid=None,
     ):
 
         super().__init__()
 
         self.dims = [n_in, n_hidden, n_out]
-
+        self.train_in_out = train_in_out
         self.tag = str(tag) if type(tag) is not str else tag
+        self.n_readouts, self.readout_n_hid = n_readouts, readout_n_hid
 
         if type(cell_type) is tuple:
             cell_type = cell_type[0]
@@ -93,6 +94,15 @@ class Agent(nn.Module):
         self.use_bottleneck = use_bottleneck
         self.dropout = nn.Dropout(ag_dropout) if ag_dropout > 0 else None
 
+        self.initialize_readout_and_bottleneck()
+
+        # self.cell.weight_ih_l0.requires_grad = train_in_out[0]
+        # self.cell.bias_ih_l0.requires_grad = train_in_out[1]
+
+    def initialize_readout_and_bottleneck(self):
+
+        n_hidden, n_out = self.dims[1:]
+
         if self.use_bottleneck:
             if n_out == 100:
                 n_bot = 10
@@ -100,27 +110,46 @@ class Agent(nn.Module):
                 n_bot = 5
             self.bottleneck = nn.Sequential(*[nn.Linear(n_hidden, n_bot), nn.ReLU()])
             self.bottleneck.out_features = n_bot
-            readout = [nn.Linear(n_bot, n_out)]
+            self.readout_dims = [n_bot, n_out]
+
         else:
-            readout = [nn.Linear(n_hidden, n_out)]
+            self.readout_dims = [n_hidden, n_out]
+            self.bottleneck = None
 
-        readout[0].weight.requires_grad = train_in_out[1]
-        readout[0].bias.requires_grad = train_in_out[1]
+        self.use_readout = self.n_readouts is not None
 
-        self.use_readout = n_readouts is not None
         if self.use_readout:
 
-            self.multi_readout = n_readouts > 1
+            if self.readout_n_hid:
+                self.readout_dims.insert(1, self.readout_n_hid)
+
+            readout = [
+                nn.Linear(n1, n2)
+                for n1, n2 in zip(self.readout_dims[:-1], self.readout_dims[1:])
+            ]
+
+            if len(readout) > 1:
+                for i in range(1, len(readout), 2):
+                    readout.insert(i, nn.ReLU())
+                readout = [nn.Sequential(*readout)]
+
+            for r in readout:
+                if hasattr(r, "weight"):
+                    r.weight.requires_grad = self.train_in_out[1]
+                    r.bias.requires_grad = self.train_in_out[1]
+
+            self.multi_readout = self.n_readouts > 1
             if self.multi_readout:
-                readout.extend([deepcopy(readout[0]) for _ in range(n_readouts - 1)])
+                readout = [deepcopy(readout[0]) for _ in range(self.n_readouts)]
 
             self.readout = nn.ModuleList(readout)
             self.init_readout_weights(self.readout)
 
-        self.cell_params("weight_ih_l0").requires_grad = train_in_out[0]
-        self.cell_params("bias_ih_l0").requires_grad = train_in_out[0]
-        # self.cell.weight_ih_l0.requires_grad = train_in_out[0]
-        # self.cell.bias_ih_l0.requires_grad = train_in_out[1]
+        else:
+            self.readout = None
+
+        self.cell_params("weight_ih_l0").requires_grad = self.train_in_out[0]
+        self.cell_params("bias_ih_l0").requires_grad = self.train_in_out[0]
 
     @property
     def w_in(self):
@@ -131,10 +160,13 @@ class Agent(nn.Module):
         return self.cell.weight_hh_l0
 
     def init_readout_weights(self, readout):
+
         try:
-            nn.init.kaiming_uniform_(readout.weight, nonlinearity="relu")
-        except AttributeError:
-            [self.init_readout_weights(r) for r in self.readout]
+            for r in readout:
+                self.init_readout_weights(r)
+        except TypeError:
+            if hasattr(readout, "weight"):
+                nn.init.kaiming_uniform_(readout.weight, nonlinearity="relu")
 
     def forward(self, x_in, x_h=None, x_connect=0, softmax=False):
         """

@@ -18,6 +18,7 @@ def init_community(model_dict, device=torch.device("cuda")):
         p_connect : sparsity of interconnections
     """
     agents_params_dict = model_dict["agents"]
+    agents_params_dict["readout_n_hid"] = model_dict["readout_n_hid"]
     connections_params_dict = model_dict["connections"]
 
     n_readouts = model_dict["n_readouts"]
@@ -53,7 +54,7 @@ def init_community(model_dict, device=torch.device("cuda")):
         return new_dict
 
     agents = [
-        Agent(**modified_agent_dict(n, n_in, n_hid))
+        Agent(**modified_agent_dict(n, n_in, n_hid)).to(device)
         for n, (n_in, n_hid) in enumerate(zip(n_ins, n_hiddens))
     ]
 

@@ -23,6 +23,7 @@ def get_training_dict(config):
         "n_classes": config["datasets"]["n_classes"],
         "n_classes_per_digit": config["datasets"]["n_classes_per_digit"],
         "common_input": config["datasets"]["common_input"],
+        "nb_steps": config["datasets"]["nb_steps"],
     }
 
     return training_dict
@@ -119,6 +120,7 @@ def configure_readouts(config):
             config["model"]["agents"]["n_out"] = n_classes
         elif task in ["parity", "count-equal"]:
             config["model"]["agents"]["n_out"] = 2
+
         elif "bit" in task:
             if "last" in task:
                 n_last = int(task.split("-")[-1])

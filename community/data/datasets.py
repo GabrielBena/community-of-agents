@@ -872,7 +872,7 @@ class SymbolsDataset(Dataset):
 def get_datasets_alphabet(root, data_config):
 
     batch_size = data_config["batch_size"]
-    data_sizes = data_config["data_size"]
+    data_sizes = data_config["data_sizes"]
     use_cuda = data_config["use_cuda"]
     fix_asym = data_config["fix_asym"]
     n_classes = data_config["n_classes_per_digit"]

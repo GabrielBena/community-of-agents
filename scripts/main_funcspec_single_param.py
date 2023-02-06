@@ -28,8 +28,13 @@ from tqdm.notebook import tqdm as tqdm_n
 
 if __name__ == "__main__":
 
+    try:
+        seed = os.environ["PBS_ARRAY_INDEX"]
+    except KeyError:
+        seed = np.random.randint(100)
+
     # Use for debugging
-    debug_run = False
+    debug_run = True
 
     if debug_run:
         print("Debugging Mode is activated ! Only doing mock training")
@@ -52,12 +57,13 @@ if __name__ == "__main__":
         "common_input": True,
         "use_cuda": use_cuda,
         "fix_asym": False,
-        "permute_dataset": False,
-        "seed": None,
-        "data_type": "symbols",
+        "permute_dataset": True,
+        "seed": seed,
+        "data_type": "double_d",
         "n_classes": n_classes,
         "n_classes_per_digit": n_classes_per_digit,
-        'nb_steps' : 2
+        "nb_steps": 2,
+        "split_classes": False,
     }
 
     if dataset_config["data_type"] == "symbols":
@@ -66,7 +72,7 @@ if __name__ == "__main__":
 
         symbol_config = {
             "data_size": data_sizes if not debug_run else data_sizes // 5,
-            "nb_steps": dataset_config['nb_steps'],
+            "nb_steps": dataset_config["nb_steps"],
             "n_symbols": n_classes - 1,
             "input_size": 60,
             "static": True,
@@ -83,25 +89,9 @@ if __name__ == "__main__":
         dataset_config["symbol_config"] = symbol_config
 
     else:
-        if dataset_config["data_type"] in ["digits", "double_d", "single_d"]:
 
-            dataset_config["n_classes_per_digit"] = 10
-            dataset_config["n_classes"] = n_classes_per_digit * n_digits
-
-        dataset_config["input_size"] = 784
+        dataset_config["input_size"] = 784 * (1 + dataset_config["common_input"])
         dataset_config["symbol_config"] = {}
-
-    agents_config = {
-        "n_in": dataset_config["input_size"],
-        "n_hidden": 20,
-        "n_layers": 1,
-        "n_out": n_classes_per_digit,
-        "n_readouts": 1,
-        "train_in_out": (True, True),
-        "cell_type": str(nn.RNN),
-        "use_bottleneck": False,
-        "ag_dropout": 0.0,
-    }
 
     p_masks = [0.1]
 
@@ -131,6 +121,18 @@ if __name__ == "__main__":
         "comms_out_scale": 0.1,
     }
 
+    agents_config = {
+        "n_in": dataset_config["input_size"],
+        "n_hidden": 20,
+        "n_layers": 1,
+        "n_out": n_classes_per_digit,
+        "n_readouts": 1,
+        "train_in_out": (True, True),
+        "cell_type": str(nn.RNN),
+        "use_bottleneck": False,
+        "ag_dropout": 0.0,
+    }
+
     model_config = {
         "agents": agents_config,
         "connections": connections_config,
@@ -139,7 +141,7 @@ if __name__ == "__main__":
         "common_readout": False,
         "n_readouts": 1,
         "readout_from": None,
-        "readout_n_hid": None,
+        "readout_n_hid": 30,
     }
 
     config = {
@@ -164,7 +166,7 @@ if __name__ == "__main__":
         "task": "bitxor",
         ### ------ Task ------
         "metrics_only": False,
-        "n_tests": 4 if not debug_run else 1,
+        "n_tests": 10 if not debug_run else 1,
         "debug_run": debug_run,
         "use_tqdm": 2,
     }
@@ -179,9 +181,9 @@ if __name__ == "__main__":
         pyaml.dump(config, config_file)
 
     if debug_run:
-        # os.environ["WANDB_MODE"] = "offline"
+        os.environ["WANDB_MODE"] = "offline"
         pass
-    
+
     # WAndB tracking :
 
     wandb.init(project="funcspec_V2", entity="m2snn", config=config)
@@ -207,9 +209,9 @@ if __name__ == "__main__":
     varying_params_local = [
         {"sparsity": s}
         for s in np.unique(
-            # np.array([1, 2, 10, n**2 // 100, n**2 // 10, n**2 // 2, n**2])
-            np.geomspace(1, n**2, 10)
-            / n**2
+            (np.geomspace(1, n**2, 2) / n**2)
+            if debug_run
+            else (np.geomspace(1, n**2, 20) / n**2)
         )
     ]
 
@@ -224,19 +226,12 @@ if __name__ == "__main__":
             config["datasets"]["use_cuda"],
         )
     else:
-        all_loaders = get_datasets_alphabet(
-            "data/",
-            config["datasets"]["batch_size"],
-            config["datasets"]["data_sizes"],
-            config["datasets"]["use_cuda"],
-            config["datasets"]["fix_asym"],
-            config["datasets"]["n_classes_per_digit"],
-        )
+        all_loaders = get_datasets_alphabet("data/", config["datasets"])
         loaders = all_loaders[
             ["multi", "double_d", "double_l", "single_d" "single_l"].index(
                 config["datasets"]["data_type"]
             )
-                ]
+        ]
 
     pbar_0 = varying_params_local
     if config["use_tqdm"]:
@@ -244,7 +239,7 @@ if __name__ == "__main__":
 
     metric_results, metric_datas, training_results = {}, [], []
 
-    #Go through local sweep
+    # Go through local sweep
     for v_params_local in pbar_0:
 
         v_params_all = v_params_local.copy()
@@ -270,7 +265,7 @@ if __name__ == "__main__":
         if config["use_tqdm"]:
             pbar_1 = tqdm(pbar_1, desc="Trials : ", position=1, leave=None)
 
-        #Repetitions per varying parameters
+        # Repetitions per varying parameters
         for test in pbar_1:
 
             # config = update_dict(config, wandb.config)

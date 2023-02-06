@@ -1,28 +1,21 @@
 datasets:
-  batch_size: 256
+  batch_size: 512
   common_input: true
   data_sizes:
-  data_type: symbols
+    - 6000
+    - 1000
+  data_type: double_d
   fix_asym: false
-  input_size: 3600
+  input_size: 1568
   n_classes: 16
   n_classes_per_digit: 8
-  permute_dataset: false
-  seed:
-  symbol_config:
-    adjust_probas: false
-    data_size:
-      - 60000
-      - 10000
-    input_size: 60
-    n_diff_symbols: 2
-    n_symbols: 15
-    nb_steps: 10
-    parallel: false
-    static: true
-    symbol_type: mod_5
-  use_cuda: false
-debug_run: false
+  nb_steps: 2
+  permute_dataset: true
+  seed: 35
+  split_classes: false
+  symbol_config: {}
+  use_cuda: true
+debug_run: true
 metrics:
   chosen_timesteps:
     - mid-
@@ -33,7 +26,7 @@ model:
     ag_dropout: 0.0
     cell_type: '<class ''torch.nn.modules.rnn.RNN''>'
     n_hidden: 20
-    n_in: 3600
+    n_in: 1568
     n_layers: 1
     n_out: 8
     n_readouts: 1
@@ -53,8 +46,8 @@ model:
   n_ins:
   n_readouts: 1
   readout_from:
-  readout_n_hid:
-n_tests: 5
+  readout_n_hid: 30
+n_tests: 1
 optimization:
   agents:
     gamma: 0.95
@@ -75,8 +68,8 @@ training:
   early_stop: false
   force_connections: false
   inverse_task: false
-  n_epochs: 30
+  n_epochs: 1
   stopping_acc: 0.95
-use_tqdm: false
+use_tqdm: 2
 varying_params_local: {}
 varying_params_sweep: {}

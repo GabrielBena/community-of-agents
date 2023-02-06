@@ -164,6 +164,7 @@ def compute_all_metrics(trained_coms, loaders, config, device):
         symbols=symbols,
         chosen_timesteps=chosen_timesteps,
         n_hid=30,
+        common_input=config["datasets"]["common_input"],
     )
     bottleneck_metric = bottleneck_results["accs"]  # n_agents n_targets x n_timesepts
 

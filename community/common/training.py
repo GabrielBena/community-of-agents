@@ -143,6 +143,7 @@ def train_community(
     symbols = config["data_type"] == "symbols"
     force_connections = config["force_connections"]
     common_input = config["common_input"]
+    nb_steps = config["nb_steps"]
 
     n_classes = config["n_classes"]
     n_classes_per_digit = config["n_classes_per_digit"]
@@ -214,6 +215,7 @@ def train_community(
                     conv_com,
                     symbols=symbols,
                     common_input=common_input,
+                    n_steps=nb_steps,
                 )
 
                 if task == "family":
@@ -391,6 +393,7 @@ def test_community(
     n_classes = config["n_classes"]
     n_classes_per_digit = config["n_classes_per_digit"]
     common_input = config["common_input"]
+    nb_steps = config["nb_steps"]
 
     task = config["task"]
     decision = config["decision"]
@@ -418,7 +421,13 @@ def test_community(
                 data, target = data.to(device), target.to(device)
 
             data, t_target = process_data(
-                data, target, task, conv_com, symbols=symbols, common_input=common_input
+                data,
+                target,
+                task,
+                conv_com,
+                symbols=symbols,
+                common_input=common_input,
+                n_steps=nb_steps,
             )
 
             if task == "family":

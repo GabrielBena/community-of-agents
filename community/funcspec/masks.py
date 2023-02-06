@@ -239,7 +239,7 @@ def train_mask(
     include_ih=False,
     include_r=False,
     multi_objectives=True,
-    common_input=False,
+    nb_steps=2,
 ):
     masked_community = Mask_Community(
         community,
@@ -285,6 +285,7 @@ def train_mask(
         "n_classes": n_classes,
         "n_classes_per_digit": n_classes,
         "common_input": include_ih,
+        "nb_steps": nb_steps,
     }
 
     train_out = train_community(
@@ -473,6 +474,7 @@ def train_and_get_mask_metric(
                 include_ih=include_ih,
                 include_r=include_r,
                 multi_objectives=multi_objectives,
+                nb_steps=config["datasets"]["nb_steps"],
             )
 
             if use_optimal_sparsity:

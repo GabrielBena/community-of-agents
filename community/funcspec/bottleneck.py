@@ -37,6 +37,7 @@ def readout_retrain(
     n_hid=None,
     retrain_common=False,
     common_input=False,
+    nb_steps=2,
 ):
     """
     Retrains the bottleneck-readout connections of each sub-network for each sub-task and stores performance.
@@ -175,6 +176,7 @@ def readout_retrain(
             "n_classes": n_classes,
             "n_classes_per_digit": n_classes,
             "common_input": common_input,
+            "nb_steps": nb_steps,
         }
 
         train_outs.append(
