@@ -34,7 +34,7 @@ if __name__ == "__main__":
         seed = np.random.randint(100)
 
     # Use for debugging
-    debug_run = True
+    debug_run = False
 
     if debug_run:
         print("Debugging Mode is activated ! Only doing mock training")
@@ -89,7 +89,6 @@ if __name__ == "__main__":
         dataset_config["symbol_config"] = symbol_config
 
     else:
-
         dataset_config["input_size"] = 784 * (1 + dataset_config["common_input"])
         dataset_config["symbol_config"] = {}
 
