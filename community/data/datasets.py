@@ -34,7 +34,7 @@ class Custom_MNIST(MNIST):
         all_digits: bool = False,
     ) -> None:
 
-        self.truncate = truncate
+        self.truncate = np.array(truncate)
         super().__init__(root, train, transform, target_transform, download)
 
         self.sorted = sorted
@@ -50,8 +50,7 @@ class Custom_MNIST(MNIST):
 
     def _load_data(self):
         data, targets = super()._load_data()
-        if self.truncate:
-            print(self.truncate)
+        if self.truncate is not None:
             try:
                 truncate_mask = (
                     np.stack([np.array(targets) == t for t in self.truncate])
@@ -210,6 +209,11 @@ class DoubleMNIST(Dataset):
         )
         self.mnist_dataset = dataset
 
+        if truncate is not None:
+            self.n_classes = len(truncate)
+        else:
+            self.n_classes = 10
+
         self.fix_asym = fix_asym
         self.secondary_index = torch.randperm(len(self.mnist_dataset))
         if self.fix_asym:
@@ -222,7 +226,7 @@ class DoubleMNIST(Dataset):
         if self.permute:
             if seed is not None:
                 torch.manual_seed(seed)
-            self.permutation = torch.randperm(10)
+            self.permutation = torch.randperm(self.n_classes)
             print(self.permutation)
 
     def valid_idx(self, idx):
@@ -865,15 +869,16 @@ class SymbolsDataset(Dataset):
             return torch.from_numpy(np.stack(new_data)).transpose(0, 1), labels
 
 
-def get_datasets_alphabet(
-    root,
-    batch_size=256,
-    data_sizes=None,
-    use_cuda=True,
-    fix_asym=False,
-    n_classes=10,
-    split_classes=False,
-):
+def get_datasets_alphabet(root, data_config):
+
+    batch_size = data_config["batch_size"]
+    data_sizes = data_config["data_size"]
+    use_cuda = data_config["use_cuda"]
+    fix_asym = data_config["fix_asym"]
+    n_classes = data_config["n_classes_per_digit"]
+    split_classes = data_config["split_classes"]
+    permute = data_config["permute_dataset"]
+    seed = data_config["seed"]
 
     train_kwargs = {"batch_size": batch_size, "shuffle": True, "drop_last": True}
     test_kwargs = {"batch_size": batch_size, "shuffle": False, "drop_last": True}
@@ -897,7 +902,14 @@ def get_datasets_alphabet(
         for t in [True, False]
     ]
     double_digits = [
-        DoubleMNIST(root, train=t, fix_asym=fix_asym, truncate=truncate_digits)
+        DoubleMNIST(
+            root,
+            train=t,
+            fix_asym=fix_asym,
+            truncate=truncate_digits,
+            permute=permute,
+            seed=seed,
+        )
         for t in [True, False]
     ]
 
@@ -1008,3 +1020,78 @@ def get_datasets_symbols(data_config, use_cuda=True, n_classes=10, plot=False):
     ]
 
     return dataloaders, datasets
+
+
+if __name__ == "__main__":
+
+    use_cuda = True
+    device = torch.device("cuda" if use_cuda else "cpu")
+    batch_size = 512
+
+    use_symbols = False
+
+    n_agents = 2
+    n_classes_per_digit = 8
+    n_classes = n_classes_per_digit * n_agents
+
+    data_config = {
+        "batch_size": 256,
+        "data_size": None,  # np.array([30000, 5000]) ,
+        "input_size": 28,
+        "common_input": False,
+        "use_cuda": use_cuda,
+        "fix_asym": True,
+        "permute_dataset": False,
+        "seed": None,
+        "data_type": "double_d",
+        "n_classes": n_classes,
+        "n_classes_per_digit": n_classes_per_digit,
+        "symbol_config": {},
+        "split_classes": True,
+    }
+
+    if use_symbols:
+
+        symbol_config = {
+            "data_size": np.array([30000, 5000]),
+            "nb_steps": 50,
+            "n_symbols": n_classes - 1,
+            "symbol_type": "mod_5",
+            "input_size": 60,
+            "static": True,
+            "n_diff_symbols": n_agents,
+            "parallel": False,
+            "adjust_probas": False,
+        }
+
+        if symbol_config["static"]:
+            symbol_config["nb_steps"] = 10
+            symbol_config["data_size"] = [d for d in symbol_config["data_size"]]
+
+        n_bits = np.ceil(np.log2(n_classes)).astype(int)
+
+        data_config["symbol_config"] = symbol_config
+        data_config["input_size"] = symbol_config["input_size"]
+        data_config["data_type"] = "symbols"
+
+    if use_symbols:
+        loaders, datasets = get_datasets_symbols(
+            data_config, batch_size, use_cuda, plot=True
+        )
+    else:
+
+        all_loaders = get_datasets_alphabet(
+            "../../data/",
+            data_config["batch_size"],
+            data_config["data_size"],
+            data_config["use_cuda"],
+            data_config["fix_asym"],
+            data_config["n_classes_per_digit"],
+            data_config["split_classes"],
+        )
+        loaders = all_loaders[
+            ["multi", "double_d", "double_l", "single_d" "single_l"].index(
+                data_config["data_type"]
+            )
+        ]
+        datasets = [l.dataset for l in loaders]
