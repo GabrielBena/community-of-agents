@@ -35,7 +35,6 @@ if __name__ == "__main__":
 
     # Use for debugging
     debug_run = False
-
     if debug_run:
         print("Debugging Mode is activated ! Only doing mock training")
 
@@ -159,7 +158,11 @@ if __name__ == "__main__":
             "force_connections": False,
         },
         "metrics": {"chosen_timesteps": ["mid-", "last"]},
-        "varying_params_sweep": {},
+        "varying_params_sweep": {
+            # "common_input": False,
+            # "common_readout": True,
+            # "use_bottleneck": True,
+        },
         "varying_params_local": {},
         ###------ Task ------
         "task": "bitxor",
@@ -168,6 +171,7 @@ if __name__ == "__main__":
         "n_tests": 10 if not debug_run else 1,
         "debug_run": debug_run,
         "use_tqdm": 2,
+        "data_regen": dataset_config["data_type"] != "symbols",
     }
 
     try:
@@ -218,19 +222,26 @@ if __name__ == "__main__":
 
     ensure_config_coherence(config, varying_params_sweep)
 
-    if dataset_config["data_type"] == "symbols":
-        loaders, datasets = get_datasets_symbols(
-            config["datasets"],
-            config["datasets"]["batch_size"],
-            config["datasets"]["use_cuda"],
-        )
-    else:
-        all_loaders = get_datasets_alphabet("data/", config["datasets"])
-        loaders = all_loaders[
-            ["multi", "double_d", "double_l", "single_d" "single_l"].index(
-                config["datasets"]["data_type"]
+    def get_data(config):
+
+        if config["datasets"]["data_type"] == "symbols":
+            loaders, datasets = get_datasets_symbols(
+                config["datasets"],
+                config["datasets"]["batch_size"],
+                config["datasets"]["use_cuda"],
             )
-        ]
+        else:
+            all_loaders = get_datasets_alphabet("data/", config["datasets"])
+            loaders = all_loaders[
+                ["multi", "double_d", "double_l", "single_d" "single_l"].index(
+                    config["datasets"]["data_type"]
+                )
+            ]
+            datasets = [l.dataset for l in loaders]
+
+        return loaders, datasets
+
+    loaders, datasets = get_data(config)
 
     pbar_0 = varying_params_local
     if config["use_tqdm"]:
@@ -239,7 +250,7 @@ if __name__ == "__main__":
     metric_results, metric_datas, training_results = {}, [], []
 
     # Go through local sweep
-    for v_params_local in pbar_0:
+    for v, v_params_local in enumerate(pbar_0):
 
         v_params_all = v_params_local.copy()
         v_params_all.update(wandb.config["varying_params_sweep"])
@@ -267,11 +278,18 @@ if __name__ == "__main__":
         # Repetitions per varying parameters
         for test in pbar_1:
 
+            if config["data_regen"] and test * v != 0:
+                seed += 1
+                config["datasets"]["seed"] = seed
+                loaders, datasets = get_data(config)
+
             # config = update_dict(config, wandb.config)
 
             (metric_data, train_outs, metric_result) = train_and_compute_metrics(
                 config, loaders, device
             )
+
+            metric_data["seed"] = np.full_like(list(metric_data.values())[0], seed)
 
             metric_datas.append(metric_data)
             training_results.append(train_outs)

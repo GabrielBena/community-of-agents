@@ -227,7 +227,7 @@ class DoubleMNIST(Dataset):
             if seed is not None:
                 torch.manual_seed(seed)
             self.permutation = torch.randperm(self.n_classes)
-            print(self.permutation)
+            # print(self.permutation)
 
     def valid_idx(self, idx):
         idx1, idx2 = idx, self.secondary_index[idx]

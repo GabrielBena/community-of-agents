@@ -1,3 +1,4 @@
+data_regen: true
 datasets:
   batch_size: 512
   common_input: true
@@ -11,7 +12,7 @@ datasets:
   n_classes_per_digit: 8
   nb_steps: 2
   permute_dataset: true
-  seed: 35
+  seed: 96
   split_classes: false
   symbol_config: {}
   use_cuda: true
@@ -72,4 +73,7 @@ training:
   stopping_acc: 0.95
 use_tqdm: 2
 varying_params_local: {}
-varying_params_sweep: {}
+varying_params_sweep:
+  common_input: false
+  common_readout: true
+  use_bottleneck: true

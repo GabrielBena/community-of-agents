@@ -226,8 +226,10 @@ def ensure_config_coherence(config, v_params):
             config["datasets"]["n_classes"] // config["model"]["n_agents"]
         )
 
-    if config["datassets"]["data_type"] != "symbols":
+    elif "common_input" in v_params:
+        if config["datasets"]["data_type"] != "symbols":
 
-        config["datasets"]["input_size"] = 784 * (
-            1 + config["datasets"]["common_input"]
-        )
+            config["datasets"]["input_size"] = 784 * (
+                1 + config["datasets"]["common_input"]
+            )
+            config["model"]["agents"]["n_in"] = config["datasets"]["input_size"]
