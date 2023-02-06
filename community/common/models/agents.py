@@ -210,7 +210,7 @@ class Agent(nn.Module):
             output = self.bottleneck(output)
 
         if self.use_readout:
-            output = torch.cat([r(output) for r in self.readout])
+            output = torch.stack([r(output) for r in self.readout]).squeeze()
 
         if softmax:
             output = F.log_softmax(output, dim=-1)

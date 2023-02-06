@@ -139,6 +139,12 @@ def get_single_task(task, target, n_classes):
             xor = xor[..., -n_last:]
             xor = bin2dec(xor, n_last)
 
+        elif "first" in task:
+            n_first = int(task.split("-")[-1])
+            xor = dec2bin(xor)
+            xor = xor[..., :n_first]
+            xor = bin2dec(xor, n_first)
+
         return xor
 
     else:

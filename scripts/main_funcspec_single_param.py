@@ -29,7 +29,7 @@ from tqdm.notebook import tqdm as tqdm_n
 if __name__ == "__main__":
 
     try:
-        seed = os.environ["PBS_ARRAY_INDEX"]
+        seed = int(os.environ["PBS_ARRAY_INDEX"])
     except KeyError:
         seed = np.random.randint(100)
 
@@ -47,7 +47,7 @@ if __name__ == "__main__":
 
     data_sizes = np.array([60000, 10000])
 
-    n_classes_per_digit = 8
+    n_classes_per_digit = 16
     n_classes = n_classes_per_digit * n_digits
 
     dataset_config = {
@@ -58,7 +58,7 @@ if __name__ == "__main__":
         "fix_asym": False,
         "permute_dataset": True,
         "seed": seed,
-        "data_type": "double_d",
+        "data_type": "symbols",
         "n_classes": n_classes,
         "n_classes_per_digit": n_classes_per_digit,
         "nb_steps": 2,
@@ -214,7 +214,7 @@ if __name__ == "__main__":
         for s in np.unique(
             (np.geomspace(1, n**2, 2) / n**2)
             if debug_run
-            else (np.geomspace(1, n**2, 20) / n**2)
+            else (np.geomspace(1, n**2, 25) / n**2)
         )
     ]
 
