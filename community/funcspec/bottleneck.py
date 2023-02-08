@@ -73,9 +73,13 @@ def readout_retrain(
     common_input = config["datasets"]["common_input"]
 
     f_config = copy.deepcopy(config)
-    f_config["model"]["readout"]["common_readout"] = retrain_common
+
     f_config["task"] = task
-    f_config["model"]["readout"]["n_hid"] = n_hid
+    f_config["model"]["readout"] = {
+        "common_readout": retrain_common,
+        "n_hid": n_hid,
+        "readout_from": None,
+    }
 
     readout_config = configure_readouts(f_config)
     f_config["model"]["readout"].update(readout_config)
@@ -87,9 +91,12 @@ def readout_retrain(
         # for target in range(2) :
 
         f_community = copy.deepcopy(community)
+        f_community.readout_config = f_config["model"]["readout"]
+        f_community.initialize_readout()
+        f_community.to(device)
 
         for name, p in f_community.named_parameters():
-            if "readout" in name:  # and "agents.0" in name:
+            if "readout" in name and "agents.0" in name:
                 p.requires_grad = True
             else:
                 p.requires_grad = train_all_param
@@ -150,7 +157,6 @@ def readout_retrain(
 
     return (
         {"accs": test_accs},
-        f_community,
         f_community,
     )  # n_agents x n_targets x n_timesteps
 

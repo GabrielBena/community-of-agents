@@ -21,7 +21,7 @@ class Custom_MNIST(MNIST):
         all_digits: bool = False,
     ) -> None:
 
-        self.truncate = truncate
+        self.truncate = np.array(truncate)
         super().__init__(root, train, transform, target_transform, download)
 
         self.sorted = sorted
@@ -37,7 +37,7 @@ class Custom_MNIST(MNIST):
 
     def _load_data(self):
         data, targets = super()._load_data()
-        if self.truncate:
+        if self.truncate is not None:
             try:
                 truncate_mask = (
                     np.stack([np.array(targets) == t for t in self.truncate])
@@ -71,7 +71,6 @@ class Custom_MNIST(MNIST):
         """
         Args:
             index (int): Index
-
         Returns:
             tuple: (image, target) where target is index of the target class.
         """
@@ -175,34 +174,45 @@ class DoubleMNIST(Dataset):
     Args :
         train : use training set
         asym : solve parity task asymetry by removing digit_1==digit_2 cases
-
     """
 
-    def __init__(self, root, train=True, fix_asym=True, permute=False, seed=None):
+    def __init__(
+        self, root, train=True, fix_asym=True, permute=False, seed=None, truncate=None
+    ):
         super().__init__()
 
         self.transform = transforms.Compose(
             [transforms.ToTensor(), transforms.Normalize((0.1307,), (0.3081,))]
         )
 
-        dataset = datasets.MNIST(
-            root, train=train, download=True, transform=self.transform
+        dataset = Custom_MNIST(
+            root,
+            train=train,
+            download=True,
+            transform=self.transform,
+            truncate=truncate,
         )
         self.mnist_dataset = dataset
+
+        if truncate is not None:
+            self.n_classes = len(truncate)
+        else:
+            self.n_classes = 10
 
         self.fix_asym = fix_asym
         self.secondary_index = torch.randperm(len(self.mnist_dataset))
         if self.fix_asym:
             self.new_idxs = self.get_forbidden_indexs()
+            # self.secondary_index = self.secondary_index[: len(self.new_idxs)]
         else:
-            self.new_idxs = [i for i in range(len(dataset))]
+            self.new_idxs = torch.arange(len(dataset))
 
         self.permute = permute
         if self.permute:
             if seed is not None:
                 torch.manual_seed(seed)
-            self.permutation = torch.randperm(10)
-            print(self.permutation)
+            self.permutation = torch.randperm(self.n_classes)
+            # print(self.permutation)
 
     def valid_idx(self, idx):
         idx1, idx2 = idx, self.secondary_index[idx]
@@ -241,3 +251,14 @@ class DoubleMNIST(Dataset):
     def __len__(self):
         # return len(self.mnist_dataset)
         return len(self.new_idxs)
+
+    @property
+    def data(self):
+        datas = [
+            [
+                d[torch.tensor(idx)]
+                for d in [self.mnist_dataset.data, self.mnist_dataset.targets]
+            ]
+            for idx in [self.new_idxs, self.secondary_index[self.new_idxs]]
+        ]
+        return [torch.stack(d, 1) for i, d in enumerate(zip(*datas))]

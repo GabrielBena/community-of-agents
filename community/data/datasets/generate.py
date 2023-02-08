@@ -1,9 +1,10 @@
 import torch
 from torch.utils.data import Dataset
-from torchvision import datasets, transforms
+from torchvision import transforms
+from torchvision.datasets import FashionMNIST
 import torchvision.transforms.functional as tF
 import numpy as np
-from community.data.datasets.mnist import Custom_EMNIST, DoubleMNIST
+from community.data.datasets.mnist import Custom_EMNIST, DoubleMNIST, Custom_MNIST
 from community.data.datasets.symbols import SymbolsDataset
 
 
@@ -67,16 +68,18 @@ class MultiDataset(Dataset):
             return datas, labels
 
 
-def get_datasets_alphabet(
-    root,
-    batch_size=256,
-    use_cuda=True,
-    fix_asym=False,
-    n_classes=10,
-    split_classes=True,
-):
+def get_datasets_alphabet(root, data_config):
 
-    train_kwargs = {"batch_size": batch_size, "shuffle": True}
+    batch_size = data_config["batch_size"]
+    data_sizes = data_config["data_sizes"]
+    use_cuda = data_config["use_cuda"]
+    fix_asym = data_config["fix_asym"]
+    n_classes = data_config["n_classes_per_digit"]
+    split_classes = data_config["split_classes"]
+    permute = data_config["permute_dataset"]
+    seed = data_config["seed"]
+
+    train_kwargs = {"batch_size": batch_size, "shuffle": True, "drop_last": True}
     test_kwargs = {"batch_size": batch_size, "shuffle": False, "drop_last": True}
     if use_cuda:
         cuda_kwargs = {"num_workers": 0, "pin_memory": True}
@@ -87,16 +90,30 @@ def get_datasets_alphabet(
         [transforms.ToTensor(), transforms.Normalize((0.1307,), (0.3081,))]
     )
 
+    truncate_digits = np.arange(n_classes)
+
     kwargs = train_kwargs, test_kwargs
 
     single_digits = [
-        datasets.MNIST(root, train=t, download=True, transform=transform)
+        Custom_MNIST(
+            root, train=t, download=True, transform=transform, truncate=truncate_digits
+        )
         for t in [True, False]
     ]
-    double_digits = [DoubleMNIST(root, train=t, fix_asym=False) for t in [True, False]]
+    double_digits = [
+        DoubleMNIST(
+            root,
+            train=t,
+            fix_asym=fix_asym,
+            truncate=truncate_digits,
+            permute=permute,
+            seed=seed,
+        )
+        for t in [True, False]
+    ]
 
     single_fashion = [
-        datasets.FashionMNIST(root, train=t, transform=transform, download=True)
+        FashionMNIST(root, train=t, transform=transform, download=True)
         for t in [True, False]
     ]
 
@@ -138,30 +155,32 @@ def get_datasets_alphabet(
         for (s1, s2) in zip(single_digits, single_letters[0])
     ]
     double_letters = [
-        MultiDataset([s1, s2], fix_asym=fix_asym, shuffle=True)
+        MultiDataset([s1, s2], fix_asym=False, shuffle=True)
         for (s1, s2) in zip(single_letters[0], single_letters[1])
     ]
 
-    single_loaders_dig = [
-        torch.utils.data.DataLoader(d, **k) for d, k in zip(single_digits, kwargs)
+    datasets = [
+        single_digits,
+        double_digits,
+        double_letters,
+        multi_datasets,
+        single_letters,
     ]
-    double_loaders_dig = [
-        torch.utils.data.DataLoader(d, **k) for d, k in zip(double_digits, kwargs)
-    ]
-    double_loaders_letters = [
-        torch.utils.data.DataLoader(d, **k) for d, k in zip(double_letters, kwargs)
-    ]
-    multi_loaders = [
-        torch.utils.data.DataLoader(d, **k) for d, k in zip(multi_datasets, kwargs)
+    if data_sizes is not None:
+        datasets = [
+            [
+                torch.utils.data.Subset(d, torch.arange(d_size))
+                for d, d_size in zip(dsets, data_sizes)
+            ]
+            for dsets in datasets
+        ]
+
+    loaders = [
+        [torch.utils.data.DataLoader(d, **k) for d, k in zip(dsets, kwargs)]
+        for dsets in datasets
     ]
 
-    return (
-        multi_loaders,
-        double_loaders_dig,
-        double_loaders_letters,
-        single_loaders_dig,
-        single_letters,
-    )
+    return loaders
 
 
 def get_datasets_symbols(data_config, use_cuda=True, n_classes=10, plot=False):

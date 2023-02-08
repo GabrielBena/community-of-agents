@@ -373,7 +373,9 @@ def train_community(
                     pbar.set_description(desc(descs))
 
         if testing:
-            descs[1], loss, acc, _ = test_community(model, device, test_loader, config)
+            descs[1], loss, acc, _ = test_community(
+                model, device, test_loader, config, show_all_acc
+            )
             if loss < best_loss:
                 best_loss = loss
                 best_state = copy.deepcopy(model.state_dict())
@@ -432,6 +434,7 @@ def test_community(
     device,
     test_loader,
     config,
+    show_all_acc=True,
     verbose=False,
     seed=None,
 ):
@@ -547,7 +550,9 @@ def test_community(
     desc = str(
         " | Test set: Loss: {:.3f}, Accuracy: {}%".format(
             test_loss,
-            nested_round(acc) if not isinstance(acc, float) else np.round(100 * acc),
+            nested_round(acc)
+            if not isinstance(acc, float) and show_all_acc
+            else np.round(100 * acc),
         )
     )
 

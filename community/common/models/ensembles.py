@@ -14,6 +14,7 @@ from .readout import (
 )
 from ...utils.model import get_output_shape
 from copy import deepcopy
+from community.utils.others import nested_shape
 
 
 class Community(nn.Module):
@@ -54,12 +55,10 @@ class Community(nn.Module):
 
         self.init_connections()
 
-        self.use_common_readout = readout_config["common_readout"]
         self.readout = None
         self.initialize_readout()
 
     def initialize_readout(self):
-
         self.readout_dims = get_readout_dimensions(self.agents, **self.readout_config)
         default_readout = create_readout_from_dims(self.readout_dims)
 
@@ -68,12 +67,14 @@ class Community(nn.Module):
             init_readout_weights(self.readout)
             for ag in self.agents:
                 ag.readout_from = self.readout_config["readout_from"]
+                ag.readout = None
         else:
             for ag in self.agents:
                 r = deepcopy(default_readout)
                 init_readout_weights(r)
                 ag.readout = r
                 ag.readout_from = self.readout_config["readout_from"]
+            self.readout = None
 
     # Initializes connections in_between agents with the given sparsity matrix
     def init_connections(self):
@@ -181,23 +182,21 @@ class Community(nn.Module):
             for i, state in enumerate(ag_states):
                 states[i].append(state)
 
-            if self.use_common_readout:
-
+            if self.readout:
                 common_out = readout_process(
                     self.readout,
                     self.readout_config["readout_from"],
                     [ag[-1] for ag in ag_outputs],
                 )
                 outputs.append(common_out)
-            else:
-                outputs = ag_outputs
 
-        if not self.use_common_readout:
-            try:
-                outputs = torch.stack([torch.stack(o) for o in outputs], 1)
-            except TypeError:
-                outputs = [list(o) for o in zip(*outputs)]
-                pass
+        try:
+            ag_outputs = torch.stack([torch.stack(o) for o in ag_outputs], 1).squeeze()
+        except TypeError:
+            outputs = [list(o) for o in zip(*outputs)]
+
+        if not self.readout:
+            outputs = ag_outputs
         else:
             try:
                 outputs = torch.stack(outputs, 0)
