@@ -110,7 +110,10 @@ def get_agent_decision(outputs, agent_decision, target=None):
     try:
         deciding_ags = int(agent_decision)
         outputs = outputs[deciding_ags]
-        deciding_ags = torch.ones(outputs.shape[0]) * deciding_ags
+        try:
+            deciding_ags = torch.ones(outputs.shape[0]) * deciding_ags
+        except AttributeError:
+            deciding_ags = 1
 
     except ValueError:
 

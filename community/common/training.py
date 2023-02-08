@@ -48,19 +48,19 @@ def get_loss(output, t_target):
 def get_acc(output, t_target):
 
     try:
-
         pred = output.argmax(
             dim=-1, keepdim=True
         )  # get the index of the max log-probability
+
+        correct = pred.eq(t_target.view_as(pred))
         if len(pred.shape) > 2:
-            acc = [get_acc(o, t) for o, t in zip(output, t_target)]
+            return [get_acc(o, t) for o, t in zip(output, t_target)]
         else:
-            correct = pred.eq(t_target.view_as(pred))
             acc = (correct.sum() / t_target.numel()).cpu().data.numpy()
 
-    except (AttributeError, RuntimeError) as e:
+    except (AttributeError) as e:
         acc = [get_acc(o, t) for o, t in zip(output, t_target)]
-    except TypeError:
+    except (TypeError, RuntimeError) as e:
         acc = [get_acc(o, t_target) for o in output]
 
     return np.array(acc)

@@ -60,17 +60,16 @@ class Community(nn.Module):
 
     def initialize_readout(self):
         self.readout_dims = get_readout_dimensions(self.agents, **self.readout_config)
-        default_readout = create_readout_from_dims(self.readout_dims)
 
         if self.readout_config["common_readout"]:
-            self.readout = default_readout
+            self.readout = create_readout_from_dims(self.readout_dims)
             init_readout_weights(self.readout)
             for ag in self.agents:
                 ag.readout_from = self.readout_config["readout_from"]
                 ag.readout = None
         else:
             for ag in self.agents:
-                r = deepcopy(default_readout)
+                r = create_readout_from_dims(self.readout_dims)
                 init_readout_weights(r)
                 ag.readout = r
                 ag.readout_from = self.readout_config["readout_from"]
