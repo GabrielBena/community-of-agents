@@ -68,7 +68,7 @@ class Agent(nn.Module):
         n_readouts=1,
         train_in_out=(True, True),
         cell_type=nn.RNN,
-        use_bottleneck=False,
+        n_bot=None,
         ag_dropout=0.0,
         readout_n_hid=None,
     ):
@@ -76,6 +76,10 @@ class Agent(nn.Module):
         super().__init__()
 
         self.dims = [n_in, n_hidden, n_out]
+        self.use_bottleneck = n_bot is not None
+        if self.use_bottleneck:
+            self.dims.insert(-1, n_bot)
+
         self.train_in_out = train_in_out
         self.tag = str(tag) if type(tag) is not str else tag
         self.n_readouts, self.readout_n_hid = n_readouts, readout_n_hid
@@ -91,7 +95,6 @@ class Agent(nn.Module):
             if "weight" in n:
                 init.xavier_normal_(p, init.calculate_gain("tanh", p))
 
-        self.use_bottleneck = use_bottleneck
         self.dropout = nn.Dropout(ag_dropout) if ag_dropout > 0 else None
 
         self.initialize_readout_and_bottleneck()
@@ -101,13 +104,12 @@ class Agent(nn.Module):
 
     def initialize_readout_and_bottleneck(self):
 
-        n_hidden, n_out = self.dims[1:]
+        if self.use_bottleneck:
+            n_hidden, n_bot, n_out = self.dims[1:]
+        else:
+            n_hidden, n_out = self.dims[1:]
 
         if self.use_bottleneck:
-            if n_out == 100:
-                n_bot = 10
-            else:
-                n_bot = 5
             self.bottleneck = nn.Sequential(*[nn.Linear(n_hidden, n_bot), nn.ReLU()])
             self.bottleneck.out_features = n_bot
             self.readout_dims = [n_bot, n_out]

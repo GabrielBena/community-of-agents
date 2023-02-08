@@ -62,7 +62,7 @@ class Community(nn.Module):
 
         self.comms_start = comms_start
 
-    def gather(slef, l, rf):
+    def gather(self, l, rf):
         return [l[i] for i in rf]
 
     def initialize_readout(self, n_readouts, readout_from, n_hid=None):
@@ -223,7 +223,8 @@ class Community(nn.Module):
         # data can be a double list of len n_timesteps x n_agents or a tensor with second dimension n_agents
         split_data = (type(x) is torch.Tensor and len(x.shape) > 3) or type(x) is list
         self.nb_steps = len(x)
-        outputs = [[] for ag in self.agents] if not self.use_common_readout else []
+        ag_outputs = [[] for ag in self.agents]
+        outputs = []
         states = [[None] for ag in self.agents]
         connections = [[] for ag in self.agents]
 
@@ -264,9 +265,7 @@ class Community(nn.Module):
                     # out, h = ag1(inputs, states[t-1][i], inputs_connect)
 
                 out, h = ag1(inputs, states[i][-1], inputs_connect)
-
-                if not self.use_common_readout:
-                    outputs[i].append(out)
+                ag_outputs[i].append(out)
 
                 if state_masks is not None:
                     h *= state_masks[i]
@@ -296,11 +295,18 @@ class Community(nn.Module):
 
                     return out
 
+                """
                 try:
                     out = readout_process(self.readout, self.readout_from, states)
-                except RuntimeError:
+                except RuntimeError:  # Use bottleneck as out
                     out = readout_process(self.readout, self.readout_from, out)
-                outputs.append(out)
+                """
+                common_out = readout_process(
+                    self.readout, self.readout_from, ag_outputs
+                )
+                outputs.append(common_out)
+            else:
+                outputs = ag_outputs
 
         if not self.use_common_readout:
             outputs = torch.stack([torch.stack(o) for o in outputs], 1)
@@ -320,7 +326,7 @@ class Community(nn.Module):
         except TypeError:
             connections = torch.tensor(connections)
 
-        return outputs.squeeze(), states, connections
+        return outputs.squeeze(), states, ag_outputs, connections
 
     @property
     def w_rec_global(self):
@@ -527,8 +533,13 @@ class ConvCommunity(nn.Module):
                     p_con = sparse_connections[i, j]
                     if p_con > 0:
                         # State-to-State connections :
-                        n_in = ag1.dims[-2]
-                        n_out = ag2.dims[-2]
+
+                        if self.use_bottleneck:
+                            n_in = ag1.dims[-3]
+                            n_out = ag2.dims[-3]
+                        else:
+                            n_in = ag1.dims[-2]
+                            n_out = ag2.dims[-2]
                         # Output-to-Input connections:
                         # n_in = ag1.dims[-1]
                         # n_out = ag2.dims[0]

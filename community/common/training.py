@@ -187,7 +187,7 @@ def train_community(
     data, target = process_data(
         data, target, symbols=symbols, common_input=common_input, task=task
     )
-    out, states, fconns = model(data.to(device))
+    *_, fconns = model(data.to(device))
 
     # try:
     #    model = torch.compile(model)
@@ -411,7 +411,7 @@ def test_community(
     data, target = process_data(
         data, target, task, conv_com, symbols=symbols, common_input=common_input
     )
-    out, states, fconns = model(data.to(device))
+    *_, fconns = model(data.to(device))
     with torch.no_grad():
         for data, target in test_loader:
 
