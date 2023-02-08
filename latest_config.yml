@@ -15,7 +15,8 @@ datasets:
   seed: 95
   split_classes: false
   symbol_config:
-    adjust_probas: false
+    adjust_probabilites: false
+    common_input: true
     data_size:
       - 12000
       - 2000
@@ -46,7 +47,6 @@ model:
       - true
       - true
     use_bottleneck: false
-  common_readout: false
   connections:
     binarize: false
     comms_dropout: 0.0
@@ -56,10 +56,11 @@ model:
     use_deepR: false
   n_agents: 2
   n_ins:
-  n_readouts: 1
-  readout_from:
-  readout_n_hid: 30
-n_tests: 1
+  readout:
+    common_readout: true
+    n_hid:
+    readout_from:
+n_tests: 2
 optimization:
   agents:
     gamma: 0.95
@@ -72,7 +73,7 @@ optimization:
     global_rewire: false
     l1: 1.0e-05
     lr: 0.001
-task: bitxor
+task: count-max
 training:
   decision:
     - last

@@ -16,6 +16,8 @@ dependencies:
   - pyaml
   - pip
   - seaborn
+  - ray
+  - scikit-learn
   - pip : 
     - ray
     - tqdm

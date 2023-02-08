@@ -5,6 +5,7 @@ import torch.nn.init as init
 from copy import deepcopy
 import numpy as np
 import scipy
+from .readout import readout_process
 
 
 class LeakyRNN(nn.RNNCell):
@@ -63,19 +64,16 @@ class Agent(nn.Module):
         n_in,
         n_hidden,
         n_layers,
-        n_out,
         tag,
-        n_readouts=1,
         train_in_out=(True, True),
         cell_type=nn.RNN,
         n_bot=None,
         ag_dropout=0.0,
-        readout_n_hid=None,
     ):
 
         super().__init__()
 
-        self.dims = [n_in, n_hidden, n_out]
+        self.dims = [n_in, n_hidden, 0]
         self.use_bottleneck = n_bot is not None
         if self.use_bottleneck:
             self.dims.insert(-1, n_bot)
@@ -96,6 +94,7 @@ class Agent(nn.Module):
                 init.xavier_normal_(p, init.calculate_gain("tanh", p))
 
         self.dropout = nn.Dropout(ag_dropout) if ag_dropout > 0 else None
+        self.readout = None
 
         self.initialize_readout_and_bottleneck()
 
@@ -208,11 +207,14 @@ class Agent(nn.Module):
         output = x
         if self.dropout:
             output = self.dropout(output)
+
+        """
         if self.use_bottleneck:
             output = self.bottleneck(output)
+        """
 
-        if self.use_readout:
-            output = torch.stack([r(output) for r in self.readout]).squeeze()
+        if self.readout:
+            output = readout_process(self.readout, self.readout_from, output)
 
         if softmax:
             output = F.log_softmax(output, dim=-1)

@@ -1,6 +1,10 @@
 from warnings import warn
 from community.data.tasks import get_factors_list, get_task_family_dict
-from community.utils.configs import configure_readouts, find_and_change, ensure_config_coherence
+from community.utils.configs import (
+    configure_readouts,
+    find_and_change,
+    ensure_config_coherence,
+)
 from community.utils.wandb_utils import mkdir_or_save_torch, update_dict
 import torch
 import torch.nn as nn
@@ -25,7 +29,7 @@ from tqdm.notebook import tqdm as tqdm_n
 if __name__ == "__main__":
 
     # Use for debugging
-    debug_run = False
+    debug_run = True
 
     if debug_run:
         print("Debugging Mode is activated ! Only doing mock training")
@@ -90,8 +94,8 @@ if __name__ == "__main__":
         "n_in": dataset_config["input_size"],
         "n_hidden": 20,
         "n_layers": 1,
-        "n_out": n_classes_per_digit,
-        "n_readouts": 1,
+        # "n_out": n_classes_per_digit,
+        # "n_readouts": 1,
         "train_in_out": (True, True),
         "cell_type": str(nn.RNN),
         "use_bottleneck": False,
@@ -126,15 +130,18 @@ if __name__ == "__main__":
         "comms_out_scale": 0.1,
     }
 
+    readout_config = {
+        "common_readout": True,
+        "readout_from": None,
+        "n_hid": None,
+    }
+
     model_config = {
         "agents": agents_config,
         "connections": connections_config,
+        "readout": readout_config,
         "n_agents": n_agents,
         "n_ins": None,
-        "common_readout": False,
-        "n_readouts": 1,
-        "readout_from": None,
-        "readout_n_hid": None,
     }
 
     config = {
@@ -196,8 +203,9 @@ if __name__ == "__main__":
             find_and_change(config, param_name, param)
 
     ensure_config_coherence(config, varying_params)
+    readout_config = configure_readouts(config)
 
-    configure_readouts(config)
+    config["model"]["readout"].update(readout_config)
 
     metric_results, metric_datas, training_results = {}, [], []
 

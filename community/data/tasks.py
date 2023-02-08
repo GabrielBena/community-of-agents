@@ -51,7 +51,22 @@ def bin2dec(b, bits):
     return torch.sum(mask * b, -1)
 
 
-def get_single_task(task, target, n_classes):
+def dec2bin(x):
+    bits = int((torch.floor(torch.log2(x)) + 1).max())
+    # mask = 2 ** torch.arange(bits).to(x.device, x.dtype)
+    mask = 2 ** torch.arange(bits - 1, -1, -1).to(x.device, x.dtype)
+    return x.unsqueeze(-1).bitwise_and(mask).ne(0).to(x.dtype)
+
+
+def bin2dec(b, bits):
+    mask = 2 ** torch.arange(bits - 1, -1, -1).to(b.device, b.dtype)
+    return torch.sum(mask * b, -1)
+
+
+def get_single_task(task, target, n_classes=None):
+
+    if n_classes is None:
+        n_classes = len(target[:, 0].unique())
 
     target_mult = lambda tgt: torch.stack(
         [t * (n_classes**i) for (i, t) in enumerate(tgt.T)]
@@ -73,6 +88,7 @@ def get_single_task(task, target, n_classes):
 
     elif "parity" in task:
         parity = (digits.sum(0)) % 2  # 0 when same parity
+
         if "digits" in task:
             return torch.where(parity.bool(), digits[0], digits[1])
         elif "both" in task:
@@ -163,19 +179,18 @@ def get_task_target(target, task, n_classes, temporal_target=False):
     """
 
     if temporal_target:
-
-        return get_task_target(target, task, n_classes, False).unique(dim=0)
+        targets = get_task_target(target, task, n_classes, False)
+        return targets.unique(dim=0)
 
     elif type(task) is list:
         targets = [get_task_target(target, t, n_classes) for t in task]
-
         try:
             return torch.stack(targets)
         except (ValueError, RuntimeError) as e:
             return targets
 
     elif task == "family":
-        return get_task_family_dict(target, n_classes)
+        return get_task_family(target, n_classes)
 
     else:
         new_target = deepcopy(target)
@@ -200,10 +215,11 @@ def get_factors_list(n_digits, device=torch.device("cpu")):
         if torch.tensor(p).sum() >= 0 and torch.tensor(p).any()
     ]
     key_f = lambda p: (p == 1).sum() + (p == -1).sum() * 0.1
+
     return sorted(factors_list, key=key_f)
 
 
-def get_task_family_dict(target, n_classes_per_dig):
+def get_task_family(target, n_classes_per_dig):
 
     n_digits = target.shape[-1]
     device = target.device
@@ -218,7 +234,7 @@ def get_task_family_dict(target, n_classes_per_dig):
         0,
     )
 
-    return task_family, factors_list
+    return task_family, factors_list, n_classes_per_dig * n_digits
 
 
 # ------ Continual Learning Tasks ------ :

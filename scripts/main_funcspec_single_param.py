@@ -133,13 +133,9 @@ if __name__ == "__main__":
 
     model_config = {
         "agents": agents_config,
-        "connections": connections_config,
-        "n_agents": n_agents,
-        "n_ins": None,
-        "common_readout": False,
-        "n_readouts": 1,
-        "readout_from": None,
-        "readout_n_hid": 30,
+        "connection": connections_config,
+        "common_readout": True,
+        "dual_readout": True,
     }
 
     config = {
@@ -183,6 +179,10 @@ if __name__ == "__main__":
     with open("latest_config.yml", "w") as config_file:
         pyaml.dump(config, config_file)
 
+    # WAndB tracking :
+    wandb.init(project="funcspec", entity="gbena", config=config)
+    run_dir = wandb.run.dir + "/"
+
     if debug_run:
         os.environ["WANDB_MODE"] = "offline"
         pass
@@ -198,6 +198,7 @@ if __name__ == "__main__":
         "training": run_dir + "training_results",
         "metrics": run_dir + "metric_results",
     }
+
 
     varying_params_sweep = wandb.config["varying_params_sweep"]
 
@@ -302,7 +303,7 @@ if __name__ == "__main__":
     data_table = wandb.Table(dataframe=final_data)
     wandb.log({"Metric Results": data_table})
 
-    try:
+     try:
         metric_results = {k: np.stack(v, -1) for k, v in metric_results.items()}
     except ValueError:
         pass

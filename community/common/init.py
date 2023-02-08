@@ -17,12 +17,12 @@ def init_community(model_dict, device=torch.device("cuda")):
         agents_params : parameters of sub-networks
         p_connect : sparsity of interconnections
     """
-    agents_params_dict = model_dict["agents"]
-    agents_params_dict["readout_n_hid"] = model_dict["readout_n_hid"]
-    connections_params_dict = model_dict["connections"]
 
-    n_readouts = model_dict["n_readouts"]
-    readout_from = model_dict["readout_from"]
+    agents_config = model_dict["agents"]
+    connections_config = model_dict["connections"]
+    sparsity = connections_config["sparsity"]
+    readout_config = model_dict["readout"]
+
     n_agents = model_dict["n_agents"]
 
     try:
@@ -37,10 +37,8 @@ def init_community(model_dict, device=torch.device("cuda")):
     except (KeyError, TypeError) as e:
         n_hiddens = [None for _ in range(n_agents)]
 
-    readout_n_hid = model_dict["readout_n_hid"]
-
     def modified_agent_dict(tag, n_in=None, n_hid=None):
-        new_dict = copy(agents_params_dict)
+        new_dict = copy(agents_config)
         if n_in is not None:
             new_dict["n_in"] = n_in
         if n_hid is not None:
@@ -60,16 +58,15 @@ def init_community(model_dict, device=torch.device("cuda")):
 
     community = Community(
         agents,
-        n_readouts=n_readouts,
-        readout_from=readout_from,
-        readout_n_hid=readout_n_hid,
-        **connections_params_dict,
+        sparsity,
+        readout_config,
+        connections_config,
     ).to(device)
 
     return community
 
 
-def init_optimizers(community, params_dict, deepR_params_dict):
+def init_optimizers(community, params_dict, deepR_params_dict=None):
     """
     Optimizers initialization
     Args :

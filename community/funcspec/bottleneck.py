@@ -14,6 +14,7 @@ warnings.filterwarnings("ignore")
 from community.common.training import train_community
 from community.common.init import init_community, init_optimizers
 from community.utils.others import is_notebook
+from community.utils.configs import configure_readouts
 from community.utils.wandb_utils import get_wandb_artifact, mkdir_or_save_torch
 
 # ------ Bottleneck Metric ------ :
@@ -22,16 +23,12 @@ from community.utils.wandb_utils import get_wandb_artifact, mkdir_or_save_torch
 def readout_retrain(
     community,
     loaders,
-    n_classes=10,
-    n_agents=2,
-    n_digits=2,
-    deepR_params_dict={},
+    config,
     n_epochs=3,
     train_all_param=False,
     force_connections=False,
     use_tqdm=False,
     device=torch.device("cuda"),
-    symbols=False,
     chosen_timesteps=["0", "mid-", "last"],
     task="all",
     n_hid=None,
@@ -70,6 +67,18 @@ def readout_retrain(
 
     train_outs = []
 
+    n_agents = config["model"]["n_agents"]
+    n_classes = config["datasets"]["n_classes"]
+    symbols = config["datasets"]["data_type"] == "symbols"
+
+    f_config = copy.deepcopy(config)
+    f_config["model"]["readout"]["common_readout"] = retrain_common
+    f_config["task"] = task
+    f_config["model"]["readout"]["n_hid"] = n_hid
+
+    readout_config = configure_readouts(f_config)
+    f_config["model"]["readout"].update(readout_config)
+
     for training_timestep in pbar:
 
         single_losses = [[] for target in range(n_agents)]
@@ -77,70 +86,6 @@ def readout_retrain(
         # for target in range(2) :
 
         f_community = copy.deepcopy(community)
-
-        if not retrain_common:
-
-            for f_agent in f_community.agents:
-
-                n_in = (
-                    f_agent.bottleneck.out_features
-                    if f_agent.use_bottleneck
-                    else f_agent.dims[-2]
-                )
-                n_out = n_classes
-                if n_hid is not None:
-                    dims = [n_in, n_hid, n_out]
-                else:
-                    dims = [n_in, n_out]
-
-                readout = [
-                    [nn.Linear(d1, d2) for d1, d2 in zip(dims[:-1], dims[1:])]
-                    for _ in range(n_digits)
-                ]
-
-                readout_final = []
-                for r in readout:
-                    if n_hid is not None:
-                        r.insert(1, nn.ReLU())
-                        r = nn.Sequential(*r)
-                        readout_final.append(r)
-                    else:
-                        readout_final.append(r[0])
-
-                f_agent.readout = nn.ModuleList(readout_final)
-
-                f_agent.use_readout = True
-                f_agent.n_readouts = n_digits
-                f_agent.to(device)
-
-            f_community.use_common_readout = False
-            f_community.readout = None
-        else:
-            n_in = 2 * f_community.agents[0].dims[-2]
-            n_out = n_classes
-            if n_hid is not None:
-                dims = [n_in, n_hid, n_out]
-            else:
-                dims = [n_in, n_out]
-
-            readout = [
-                [nn.Linear(d1, d2) for d1, d2 in zip(dims[:-1], dims[1:])]
-                for _ in range(n_digits)
-            ]
-
-            readout_final = []
-            for r in readout:
-                if n_hid is not None:
-                    r.insert(1, nn.ReLU())
-                    r = nn.Sequential(*r)
-                    readout_final.append(r)
-                else:
-                    readout_final.append(r[0])
-
-            f_community.readout = nn.ModuleList(readout_final)
-            f_community.use_common_readout = True
-            f_community.readout_from = [np.arange(n_agents) for r in readout_final]
-            f_community.to(device)
 
         for name, p in f_community.named_parameters():
             if "readout" in name:  # and "agents.0" in name:
@@ -151,9 +96,7 @@ def readout_retrain(
         lr_ag, gamma = 1e-3, 0.9
         params_dict = {"lr": lr_ag, "gamma": gamma, "reg_readout": None}
 
-        optimizers, schedulers = init_optimizers(
-            f_community, params_dict, deepR_params_dict
-        )
+        optimizers, schedulers = init_optimizers(f_community, params_dict)
 
         try:
             min_acc = community.best_acc * 0.95
@@ -170,7 +113,7 @@ def readout_retrain(
             "decision": (training_timestep, "both"),
             "stopping_acc": None,
             "early_stop": False,
-            "deepR_params_dict": deepR_params_dict,
+            "deepR_params_dict": {},
             "data_type": "symbols" if symbols else None,
             "force_connections": force_connections,
             "n_classes": n_classes,
@@ -204,7 +147,11 @@ def readout_retrain(
 
     test_accs = test_accs.max(0)  # n_agents x n_targets x timesteps
 
-    return {"accs": test_accs}, f_community  # n_agents x n_targets x n_timesteps
+    return (
+        {"accs": test_accs},
+        f_community,
+        f_community,
+    )  # n_agents x n_targets x n_timesteps
 
 
 def compute_bottleneck_metrics(
