@@ -12,6 +12,7 @@ from typing import Any, AnyStr, Callable, Optional, Tuple
 from torchvision.datasets import MNIST
 from PIL import Image
 from itertools import permutations
+from torchvision.transforms import InterpolationMode, functional as F
 
 # from joblib import delayed, Parallel
 import multiprocessing as mp
@@ -356,17 +357,30 @@ class SymbolsDataset(Dataset):
         super().__init__()
 
         self.data_config = data_config
+        self.random_transform = data_config["random_transform"]
+        self.max_angle = 20
 
         self.symbols = self.get_symbols()
-        self.symbol_size = self.symbols[0].shape[0]
+        self.symbol_size = self.symbols[0].shape[-1]
         self.n_symbols = data_config["n_symbols"]
         self.common_input = data_config["common_input"]
 
         if plot:
-            fig, axs = plt.subplots(1, len(self.symbols))
-            for ax, sym in zip(axs, self.symbols):
-                ax.imshow(sym)
-            plt.show()
+            if self.random_transform:
+                fig, axs = plt.subplots(1, len(self.symbols))
+                for ax, sym in zip(axs, self.symbols):
+                    ax.imshow(
+                        np.concatenate(
+                            [sym[0], sym[2 * self.max_angle // 2], sym[-1]], -1
+                        )
+                    )
+                plt.show()
+            else:
+
+                fig, axs = plt.subplots(1, len(self.symbols))
+                for ax, sym in zip(axs, self.symbols):
+                    ax.imshow(sym)
+                plt.show()
 
         self.fixed_symbol_number = False
 
@@ -441,6 +455,24 @@ class SymbolsDataset(Dataset):
             raise NotImplementedError(
                 ' Provide symbol type in [0, 1, "random_{size}", "mod_{size}"] '
             )
+
+        if self.random_transform:
+            symbols = [
+                np.stack(
+                    [
+                        F.rotate(
+                            torch.tensor(sym).unsqueeze(0),
+                            angle=i,
+                            interpolation=InterpolationMode.BILINEAR,
+                        )
+                        .data.squeeze()
+                        .numpy()
+                        for i in range(-self.max_angle, self.max_angle)
+                    ],
+                    0,
+                )
+                for sym in symbols
+            ]
 
         return symbols
 
@@ -687,11 +719,15 @@ class SymbolsDataset(Dataset):
             grids = []
 
             def assign_square(grid, center_pos, l, d):
+
+                sym = symbols[l].copy()
+                if self.random_transform:
+                    sym = sym[np.random.randint(-self.max_angle, self.max_angle)]
                 grid[
                     d,
                     center_pos[0] : center_pos[0] + symbol_size,
                     center_pos[1] : center_pos[1] + symbol_size,
-                ] += symbols[l]
+                ] += sym
 
             if symbol_assigns is None or None in symbol_assigns:
                 # symbol_assigns = [np.random.choice(self.symbol_assignments_len[l]) for l in labels]

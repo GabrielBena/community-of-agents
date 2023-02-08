@@ -1,20 +1,31 @@
-data_regen: true
+data_regen: false
 datasets:
   batch_size: 512
   common_input: true
   data_sizes:
     - 6000
     - 1000
-  data_type: double_d
+  data_type: symbols
   fix_asym: false
-  input_size: 1568
-  n_classes: 16
-  n_classes_per_digit: 8
+  input_size: 3600
+  n_classes: 32
+  n_classes_per_digit: 16
   nb_steps: 2
   permute_dataset: true
-  seed: 96
+  seed: 95
   split_classes: false
-  symbol_config: {}
+  symbol_config:
+    adjust_probas: false
+    data_size:
+      - 12000
+      - 2000
+    input_size: 60
+    n_diff_symbols: 2
+    n_symbols: 31
+    nb_steps: 2
+    parallel: false
+    static: true
+    symbol_type: mod_5
   use_cuda: true
 debug_run: true
 metrics:
@@ -27,9 +38,9 @@ model:
     ag_dropout: 0.0
     cell_type: '<class ''torch.nn.modules.rnn.RNN''>'
     n_hidden: 20
-    n_in: 1568
+    n_in: 3600
     n_layers: 1
-    n_out: 8
+    n_out: 16
     n_readouts: 1
     train_in_out:
       - true
