@@ -52,7 +52,6 @@ def init_and_train(config, loaders, device):
     trained_coms = {}
     # for use_bottleneck in [True, False]:
 
-    use_bottleneck = agents_params_dict["use_bottleneck"]
     community = init_community(config["model"], device)
 
     optimizers, schedulers = init_optimizers(community, params_dict, deepR_params_dict)
@@ -154,14 +153,10 @@ def compute_all_metrics(trained_coms, loaders, config, device):
     bottleneck_results, _ = readout_retrain(
         community,
         loaders,
-        n_classes,
-        n_agents,
-        n_digits,
-        deepR_params_dict=deepR_params_dict,
+        config,
         n_epochs=1,
         device=device,
         use_tqdm=use_tqdm,
-        symbols=symbols,
         chosen_timesteps=chosen_timesteps,
         n_hid=30,
         common_input=config["datasets"]["common_input"],

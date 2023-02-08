@@ -59,8 +59,7 @@ def configure_single_readout(config, task, readout_from=None, n_hid=None):
 
     n_classes = config["datasets"]["n_classes"]
     n_classes_per_ag = config["datasets"]["n_classes_per_digit"]
-    symbol_config = config["datasets"]["symbol_config"]
-    n_symbols = symbol_config["n_diff_symbols"]
+    n_symbols = config["datasets"]["n_digits"]
 
     readout_config = {}
 
@@ -89,7 +88,7 @@ def configure_single_readout(config, task, readout_from=None, n_hid=None):
 
     if task == "family":
 
-        factors = get_factors_list(symbol_config["n_diff_symbols"])
+        factors = get_factors_list(n_symbols)
         readout_config["n_readouts"] = len(factors)
         readout_config["n_out"] = [n_classes for _ in range(len(factors))]
 
@@ -182,6 +181,7 @@ def get_new_config(config, key_prefix="config"):
 def ensure_config_coherence(config, v_params):
 
     n_agents = config["model"]["n_agents"]
+
     if config["task"] == "shared_goals":
         task = config["task"] = [
             [str(i), str((i + 1) % n_agents)] for i in range(n_agents)

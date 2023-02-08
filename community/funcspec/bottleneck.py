@@ -34,7 +34,6 @@ def readout_retrain(
     n_hid=None,
     retrain_common=False,
     common_input=False,
-    nb_steps=2,
 ):
     """
     Retrains the bottleneck-readout connections of each sub-network for each sub-task and stores performance.
@@ -70,6 +69,8 @@ def readout_retrain(
     n_agents = config["model"]["n_agents"]
     n_classes = config["datasets"]["n_classes"]
     symbols = config["datasets"]["data_type"] == "symbols"
+    nb_steps = config["datasets"]["nb_steps"]
+    common_input = config["datasets"]["common_input"]
 
     f_config = copy.deepcopy(config)
     f_config["model"]["readout"]["common_readout"] = retrain_common

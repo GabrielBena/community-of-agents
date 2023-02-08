@@ -4,6 +4,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scipy.optimize import fmin_cobyla
 from typing import Any, AnyStr, Callable, Optional, Tuple
+from torchvision.transforms import functional as F, InterpolationMode
 
 
 class SymbolsDataset(Dataset):
@@ -11,17 +12,30 @@ class SymbolsDataset(Dataset):
         super().__init__()
 
         self.data_config = data_config
+        self.random_transform = data_config["random_transform"]
+        self.max_angle = 20
 
         self.symbols = self.get_symbols()
-        self.symbol_size = self.symbols[0].shape[0]
+        self.symbol_size = self.symbols[0].shape[-1]
         self.n_symbols = data_config["n_symbols"]
         self.common_input = data_config["common_input"]
 
         if plot:
-            fig, axs = plt.subplots(1, len(self.symbols))
-            for ax, sym in zip(axs, self.symbols):
-                ax.imshow(sym)
-            plt.show()
+            if self.random_transform:
+                fig, axs = plt.subplots(1, len(self.symbols))
+                for ax, sym in zip(axs, self.symbols):
+                    ax.imshow(
+                        np.concatenate(
+                            [sym[0], sym[2 * self.max_angle // 2], sym[-1]], -1
+                        )
+                    )
+                plt.show()
+            else:
+
+                fig, axs = plt.subplots(1, len(self.symbols))
+                for ax, sym in zip(axs, self.symbols):
+                    ax.imshow(sym)
+                plt.show()
 
         self.fixed_symbol_number = False
 
@@ -66,8 +80,7 @@ class SymbolsDataset(Dataset):
             symbols = [np.zeros((s_size + 1, s_size + 1)) for n in range(n_diff)]
             step = s_size // n_diff
 
-            # symbol_orders = np.array([0, s_size // 2 - 1, s_size - 2, 1])
-            symbol_orders = [0, 3]
+            symbol_orders = np.array([0, 3, 2, 1])
             if len(symbol_orders) < n_diff:
                 symbol_orders = np.concatenate(
                     (symbol_orders, np.arange(len(symbol_orders), n_diff))
@@ -98,6 +111,24 @@ class SymbolsDataset(Dataset):
                 ' Provide symbol type in [0, 1, "random_{size}", "mod_{size}"] '
             )
 
+        if self.random_transform:
+            symbols = [
+                np.stack(
+                    [
+                        F.rotate(
+                            torch.tensor(sym).unsqueeze(0),
+                            angle=i,
+                            interpolation=InterpolationMode.BILINEAR,
+                        )
+                        .data.squeeze()
+                        .numpy()
+                        for i in range(-self.max_angle, self.max_angle)
+                    ],
+                    0,
+                )
+                for sym in symbols
+            ]
+
         return symbols
 
     def get_probabilities(self, n_classes):
@@ -109,21 +140,7 @@ class SymbolsDataset(Dataset):
         min_tns = lambda tns: ((tns - (np.ones_like(tns) / len(tns))) ** 2).sum()
         min_f = lambda x: min_tns(get_tns(x))
 
-        constraints = []
-
         f_cons_0 = lambda x: np.ones(n_classes).dot(x) - 1
-
-        # cons_0 = LinearConstraint(np.ones(n_classes), 1, 1)
-        cons_0 = {"type": "eq", "fun": f_cons_0}
-
-        """
-        for k in range(n_classes) : 
-            A = np.zeros(n_classes)
-            A[k] = 1
-            print(A)
-            constraints.append(LinearConstraint(A, 0, np.inf))
-
-        """
 
         x_init = np.ones(n_classes) / n_classes
 
@@ -357,11 +374,15 @@ class SymbolsDataset(Dataset):
             grids = []
 
             def assign_square(grid, center_pos, l, d):
+
+                sym = symbols[l].copy()
+                if self.random_transform:
+                    sym = sym[np.random.randint(-self.max_angle, self.max_angle)]
                 grid[
                     d,
                     center_pos[0] : center_pos[0] + symbol_size,
                     center_pos[1] : center_pos[1] + symbol_size,
-                ] += symbols[l]
+                ] += sym
 
             if symbol_assigns is None or None in symbol_assigns:
                 # symbol_assigns = [np.random.choice(self.symbol_assignments_len[l]) for l in labels]
@@ -436,27 +457,22 @@ class SymbolsDataset(Dataset):
         n_diff_symbols,
         **others,
     ):
+
         symbol_size = self.symbol_size
 
-        try:
-            if self.data_config["adjust_probabilites"]:
-                self.probas = self.get_probabilities((n_symbols + 1) // n_diff_symbols)
-            else:
-                self.probas = np.ones((n_symbols + 1) // n_diff_symbols) / (
-                    (n_symbols + 1) // n_diff_symbols
-                )
-        except KeyError:
-            self.probas = np.ones((n_symbols + 1) // n_diff_symbols) / (
+        if self.data_config["adjust_probas"]:
+            probas = self.get_probabilities((n_symbols + 1) // n_diff_symbols)
+        else:
+            probas = np.ones((n_symbols + 1) // n_diff_symbols) / (
                 (n_symbols + 1) // n_diff_symbols
             )
 
         if self.common_input:
+
             labels = (
                 np.stack(
                     [
-                        np.random.multinomial(1, self.probas, size=(data_size)).argmax(
-                            -1
-                        )
+                        np.random.multinomial(1, probas, size=(data_size)).argmax(-1)
                         for _ in range(n_diff_symbols)
                     ],
                     -1,
@@ -480,9 +496,7 @@ class SymbolsDataset(Dataset):
             labels = (
                 np.stack(
                     [
-                        np.random.multinomial(1, self.probas, size=(data_size)).argmax(
-                            -1
-                        )
+                        np.random.multinomial(1, probas, size=(data_size)).argmax(-1)
                         for _ in range(n_diff_symbols)
                     ],
                     -1,

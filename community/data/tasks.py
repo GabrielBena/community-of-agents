@@ -147,6 +147,7 @@ def get_single_task(task, target, n_classes=None):
         return digits[0] | digits[1]
 
     elif "bitxor" in task:
+
         xor = digits[0] ^ digits[1]
 
         if "last" in task:

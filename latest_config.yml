@@ -10,13 +10,13 @@ datasets:
   input_size: 3600
   n_classes: 32
   n_classes_per_digit: 16
+  n_digits: 2
   nb_steps: 2
   permute_dataset: true
-  seed: 95
+  seed: 69
   split_classes: false
   symbol_config:
-    adjust_probabilites: false
-    common_input: true
+    adjust_probas: false
     data_size:
       - 12000
       - 2000
@@ -25,6 +25,7 @@ datasets:
     n_symbols: 31
     nb_steps: 2
     parallel: false
+    random_transform: false
     static: true
     symbol_type: mod_5
   use_cuda: true
@@ -38,29 +39,27 @@ model:
   agents:
     ag_dropout: 0.0
     cell_type: '<class ''torch.nn.modules.rnn.RNN''>'
+    n_bot:
     n_hidden: 20
     n_in: 3600
     n_layers: 1
-    n_out: 16
-    n_readouts: 1
     train_in_out:
       - true
       - true
-    use_bottleneck: false
   connections:
     binarize: false
     comms_dropout: 0.0
-    comms_out_scale: 0.1
+    comms_out_scale: 1
     comms_start: start
+    global_rewire: false
     sparsity: 0.01
     use_deepR: false
   n_agents: 2
-  n_ins:
   readout:
     common_readout: true
     n_hid:
     readout_from:
-n_tests: 2
+n_tests: 1
 optimization:
   agents:
     gamma: 0.95
@@ -73,7 +72,7 @@ optimization:
     global_rewire: false
     l1: 1.0e-05
     lr: 0.001
-task: count-max
+task: bitxor
 training:
   decision:
     - last
@@ -85,7 +84,4 @@ training:
   stopping_acc: 0.95
 use_tqdm: 2
 varying_params_local: {}
-varying_params_sweep:
-  common_input: false
-  common_readout: true
-  use_bottleneck: true
+varying_params_sweep: {}

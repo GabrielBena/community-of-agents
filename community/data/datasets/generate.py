@@ -164,9 +164,11 @@ def get_datasets_alphabet(
     )
 
 
-def get_datasets_symbols(
-    data_config, batch_size=128, use_cuda=True, n_classes=10, plot=False
-):
+def get_datasets_symbols(data_config, use_cuda=True, n_classes=10, plot=False):
+
+    symbol_config = data_config["symbol_config"]
+    batch_size = data_config["batch_size"]
+    symbol_config["common_input"] = data_config["common_input"]
 
     train_kwargs = {"batch_size": batch_size, "shuffle": True, "drop_last": True}
     test_kwargs = {"batch_size": batch_size, "shuffle": False, "drop_last": True}
@@ -182,8 +184,14 @@ def get_datasets_symbols(
     kwargs = train_kwargs, test_kwargs
 
     data_configs = (
-        {k: v[0] if i == 0 else v for i, (k, v) in enumerate(data_config.items())},
-        {k: v[1] if i == 0 else v for i, (k, v) in enumerate(data_config.items())},
+        {
+            k: v[0] if k == "data_size" else v
+            for i, (k, v) in enumerate(symbol_config.items())
+        },
+        {
+            k: v[1] if k == "data_size" else v
+            for i, (k, v) in enumerate(symbol_config.items())
+        },
     )
     datasets = [SymbolsDataset(d, plot=plot) for d in data_configs]
     # datasets[1].symbols = datasets[0].symbols

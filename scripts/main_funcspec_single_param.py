@@ -8,14 +8,13 @@ from yaml.loader import SafeLoader
 import pandas as pd
 import numpy as np
 
-from community.data.tasks import get_factors_list, get_task_family_dict
 from community.utils.configs import (
     configure_readouts,
     find_and_change,
     ensure_config_coherence,
 )
 from community.utils.wandb_utils import mkdir_or_save_torch, update_dict
-from community.data.datasets import get_datasets_alphabet, get_datasets_symbols
+from community.data.datasets.generate import get_datasets_alphabet, get_datasets_symbols
 from community.data.tasks import get_task_target
 from community.funcspec.single_model_loop import train_and_compute_metrics
 import wandb
@@ -34,7 +33,7 @@ if __name__ == "__main__":
         seed = np.random.randint(100)
 
     # Use for debugging
-    debug_run = False
+    debug_run = True
     if debug_run:
         print("Debugging Mode is activated ! Only doing mock training")
 
@@ -59,6 +58,7 @@ if __name__ == "__main__":
         "permute_dataset": True,
         "seed": seed,
         "data_type": "symbols",
+        "n_digits": n_digits,
         "n_classes": n_classes,
         "n_classes_per_digit": n_classes_per_digit,
         "nb_steps": 2,
@@ -79,6 +79,7 @@ if __name__ == "__main__":
             "n_diff_symbols": n_digits,
             "parallel": False,
             "adjust_probas": False,
+            "random_transform": False,
         }
 
         if not symbol_config["static"]:
@@ -112,30 +113,36 @@ if __name__ == "__main__":
 
     connections_config = {
         "use_deepR": False,
+        "global_rewire": False,
         "comms_dropout": 0.0,
         "sparsity": 0.01,
         "binarize": False,
         "comms_start": "start",
-        "comms_out_scale": 0.1,
+        "comms_out_scale": 1,
     }
 
     agents_config = {
         "n_in": dataset_config["input_size"],
         "n_hidden": 20,
+        "n_bot": None,
         "n_layers": 1,
-        "n_out": n_classes_per_digit,
-        "n_readouts": 1,
         "train_in_out": (True, True),
         "cell_type": str(nn.RNN),
-        "use_bottleneck": False,
         "ag_dropout": 0.0,
+    }
+
+    readout_config = {
+        "common_readout": True,
+        # "dual_readout": True,
+        "n_hid": None,
+        "readout_from": None,
     }
 
     model_config = {
         "agents": agents_config,
-        "connection": connections_config,
-        "common_readout": True,
-        "dual_readout": True,
+        "connections": connections_config,
+        "readout": readout_config,
+        "n_agents": n_agents,
     }
 
     config = {
@@ -198,7 +205,6 @@ if __name__ == "__main__":
         "training": run_dir + "training_results",
         "metrics": run_dir + "metric_results",
     }
-
 
     varying_params_sweep = wandb.config["varying_params_sweep"]
 
@@ -269,7 +275,8 @@ if __name__ == "__main__":
         )
 
         ensure_config_coherence(config, v_params_all)
-        configure_readouts(config)
+        readout_config = configure_readouts(config)
+        config["model"]["readout"].update(readout_config)
 
         pbar_1 = range(config["n_tests"])
 
@@ -303,7 +310,7 @@ if __name__ == "__main__":
     data_table = wandb.Table(dataframe=final_data)
     wandb.log({"Metric Results": data_table})
 
-     try:
+    try:
         metric_results = {k: np.stack(v, -1) for k, v in metric_results.items()}
     except ValueError:
         pass

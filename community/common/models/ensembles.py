@@ -29,10 +29,11 @@ class Community(nn.Module):
         agents,
         sparsity,
         readout_config,
-        comms_config,
+        connections_config,
     ):
 
         super().__init__()
+        self.is_community = True
 
         self.agents = nn.ModuleList(agents)
         self.n_agents = len(agents)
@@ -48,10 +49,10 @@ class Community(nn.Module):
 
         self.sparse_connections = sparse_connections
         self.readout_config = readout_config
-        self.comms_config = comms_config
+        self.connections_config = connections_config
+        self.comms_start = connections_config["comms_start"]
 
         self.init_connections()
-        self.is_community = True
 
         self.use_common_readout = readout_config["common_readout"]
         self.readout = None
@@ -60,15 +61,16 @@ class Community(nn.Module):
     def initialize_readout(self):
 
         self.readout_dims = get_readout_dimensions(self.agents, **self.readout_config)
-        readout = create_readout_from_dims(self.readout_dims)
+        default_readout = create_readout_from_dims(self.readout_dims)
+
         if self.readout_config["common_readout"]:
-            self.readout = readout
+            self.readout = default_readout
             init_readout_weights(self.readout)
             for ag in self.agents:
                 ag.readout_from = self.readout_config["readout_from"]
         else:
             for ag in self.agents:
-                r = deepcopy(readout)
+                r = deepcopy(default_readout)
                 init_readout_weights(r)
                 ag.readout = r
                 ag.readout_from = self.readout_config["readout_from"]
@@ -99,20 +101,20 @@ class Community(nn.Module):
 
                         dims = [n_in, n_out]
                         sparsity_list = [p_con]
-                        if self.comms_config["use_deepR"]:
+                        if self.connections_config["use_deepR"]:
                             connection = Sparse_Connect(
                                 dims,
                                 sparsity_list,
-                                self.comms_config["comms_dropout"],
-                                self.comms_config["binarize"],
+                                self.connections_config["comms_dropout"],
+                                self.connections_config["binarize"],
                             )
                         else:
                             connection = MaskedLinear(
                                 *dims,
                                 p_con,
-                                dropout=self.comms_config["comms_dropout"],
-                                binarize=self.comms_config["binarize"],
-                                out_scale=self.comms_config["comms_out_scale"],
+                                dropout=self.connections_config["comms_dropout"],
+                                binarize=self.connections_config["binarize"],
+                                out_scale=self.connections_config["comms_out_scale"],
                             )
                         self.tags[i, j] = ag1.tag + ag2.tag
                         self.connections[self.tags[i, j]] = connection
@@ -180,20 +182,11 @@ class Community(nn.Module):
                 states[i].append(state)
 
             if self.use_common_readout:
-                out = readout_process(
+
+                common_out = readout_process(
                     self.readout,
                     self.readout_config["readout_from"],
-                    [s[-1] for s in states],
-                )
-
-                """
-                try:
-                    out = readout_process(self.readout, self.readout_from, states)
-                except RuntimeError:  # Use bottleneck as out
-                    out = readout_process(self.readout, self.readout_from, out)
-                """
-                common_out = readout_process(
-                    self.readout, self.readout_from, ag_outputs
+                    [ag[-1] for ag in ag_outputs],
                 )
                 outputs.append(common_out)
             else:
@@ -205,7 +198,6 @@ class Community(nn.Module):
             except TypeError:
                 outputs = [list(o) for o in zip(*outputs)]
                 pass
-
         else:
             try:
                 outputs = torch.stack(outputs, 0)
@@ -225,7 +217,7 @@ class Community(nn.Module):
         except TypeError:
             connections = torch.tensor(connections)
 
-        return outputs.squeeze(), states, ag_outputs, connections
+        return outputs, states, ag_outputs, connections
 
     @property
     def w_rec_global(self):
@@ -248,7 +240,7 @@ class Community(nn.Module):
         """
         Returns dictionnary of number of active connections of community
         """
-        if self.comms_config["use_deepR"]:
+        if self.connections_config["use_deepR"]:
             return {
                 tag: (c.thetas[0] > 0).int().sum()
                 for tag, c in zip(self.connections.keys(), self.connections.values())
@@ -258,6 +250,20 @@ class Community(nn.Module):
                 tag: (c.w_mask > 0).int().sum()
                 for tag, c in zip(self.connections.keys(), self.connections.values())
             }
+
+    @property
+    def min_t_comms(self):
+        if self.comms_start == "start":
+            min_t_comms = 1
+        elif self.comms_start == "mid":
+            min_t_comms = self.nb_steps // 2
+        elif self.comms_start == "last":
+            min_t_comms = self.nb_steps - 1
+        elif isinstance(self.comms_start, int):
+            min_t_comms = self.comms_start
+        else:
+            raise NotImplementedError
+        return min_t_comms
 
 
 class ConvCommunity(nn.Module):
