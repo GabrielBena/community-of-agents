@@ -1,7 +1,7 @@
 import torch
 from torch.utils.data import Dataset
 from torchvision import transforms
-from torchvision.datasets import FashionMNIST
+from torchvision.datasets import FashionMNIST, Omniglot
 import torchvision.transforms.functional as tF
 import numpy as np
 from community.data.datasets.mnist import Custom_EMNIST, DoubleMNIST, Custom_MNIST
@@ -71,7 +71,7 @@ class MultiDataset(Dataset):
 def get_datasets_alphabet(root, data_config):
 
     batch_size = data_config["batch_size"]
-    data_sizes = data_config["data_sizes"]
+    data_sizes = data_config["data_size"]
     use_cuda = data_config["use_cuda"]
     fix_asym = data_config["fix_asym"]
     n_classes = data_config["n_classes_per_digit"]
@@ -231,6 +231,6 @@ def get_omni_dataset(root="../../data/", size=16):
         ]
     )
 
-    omni = datasets.Omniglot(root, transform=transform, background=False)
+    omni = Omniglot(root, transform=transform, background=False)
 
     return omni

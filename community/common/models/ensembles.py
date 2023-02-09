@@ -92,8 +92,8 @@ class Community(nn.Module):
                     p_con = self.sparse_connections[i, j]
                     if p_con > 0:
                         # State-to-State connections :
-                        n_in = ag1.dims[-2]
-                        n_out = ag2.dims[-2]
+                        n_in = ag1.dims[-(2 + ag1.use_bottleneck)]
+                        n_out = ag2.dims[-(2 + ag2.use_bottleneck)]
 
                         # Output-to-Input connections:
                         # n_in = ag1.dims[-1]

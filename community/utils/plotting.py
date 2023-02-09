@@ -63,7 +63,7 @@ def plot_grid(
     plt.show()
 
 
-def create_gifs(data, target=None, name="gif", input_size=30, double=True):
+def create_gifs(data, target=None, name="gif", input_size=30, common_input=True):
 
     try:
         shutil.rmtree("gifs/")
@@ -72,9 +72,11 @@ def create_gifs(data, target=None, name="gif", input_size=30, double=True):
         os.mkdir("gifs")
         "continue"
 
-    img_list = lambda i: data[..., i, :, :].cpu().data.numpy() * 255
+    # data should be batch x time x (agents) x H x W
 
-    def create_gif(img_list, l, w, name, double=True):
+    img_list = lambda i: data[i].cpu().data.numpy() * 255
+
+    def create_gif(img_list, l, w, name):
 
         images_list = [
             Image.fromarray(img.reshape(w, l)).resize((256, 256)) for img in img_list
@@ -91,20 +93,12 @@ def create_gifs(data, target=None, name="gif", input_size=30, double=True):
     else:
         target = target.cpu().data.numpy()
 
-    if double:
-        [
-            create_gif(
-                img_list(i),
-                input_size,
-                2 * input_size,
-                "gifs/" + f"{name}_{i}_{target[i]}",
-            )
-            for i in range(min(10, len(target)))
-        ]
-    else:
-        [
-            create_gif(
-                img_list(i), input_size, input_size, "gifs/" + f"{name}_{i}_{target[i]}"
-            )
-            for i in range(min(10, len(target)))
-        ]
+    [
+        create_gif(
+            img_list(i),
+            input_size,
+            input_size * (2 - common_input),
+            "gifs/" + f"{name}_{i}_{target[i]}",
+        )
+        for i in range(min(10, len(target)))
+    ]

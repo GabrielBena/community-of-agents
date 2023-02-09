@@ -33,7 +33,7 @@ if __name__ == "__main__":
         seed = np.random.randint(100)
 
     # Use for debugging
-    debug_run = True
+    debug_run = False
     if debug_run:
         print("Debugging Mode is activated ! Only doing mock training")
 
@@ -164,11 +164,11 @@ if __name__ == "__main__":
         "varying_params_sweep": {
             # "common_input": False,
             # "common_readout": True,
-            # "use_bottleneck": True,
+            # "n_bot": 5,
         },
         "varying_params_local": {},
         ###------ Task ------
-        "task": "bitxor",
+        "task": "both",
         ### ------ Task ------
         "metrics_only": False,
         "n_tests": 10 if not debug_run else 1,
