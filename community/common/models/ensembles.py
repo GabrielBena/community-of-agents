@@ -14,7 +14,8 @@ from .readout import (
 )
 from ...utils.model import get_output_shape
 from copy import deepcopy
-from community.utils.others import nested_shape
+
+# from community.utils.nested import nested_shape
 
 
 class Community(nn.Module):
@@ -127,7 +128,9 @@ class Community(nn.Module):
         # data can be a double list of len n_timesteps x n_agents or a tensor with second dimension n_agents
         split_data = (type(x) is torch.Tensor and len(x.shape) > 3) or type(x) is list
         self.nb_steps = len(x)
+
         ag_outputs = [[] for ag in self.agents]
+        ag_bottlenecks = [[] for ag in self.agents]
         outputs = []
         states = [[None] for ag in self.agents]
         connections = [[] for ag in self.agents]
@@ -168,8 +171,9 @@ class Community(nn.Module):
 
                     # out, h = ag1(inputs, states[t-1][i], inputs_connect)
 
-                out, h = ag1(inputs, states[i][-1], inputs_connect)
+                out, h, bott = ag1(inputs, states[i][-1], inputs_connect)
                 ag_outputs[i].append(out)
+                ag_bottlenecks[i].append(bott)
 
                 if state_masks is not None:
                     h *= torch.tensor(state_masks[i]).to(x.device)
@@ -189,13 +193,11 @@ class Community(nn.Module):
                 )
                 outputs.append(common_out)
 
-        try:
-            ag_outputs = torch.stack([torch.stack(o) for o in ag_outputs], 1).squeeze()
-        except TypeError:
-            outputs = [list(o) for o in zip(*outputs)]
-
         if not self.readout:
-            outputs = ag_outputs
+            try:
+                outputs = torch.stack([torch.stack(o) for o in ag_outputs], 1).squeeze()
+            except TypeError:
+                outputs = [list(o) for o in zip(*ag_outputs)]
         else:
             try:
                 outputs = torch.stack(outputs, 0)
@@ -215,7 +217,12 @@ class Community(nn.Module):
         except TypeError:
             connections = torch.tensor(connections)
 
-        return outputs, states, ag_outputs, connections
+        return outputs, {
+            "ag_states": states,
+            "ag_outputs": ag_outputs,
+            "ag_bottlenecks": ag_bottlenecks,
+            "connections": connections,
+        }
 
     @property
     def w_rec_global(self):

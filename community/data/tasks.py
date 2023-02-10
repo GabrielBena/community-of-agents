@@ -87,26 +87,28 @@ def get_single_task(task, target, n_classes=None):
         return target
 
     elif "parity" in task:
-        parity = (digits.sum(0)) % 2  # 0 when same parity
-
         if "digits" in task:
-            return torch.where(parity.bool(), digits[0], digits[1])
-        elif "both" in task:
-            return torch.stack(
-                [
-                    torch.where(parity.bool(), digits[0], digits[1]),
-                    torch.where(parity.bool(), digits[1], digits[0]),
-                ],
-                -1,
-            )
-        elif "equal" in task:
-            tgt = torch.where(parity.bool(), digits[0], digits[1])
-            tgt[
-                (digits[0] == digits[1]) | (digits[0] == (digits[1] - 1) % n_classes)
-            ] = (n_classes + 1)
-            return tgt
+            parity = (digits.sum(0)) % 2  # 0 when same parity
+            if "both" in task:
+                return torch.stack(
+                    [
+                        torch.where(parity.bool(), digits[0], digits[1]),
+                        torch.where(parity.bool(), digits[1], digits[0]),
+                    ],
+                    -1,
+                )
+            elif "equal" in task:
+                tgt = torch.where(parity.bool(), digits[0], digits[1])
+                tgt[
+                    (digits[0] == digits[1])
+                    | (digits[0] == (digits[1] - 1) % n_classes)
+                ] = (n_classes + 1)
+                return tgt
+            else:
+                return torch.where(parity.bool(), digits[0], digits[1])
+
         else:
-            return parity
+            return target % 2
 
     elif task == "mult":
         return target_mult(target)

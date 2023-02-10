@@ -12,7 +12,11 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 
 from .init import init_community, init_optimizers
-from ..utils.others import check_grad, is_notebook, nested_shape
+from ..utils.others import (
+    check_grad,
+    is_notebook,
+)
+from ..utils.nested import nested_shape, nested_round, nested_sup, nested_len
 from ..utils.wandb_utils import mkdir_or_save_torch
 
 from ..utils.configs import get_training_dict
@@ -26,42 +30,58 @@ from deepR.models import step_connections
 # ------ Training and Testing functions ------
 
 
-def get_loss(output, t_target):
+def get_loss(output, t_target, both=False):
 
+    if both:
+
+        loss = torch.stack([get_loss(o, t_target) for o in output])
     # print(type(output), type(t_target))
     # print(output, t_target)
+    else:
+        try:
+            loss = F.cross_entropy(output, t_target, reduction="none")
+            output = output.unsqueeze(0)
 
-    try:
-        loss = F.cross_entropy(output, t_target, reduction="none")
-        output = output.unsqueeze(0)
+        except (TypeError, RuntimeError) as e:
+            loss = torch.stack([get_loss(o, t) for o, t in zip(output, t_target)])
 
-    except (TypeError, RuntimeError) as e:
-        loss = torch.stack([get_loss(o, t) for o, t in zip(output, t_target)])
+        # except ValueError:
+        # loss = torch.stack([get_loss(o, t_target) for o in output])
 
-    except ValueError:
-        t_target = torch.stack([t_target for _ in range(len(output))])
-        loss = torch.stack([get_loss(o, t) for o, t in zip(output, t_target)])
-
-    return torch.mean(loss)
+    return loss
 
 
-def get_acc(output, t_target):
+def get_acc(output, t_target, both=False):
 
-    try:
-        pred = output.argmax(
-            dim=-1, keepdim=True
-        )  # get the index of the max log-probability
-
-        correct = pred.eq(t_target.view_as(pred))
-        if len(pred.shape) > 2:
-            return [get_acc(o, t) for o, t in zip(output, t_target)]
-        else:
-            acc = (correct.sum() / t_target.numel()).cpu().data.numpy()
-
-    except (AttributeError) as e:
-        acc = [get_acc(o, t) for o, t in zip(output, t_target)]
-    except (TypeError, RuntimeError) as e:
+    if both:
         acc = [get_acc(o, t_target) for o in output]
+
+    else:
+
+        n_tasks = len(t_target)
+        n_out = len(output)
+
+        if n_out == n_tasks:
+            try:
+                pred = output.argmax(
+                    dim=-1, keepdim=True
+                )  # get the index of the max log-probability
+
+                correct = pred.eq(t_target.view_as(pred))
+                if len(pred.shape) > 2:
+                    acc = [get_acc(o, t) for o, t in zip(output, t_target)]
+                else:
+                    acc = (correct.sum() / t_target.numel()).cpu().data.numpy()
+
+            # task is list, get acc for all pairs
+            except (AttributeError) as e:
+                acc = [get_acc(o, t) for o, t in zip(output, t_target)]
+
+            except (TypeError, RuntimeError) as e:
+                acc = [get_acc(o, t_target) for o in output]
+
+        else:
+            acc = [get_acc(o, t_target) for o in output]
 
     return np.array(acc)
 
@@ -106,26 +126,18 @@ def get_loss2(output, t_target):
             ).T
         except RuntimeError:
 
-            res = [get_loss(o, t) for o, t in zip(output, t_target)]
+            res = [get_loss2(o, t) for o, t in zip(output, t_target)]
             loss, t_target = torch.stack([r[0] for r in res]).T, torch.stack(
                 [r[1] for r in res]
             )
 
     else:
-        res = [get_loss(o, t_target) for o in output]
+        res = [get_loss2(o, t_target) for o in output]
         loss, t_target = torch.stack([r[0] for r in res]).T, torch.stack(
             [r[1] for r in res]
         )
 
     return loss.mean(), t_target, output
-
-
-def nested_round(acc):
-    try:
-        round = np.round(np.array(acc) * 100, 0).astype(float)
-        return round
-    except TypeError:
-        return [nested_round(a) for a in acc]
 
 
 def binary_conn(target, ag):
@@ -286,7 +298,7 @@ def train_community(
                 else:
                     conns = None
 
-                output, *_ = model(data, conns)
+                output, out_dict = model(data, conns)
                 output, deciding_ags = get_decision(output, *decision, target=t_target)
 
                 try:
@@ -300,8 +312,9 @@ def train_community(
 
                     deciding_ags = None
 
-                loss = get_loss(output, t_target)
-                acc = get_acc(output, t_target)
+                complete_loss = get_loss(output, t_target, both=decision[1] == "both")
+                loss = complete_loss.mean()
+                acc = get_acc(output, t_target, both=decision[1] == "both")
 
                 if reg_loss:
                     reg = F.mse_loss(
@@ -363,8 +376,12 @@ def train_community(
                         batch_idx * train_loader.batch_size,
                         len(train_loader.dataset),
                         100.0 * batch_idx / len(train_loader),
-                        loss.item(),
-                        np.mean(acc) if not show_all_acc else nested_round(acc),
+                        torch.round(complete_loss.mean(-1), decimals=1).data
+                        if False
+                        else torch.round(loss, decimals=1).item(),
+                        np.round(100 * np.mean(acc))
+                        if not show_all_acc
+                        else nested_round(acc),
                         np.mean(deciding_agents),
                     )
                 )
@@ -374,19 +391,14 @@ def train_community(
 
         if testing:
             descs[1], loss, acc, _ = test_community(
-                model, device, test_loader, config, show_all_acc
+                model, device, test_loader, config, show_all_acc=show_all_acc
             )
             if loss < best_loss:
                 best_loss = loss
                 best_state = copy.deepcopy(model.state_dict())
 
-            try:
-                if acc > best_acc:
-                    best_acc = acc
-            except ValueError:
-                if (acc > best_acc).all():
-                    best_acc = acc
-
+        if nested_sup(acc, best_acc):
+            best_acc = acc
             test_losses.append(loss)
             test_accs.append(acc)
 
@@ -417,15 +429,8 @@ def train_community(
                 return results
 
         if stopping_acc is not None:
-            try:
-                if best_acc >= stopping_acc:
-                    # print(f'Stopping Training, Minimum accuracy of {stopping_acc} reached')
-                    return results
-            except ValueError:
-                if (best_acc >= stopping_acc).all():
-                    # print(f'Stopping Training, Minimum accuracy of {stopping_acc} reached')
-                    return results
-
+            if nested_sup(acc, stopping_acc):
+                return results
     return results
 
 
@@ -500,7 +505,7 @@ def test_community(
             else:
                 conns = None
 
-            output, *_ = model(data, conns)
+            output, out_dict = model(data, conns)
             output, deciding_ags = get_decision(output, *decision, target=t_target)
             try:
 
@@ -513,10 +518,11 @@ def test_community(
 
                 deciding_ags = None
 
-            loss = get_loss(output, t_target)
+            complete_loss = get_loss(output, t_target, both=decision[1] == "both")
+            loss = complete_loss.mean()
 
             test_loss += loss
-            test_acc = get_acc(output, t_target)
+            test_acc = get_acc(output, t_target, both=decision[1] == "both")
 
             """
             pred = output.argmax(
@@ -550,9 +556,7 @@ def test_community(
     desc = str(
         " | Test set: Loss: {:.3f}, Accuracy: {}%".format(
             test_loss,
-            nested_round(acc)
-            if not isinstance(acc, float) and show_all_acc
-            else np.round(100 * acc),
+            np.round(100 * np.mean(acc)) if not show_all_acc else nested_round(acc),
         )
     )
 

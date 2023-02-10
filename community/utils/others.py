@@ -5,22 +5,9 @@ from torch.random import manual_seed as seed_tcpu
 from torch.cuda import manual_seed_all as seed_tgpu
 from tqdm.notebook import tqdm as tqdm_n
 from tqdm import tqdm
+import numpy as np
 
 # ------ Others ------
-
-
-def nested_shape(output):
-    if hasattr(output, "shape"):
-        return output.shape
-    else:
-        return [nested_shape(o) for o in output]
-
-
-def nested_len(output):
-    if hasattr(output, "shape"):
-        return len(output.shape)
-    else:
-        return [nested_len(o) for o in output]
 
 
 def rescue_code(function):

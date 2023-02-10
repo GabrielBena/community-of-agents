@@ -13,7 +13,7 @@ datasets:
   n_digits: 2
   nb_steps: 2
   permute_dataset: true
-  seed: 45
+  seed: 40
   split_classes: false
   symbol_config:
     adjust_probas: false
@@ -72,7 +72,7 @@ optimization:
     global_rewire: false
     l1: 1.0e-05
     lr: 0.001
-task: sum
+task: both
 training:
   decision:
     - last
@@ -85,4 +85,6 @@ training:
 use_tqdm: 2
 varying_params_local: {}
 varying_params_sweep:
+  common_input: false
+  common_readout: true
   n_bot: 5

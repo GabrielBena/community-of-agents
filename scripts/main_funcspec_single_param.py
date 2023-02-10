@@ -9,7 +9,6 @@ import pandas as pd
 import numpy as np
 
 from community.utils.configs import (
-    configure_readouts,
     find_and_change,
     ensure_config_coherence,
 )
@@ -17,6 +16,7 @@ from community.utils.wandb_utils import mkdir_or_save_torch, update_dict
 from community.data.datasets.generate import get_datasets_alphabet, get_datasets_symbols
 from community.data.tasks import get_task_target
 from community.funcspec.single_model_loop import train_and_compute_metrics
+from community.common.models.readout import configure_readouts
 import wandb
 
 from tqdm import tqdm
@@ -33,7 +33,7 @@ if __name__ == "__main__":
         seed = np.random.randint(100)
 
     # Use for debugging
-    debug_run = False
+    debug_run = True
     if debug_run:
         print("Debugging Mode is activated ! Only doing mock training")
 
@@ -162,9 +162,9 @@ if __name__ == "__main__":
         },
         "metrics": {"chosen_timesteps": ["mid-", "last"]},
         "varying_params_sweep": {
-            # "common_input": False,
-            # "common_readout": True,
-            # "n_bot": 5,
+            "common_input": False,
+            "common_readout": True,
+            "n_bot": 5,
         },
         "varying_params_local": {},
         ###------ Task ------

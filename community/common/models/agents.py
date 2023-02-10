@@ -101,6 +101,9 @@ class Agent(nn.Module):
         self.readout = None
 
     def forward(self, x_in, x_h=None, x_connect=0, softmax=False):
+
+        bott = None
+
         """
         forward function of the Agent
         Params :
@@ -141,6 +144,7 @@ class Agent(nn.Module):
 
         if self.use_bottleneck:
             output = self.bottleneck(output)
+            bott = output.clone()
 
         if self.readout:
             output = readout_process(self.readout, self.readout_from, output)
@@ -148,7 +152,7 @@ class Agent(nn.Module):
         if softmax:
             output = F.log_softmax(output, dim=-1)
 
-        return output, h
+        return output, h, bott
 
     def cell_params(self, name):
         if hasattr(self.cell, name):

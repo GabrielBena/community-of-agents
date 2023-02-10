@@ -1,6 +1,8 @@
 import torch
 import torch.nn as nn
 import numpy as np
+from community.data.tasks import get_factors_list
+from warnings import warn
 
 
 def gather(l, rf):
@@ -41,6 +43,13 @@ def get_readout_dimensions(
         return [
             get_readout_dimensions(agents, common_readout, readout_from, 1, n_hid, n_o)
             for n_o in n_out
+        ]
+    elif n_readouts > 1:
+        return [
+            get_readout_dimensions(
+                agents, common_readout, readout_from, 1, n_hid, n_out
+            )
+            for _ in range(n_readouts)
         ]
     else:
         if readout_from is None:
@@ -111,3 +120,119 @@ def readout_process(readout, readout_from, input):
         return torch.stack([*out]).squeeze()
     except RuntimeError:
         return out
+
+
+def configure_readouts(config, task=None):
+
+    task = config["task"] if task is None else task
+    readout_from = config["model"]["readout"]["readout_from"]
+
+    if isinstance(task, list):
+
+        if isinstance(readout_from, list):
+            assert len(task) == len(readout_from)
+            readout_config = [
+                configure_single_readout(config, t, rf)
+                for (t, rf) in zip(task, readout_from)
+            ]
+        else:
+            readout_config = [configure_readouts(config, t) for t in task]
+
+        readout_config = {
+            k: [r[k] for r in readout_config] for k in readout_config[0].keys()
+        }
+
+    else:
+        readout_config = configure_single_readout(config, task)
+
+    return readout_config
+
+
+def configure_single_readout(config, task, readout_from=None, n_hid=None):
+
+    n_classes = config["datasets"]["n_classes"]
+    n_classes_per_ag = config["datasets"]["n_classes_per_digit"]
+    n_symbols = config["datasets"]["n_digits"]
+
+    readout_config = {}
+
+    readout_config["readout_from"] = (
+        readout_from
+        if readout_from is not None
+        else config["model"]["readout"]["readout_from"]
+    )
+
+    readout_config["n_hid"] = (
+        n_hid if n_hid is not None else config["model"]["readout"]["n_hid"]
+    )
+
+    # dummy_target = torch.zeros(2, 10)
+    # n_out = get_task_target(dummy_target, task, n_classes_per_ag)[1]
+    # readout_config["n_out"] = n_out
+
+    try:
+        task = int(task)
+        readout_config["n_readouts"] = 1
+        readout_config["n_out"] = n_classes_per_ag
+        return readout_config
+
+    except ValueError:
+        pass
+
+    if task == "family":
+
+        factors = get_factors_list(n_symbols)
+        readout_config["n_readouts"] = len(factors)
+        readout_config["n_out"] = [n_classes for _ in range(len(factors))]
+
+    elif task in ["both", "all", "none", "parity-digits-both"]:
+
+        readout_config["n_readouts"] = n_symbols
+        readout_config["n_out"] = [n_classes_per_ag for _ in range(n_symbols)]
+
+    elif (
+        task
+        in [
+            "sum",
+            "max",
+            "min",
+            "count-max",
+            "count-min",
+        ]
+        or "parity" in task
+        or "count" in task
+        or "bit" in task
+    ):
+
+        readout_config["n_readouts"] = 1
+        readout_config["n_out"] = n_classes_per_ag
+
+        if task == "sum":
+            readout_config["n_out"] = n_classes
+
+        elif "parity" in task:
+            if "digits" in task:
+                if "equal" in task:
+                    readout_config["n_out"] = n_classes_per_ag + 1
+            elif "both" in task:
+                readout_config["n_readouts"] = n_symbols
+                readout_config["n_out"] = [2 for _ in range(n_symbols)]
+            else:
+                readout_config["n_out"] = 2
+
+        elif "bit" in task:
+            if "last" in task:
+                n_last = int(task.split("-")[-1])
+                readout_config["n_out"] = int(2**n_last)
+            else:
+                n_bit = np.floor(np.log2(n_classes_per_ag - 1)) + 1
+                readout_config["n_out"] = int(2**n_bit)
+
+        else:  # task in ["parity-digits", "max", "min", "inv_parity-digits"]:
+            readout_config["n_out"] = n_classes_per_ag
+
+    else:
+        warn(f"can't auto configure readout for task {task}")
+        print(f" Warning ! Can't auto configure readout for task {task}")
+
+    return readout_config
