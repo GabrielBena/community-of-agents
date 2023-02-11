@@ -33,7 +33,7 @@ if __name__ == "__main__":
         seed = np.random.randint(100)
 
     # Use for debugging
-    debug_run = True
+    debug_run = False
     if debug_run:
         print("Debugging Mode is activated ! Only doing mock training")
 
@@ -154,7 +154,7 @@ if __name__ == "__main__":
         },
         "training": {
             "decision": ["last", "all"],
-            "n_epochs": 30 if not debug_run else 1,
+            "n_epochs": 20 if not debug_run else 2,
             "inverse_task": False,
             "stopping_acc": 0.95,
             "early_stop": False,
@@ -171,7 +171,7 @@ if __name__ == "__main__":
         "task": "parity-digits-sum",
         ### ------ Task ------
         "metrics_only": False,
-        "n_tests": 10 if not debug_run else 1,
+        "n_tests": 5 if not debug_run else 2,
         "debug_run": debug_run,
         "use_tqdm": 2,
         "data_regen": dataset_config["data_type"] != "symbols",
@@ -228,8 +228,8 @@ if __name__ == "__main__":
     varying_params_local = [
         {"n_bott": bot, "task": t, "common_readout": c}
         for bot in [None, 5, 10]
-        for t in ["bitxor", "sum", "parity-digits-sum", "both"]
-        for c in [False, True]
+        for t in ["both", "sum", "parity-digits-sum", "bitxor"]
+        for c in [True, False]
     ]
 
     ensure_config_coherence(config, varying_params_sweep)

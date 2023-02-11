@@ -14,6 +14,7 @@ warnings.filterwarnings("ignore")
 from community.common.training import train_community
 from community.common.init import init_community, init_optimizers
 from community.utils.others import is_notebook
+from community.utils.nested import nested_shape
 from community.common.models.readout import configure_readouts
 from community.utils.wandb_utils import get_wandb_artifact, mkdir_or_save_torch
 
@@ -149,11 +150,15 @@ def readout_retrain(
     #    [train_out["test_losses"] for train_out in train_outs], -1
     # )  # n_epochs x n_agents x timesteps
 
-    test_accs = np.stack(
-        [train_out["test_accs"] for train_out in train_outs], -1
-    )  # n_epochs x n_agents x n_targets x timesteps
+    try:
 
-    test_accs = test_accs.max(0)  # n_agents x n_targets x timesteps
+        test_accs = [train_out["test_accs"].max(0) for train_out in train_outs]
+        test_accs = np.stack(test_accs, 0)  # timesteps x n_agents x n_targets
+
+        # test_accs = test_accs.max(0)  # n_agents x n_targets x timesteps
+
+    except ValueError:
+        print(f"Stack error on accs of shape  {nested_shape(test_accs)}")
 
     return (
         {"accs": test_accs},

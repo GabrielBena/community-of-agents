@@ -154,13 +154,14 @@ def compute_all_metrics(trained_coms, loaders, config, device):
         community,
         loaders,
         config,
-        n_epochs=1,
+        n_epochs=3,
         device=device,
         use_tqdm=use_tqdm,
         chosen_timesteps=chosen_timesteps,
         n_hid=30,
         common_input=config["datasets"]["common_input"],
     )
+
     bottleneck_metric = bottleneck_results["accs"]  # n_agents n_targets x n_timesepts
 
     # ------ Log ------
@@ -208,7 +209,7 @@ def define_and_log(metrics, config, best_acc):
         for metric_name, metric in metrics.items():
 
             try:
-                step_single_metrics = metric[..., step]
+                step_single_metrics = metric[step]
 
                 metric_data.setdefault(metric_name + "_det", [])
                 metric_data.setdefault(metric_name + "_det_col_norm", [])
