@@ -162,13 +162,13 @@ if __name__ == "__main__":
         },
         "metrics": {"chosen_timesteps": ["mid-", "last"]},
         "varying_params_sweep": {
-            "common_input": False,
-            "common_readout": True,
-            "n_bot": 5,
+            # "common_input": False,
+            # "common_readout": True,
+            # "n_bot": 5,
         },
         "varying_params_local": {},
         ###------ Task ------
-        "task": "both",
+        "task": "parity-digits-sum",
         ### ------ Task ------
         "metrics_only": False,
         "n_tests": 10 if not debug_run else 1,
@@ -186,13 +186,13 @@ if __name__ == "__main__":
     with open("latest_config.yml", "w") as config_file:
         pyaml.dump(config, config_file)
 
-    # WAndB tracking :
-    wandb.init(project="funcspec", entity="gbena", config=config)
-    run_dir = wandb.run.dir + "/"
-
     if debug_run:
         os.environ["WANDB_MODE"] = "offline"
         pass
+
+    # WAndB tracking :
+    wandb.init(project="funcspec", entity="gbena", config=config)
+    run_dir = wandb.run.dir + "/"
 
     # WAndB tracking :
 
@@ -225,7 +225,12 @@ if __name__ == "__main__":
         )
     ]
 
-    # varying_params_local = [{"use_bottleneck": t} for t in [True, False]]
+    varying_params_local = [
+        {"n_bott": bot, "task": t, "common_readout": c}
+        for bot in [None, 5, 10]
+        for t in ["bitxor", "sum", "parity-digits-sum", "both"]
+        for c in [False, True]
+    ]
 
     ensure_config_coherence(config, varying_params_sweep)
 

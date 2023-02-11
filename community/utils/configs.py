@@ -106,3 +106,10 @@ def ensure_config_coherence(config, v_params):
                 1 + config["datasets"]["common_input"]
             )
             config["model"]["agents"]["n_in"] = config["datasets"]["input_size"]
+
+    if config["model"]["readout"]["common_readout"]:
+        if config["training"]["decision"][1] == "both":
+            config["training"]["decision"][1] = "all"
+    else:
+        if config["training"]["decision"][1] == "all":
+            config["training"]["decision"][1] = "both"

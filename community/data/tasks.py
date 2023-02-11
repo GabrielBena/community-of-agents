@@ -104,11 +104,13 @@ def get_single_task(task, target, n_classes=None):
                     | (digits[0] == (digits[1] - 1) % n_classes)
                 ] = (n_classes + 1)
                 return tgt
+            elif "sum" in task:
+                return parity
             else:
                 return torch.where(parity.bool(), digits[0], digits[1])
 
         else:
-            return target % 2
+            return digits % 2
 
     elif task == "mult":
         return target_mult(target)

@@ -145,9 +145,9 @@ def readout_retrain(
             )
         )
 
-    test_losses = np.stack(
-        [train_out["test_losses"] for train_out in train_outs], -1
-    )  # n_epochs x n_agents x timesteps
+    # test_losses = np.stack(
+    #    [train_out["test_losses"] for train_out in train_outs], -1
+    # )  # n_epochs x n_agents x timesteps
 
     test_accs = np.stack(
         [train_out["test_accs"] for train_out in train_outs], -1
