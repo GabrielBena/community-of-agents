@@ -397,16 +397,14 @@ def train_community(
                 best_loss = loss
                 best_state = copy.deepcopy(model.state_dict())
 
-        if nested_sup(acc, best_acc):
-            best_acc = acc
+            if nested_sup(acc, best_acc):
+                best_acc = acc
+            
             test_losses.append(loss)
             test_accs.append(acc)
 
-        else:
-            best_state = None
-
-        if use_tqdm:
-            pbar.set_description(desc(descs))
+            if use_tqdm:
+                pbar.set_description(desc(descs))
 
         if schedulers is not None:
             for sch in schedulers:
@@ -431,6 +429,7 @@ def train_community(
         if stopping_acc is not None:
             if nested_sup(acc, stopping_acc):
                 return results
+            
     return results
 
 
