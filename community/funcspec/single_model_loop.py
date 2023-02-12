@@ -154,7 +154,7 @@ def compute_all_metrics(trained_coms, loaders, config, device):
         community,
         loaders,
         config,
-        n_epochs=3,
+        n_epochs=2,
         device=device,
         use_tqdm=use_tqdm,
         chosen_timesteps=chosen_timesteps,

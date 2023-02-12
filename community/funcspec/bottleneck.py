@@ -150,9 +150,11 @@ def readout_retrain(
     #    [train_out["test_losses"] for train_out in train_outs], -1
     # )  # n_epochs x n_agents x timesteps
 
-    try:
+    #print(train_outs)
 
-        test_accs = [train_out["test_accs"].max(0) for train_out in train_outs]
+    try:
+        test_accs = [train_out["test_accs"] for train_out in train_outs]
+        test_accs = [acc.max(0) for acc in test_accs]
         test_accs = np.stack(test_accs, 0)  # timesteps x n_agents x n_targets
 
         # test_accs = test_accs.max(0)  # n_agents x n_targets x timesteps

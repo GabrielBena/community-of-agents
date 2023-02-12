@@ -33,7 +33,7 @@ if __name__ == "__main__":
         seed = np.random.randint(100)
 
     # Use for debugging
-    debug_run = False
+    debug_run = True
     if debug_run:
         print("Debugging Mode is activated ! Only doing mock training")
 
@@ -168,10 +168,10 @@ if __name__ == "__main__":
         },
         "varying_params_local": {},
         ###------ Task ------
-        "task": "parity-digits-sum",
+        "task": "both",
         ### ------ Task ------
         "metrics_only": False,
-        "n_tests": 5 if not debug_run else 2,
+        "n_tests": 10 if not debug_run else 2,
         "debug_run": debug_run,
         "use_tqdm": 2,
         "data_regen": dataset_config["data_type"] != "symbols",
@@ -187,7 +187,7 @@ if __name__ == "__main__":
         pyaml.dump(config, config_file)
 
     if debug_run:
-        os.environ["WANDB_MODE"] = "offline"
+        #os.environ["WANDB_MODE"] = "offline"
         pass
 
     # WAndB tracking :
@@ -225,12 +225,14 @@ if __name__ == "__main__":
         )
     ]
 
+    """
     varying_params_local = [
         {"n_bott": bot, "task": t, "common_readout": c}
         for bot in [None, 5, 10]
         for t in ["both", "sum", "parity-digits-sum", "bitxor"]
         for c in [True, False]
     ]
+    """
 
     ensure_config_coherence(config, varying_params_sweep)
 
