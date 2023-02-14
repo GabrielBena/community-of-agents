@@ -23,6 +23,26 @@ from tqdm import tqdm
 from tqdm.notebook import tqdm as tqdm_n
 
 
+def get_data(config):
+
+    if config["datasets"]["data_type"] == "symbols":
+        loaders, datasets = get_datasets_symbols(
+            config["datasets"],
+            config["datasets"]["batch_size"],
+            config["datasets"]["use_cuda"],
+        )
+    else:
+        all_loaders = get_datasets_alphabet("data/", config["datasets"])
+        loaders = all_loaders[
+            ["multi", "double_d", "double_l", "single_d" "single_l"].index(
+                config["datasets"]["data_type"]
+            )
+        ]
+        datasets = [l.dataset for l in loaders]
+
+    return loaders, datasets
+
+
 # warnings.filterwarnings('ignore')
 
 if __name__ == "__main__":
@@ -161,11 +181,7 @@ if __name__ == "__main__":
             "force_connections": False,
         },
         "metrics": {"chosen_timesteps": ["mid-", "last"]},
-        "varying_params_sweep": {
-            # "common_input": False,
-            # "common_readout": True,
-            # "n_bot": 5,
-        },
+        "varying_params_sweep": {},
         "varying_params_local": {},
         ###------ Task ------
         "task": "both",
@@ -236,25 +252,6 @@ if __name__ == "__main__":
 
     ensure_config_coherence(config, varying_params_sweep)
 
-    def get_data(config):
-
-        if config["datasets"]["data_type"] == "symbols":
-            loaders, datasets = get_datasets_symbols(
-                config["datasets"],
-                config["datasets"]["batch_size"],
-                config["datasets"]["use_cuda"],
-            )
-        else:
-            all_loaders = get_datasets_alphabet("data/", config["datasets"])
-            loaders = all_loaders[
-                ["multi", "double_d", "double_l", "single_d" "single_l"].index(
-                    config["datasets"]["data_type"]
-                )
-            ]
-            datasets = [l.dataset for l in loaders]
-
-        return loaders, datasets
-
     loaders, datasets = get_data(config)
 
     pbar_0 = varying_params_local
@@ -267,12 +264,12 @@ if __name__ == "__main__":
     for v, v_params_local in enumerate(pbar_0):
 
         v_params_all = v_params_local.copy()
+        # Sweep param always overrides
         v_params_all.update(wandb.config["varying_params_sweep"])
 
         for param_name, param in v_params_local.items():
             wandb.define_metric(param_name)
-            if param is not None:
-                find_and_change(config, param_name, param)
+            find_and_change(config, param_name, param)
 
         if config["use_tqdm"]:
             pbar_0.set_description(f"Varying Params : {v_params_all}")
