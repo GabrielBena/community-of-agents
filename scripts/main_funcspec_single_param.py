@@ -53,7 +53,7 @@ if __name__ == "__main__":
         seed = np.random.randint(100)
 
     # Use for debugging
-    debug_run = True
+    debug_run = False
     if debug_run:
         print("Debugging Mode is activated ! Only doing mock training")
 
@@ -174,7 +174,7 @@ if __name__ == "__main__":
         },
         "training": {
             "decision": ["last", "all"],
-            "n_epochs": 20 if not debug_run else 2,
+            "n_epochs": 15 if not debug_run else 2,
             "inverse_task": False,
             "stopping_acc": 0.95,
             "early_stop": False,
@@ -187,7 +187,7 @@ if __name__ == "__main__":
         "task": "both",
         ### ------ Task ------
         "metrics_only": False,
-        "n_tests": 10 if not debug_run else 2,
+        "n_tests": 5 if not debug_run else 2,
         "debug_run": debug_run,
         "use_tqdm": 2,
         "data_regen": dataset_config["data_type"] != "symbols",
@@ -203,7 +203,7 @@ if __name__ == "__main__":
         pyaml.dump(config, config_file)
 
     if debug_run:
-        #os.environ["WANDB_MODE"] = "offline"
+        # os.environ["WANDB_MODE"] = "offline"
         pass
 
     # WAndB tracking :
@@ -330,7 +330,7 @@ if __name__ == "__main__":
     best_test_acc = final_data["best_acc"].mean()
     final_log["best_test_acc"] = best_test_acc
 
-    bottleneck_det = final_data["bottleneck_det"].mean()
+    bottleneck_det = final_data["bottleneck_agents_det"].mean()
     final_log["bottleneck_det"] = bottleneck_det
 
     wandb.log(final_log)

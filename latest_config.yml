@@ -1,6 +1,6 @@
 data_regen: false
 datasets:
-  batch_size: 256
+  batch_size: 512
   common_input: true
   data_sizes:
     - 6000
@@ -13,7 +13,7 @@ datasets:
   n_digits: 2
   nb_steps: 2
   permute_dataset: true
-  seed: 8
+  seed: 71
   split_classes: false
   symbol_config:
     adjust_probas: false
@@ -28,7 +28,7 @@ datasets:
     random_transform: false
     static: true
     symbol_type: mod_5
-  use_cuda: false
+  use_cuda: true
 debug_run: true
 metrics:
   chosen_timesteps:
@@ -82,6 +82,6 @@ training:
   inverse_task: false
   n_epochs: 2
   stopping_acc: 0.95
-use_tqdm: false
+use_tqdm: 2
 varying_params_local: {}
 varying_params_sweep: {}

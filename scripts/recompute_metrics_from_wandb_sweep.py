@@ -15,11 +15,16 @@ from wandb_results_load import get_correct_artifact, get_pandas_from_json
 from main_funcspec_single_param import get_data, ensure_config_coherence
 from community.utils.configs import find_and_change
 from community.common.models.readout import configure_readouts
+from os import getpid
 
 
-def single_retrain(train_out, config, loaders):
+def single_retrain(train_out, config, loaders, parallel):
 
     train_out = train_out[0]
+    first_process = getpid() % mp.cpu_count() == 0
+
+    if not first_process and parallel:
+        config["use_tqdm"] = False
 
     community = init_community(config["model"], device="cpu")
 
@@ -34,13 +39,16 @@ def single_retrain(train_out, config, loaders):
     # pbar_1.set_description(f"Recomputing Metrics, {community.nb_connections}")
 
     metric_data, metric_results = compute_all_metrics(
-        community, loaders, config, device="cpu"
+        community,
+        loaders,
+        config,
+        device="cpu",
     )
 
     return metric_data, metric_results
 
 
-def retrain_metric(run, training_artifact, metric_artifact, loaders, parallel=True):
+def retrain_metric(run, training_artifact, metric_artifact, parallel=False):
 
     try:
         shutil.rmtree("artifacts/")
@@ -63,31 +71,44 @@ def retrain_metric(run, training_artifact, metric_artifact, loaders, parallel=Tr
 
         training_results = torch.load(training_artifact.file())
         metric_results = get_pandas_from_json(metric_artifact)
-        config["use_tqdm"] = 2
 
+        config["use_tqdm"] = 2
         max_size = 10
 
-        pbar_1 = tqdm(range(max_size), position=1, desc="Recomputing Metrics")
+        # print(metric_results["task"].unique())
 
-        if not parallel:
-            for train_out in zip(training_results, pbar_1):
+        if metric_results["task"].unique()[0] == "both":
 
-                metric_data = single_retrain(train_out, config, loaders)
+            config["datasets"]["symbol_config"]["data_sizes"] = [30000, 10000]
+            config["datasets"]["data_sizes"] = [30000, 10000]
 
-            new_metric_log.append(metric_data)
+            loaders, _ = get_data(config)
 
+            pbar_1 = tqdm(range(max_size), position=1, desc="Recomputing Metrics")
+
+            if not parallel:
+                for train_out in zip(training_results, pbar_1):
+
+                    metric_data = single_retrain(
+                        train_out, config, loaders, parallel=parallel
+                    )
+
+                new_metric_log.append(metric_data)
+
+            else:
+                pool = mp.Pool(mp.cpu_count())
+                single_retrain_partial = partial(
+                    single_retrain, config=config, loaders=loaders, parallel=parallel
+                )
+                new_metric_log = pool.map(
+                    single_retrain_partial, zip(training_results, pbar_1)
+                )
+
+            final_data = pd.concat([pd.DataFrame.from_dict(d) for d in new_metric_log])
+
+            return final_data
         else:
-            pool = mp.Pool(mp.cpu_count())
-            single_retrain_partial = partial(
-                single_retrain, config=config, loaders=loaders
-            )
-            new_metric_log = pool.map(
-                single_retrain_partial, zip(training_results, pbar_1)
-            )
-
-        final_data = pd.concat([pd.DataFrame.from_dict(d) for d in new_metric_log])
-
-        return final_data, new_metric_results, new_metric_log
+            return None
 
 
 if __name__ == "__main__":
@@ -151,8 +172,7 @@ if __name__ == "__main__":
 
         if not None in artifacts:
             config = run.config
-            loaders, datasets = get_data(config)
-            new_metric_data, *_ = retrain_metric(run, *artifacts, loaders)
+            new_metric_data = retrain_metric(run, *artifacts)
 
             # print(new_metric_data.head())
 
