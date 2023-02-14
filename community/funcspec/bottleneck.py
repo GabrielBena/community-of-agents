@@ -97,7 +97,7 @@ def readout_retrain(
         f_community.to(device)
 
         for name, p in f_community.named_parameters():
-            if "readout" in name and "agents.0" in name:
+            if "readout" in name:  # and "agents.0" in name:
                 p.requires_grad = True
             else:
                 p.requires_grad = train_all_param
@@ -119,7 +119,7 @@ def readout_retrain(
             "check_gradients": False,
             "reg_factor": 0.0,
             "train_connections": False,
-            "decision": (training_timestep, "both"),
+            "decision": (training_timestep, "all" if retrain_common else "both"),
             "stopping_acc": None,
             "early_stop": False,
             "deepR_params_dict": {},
@@ -163,9 +163,9 @@ def readout_retrain(
         print(f"Stack error on accs of shape  {nested_shape(test_accs)}")
 
     return (
-        {"accs": test_accs},
+        {"accs": test_accs},  # timesteps x n_agents x n_targets
         f_community,
-    )  # n_agents x n_targets x n_timesteps
+    )
 
 
 def compute_bottleneck_metrics(
