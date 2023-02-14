@@ -113,22 +113,15 @@ def init_and_train(config, loaders, device):
 
 def compute_all_metrics(trained_coms, loaders, config, device):
 
-    symbols = config["datasets"]["data_type"] == "symbols"
-    deepR_params_dict = config["optimization"]["connections"]
-    n_classes = config["datasets"]["n_classes_per_digit"]
+    if config is None:
+        config = wandb.config
+
     chosen_timesteps = config["metrics"]["chosen_timesteps"]
-
-    n_agents = config["model"]["n_agents"]
-    try:
-        n_digits = config["datasets"]["symbol_config"]["n_diff_symbols"]
-    except KeyError:
-        n_digits = 2
-
     use_tqdm = config["use_tqdm"]
 
+    """
     # community = trained_coms["Without Bottleneck"]
 
-    """
     # print('Correlations')
     correlations_results = get_pearson_metrics(
         community,
@@ -141,16 +134,32 @@ def compute_all_metrics(trained_coms, loaders, config, device):
     mean_corrs, relative_corrs, base_corrs = list(
         correlations_results.values()
     )  # n_agents x n_targets x n_timesteps
+
+    print("Weight Masks")
+    masks_metric = {}
+    masks_results, masked_coms = train_and_get_mask_metric(
+        community,
+        0.1,
+        loaders,
+        device=device,
+        n_tests=1,
+        n_epochs=1,
+        use_tqdm=1,
+        use_optimal_sparsity=True,
+        symbols=symbols,
+    )
+    masks_props, masks_accs, _, masks_states, masks_spars = list(masks_results.values())
+    masks_metric, masks_accs, masks_spars = (
+        masks_props.mean(0),
+        masks_accs.mean(0).max(-1),
+        masks_spars.mean(0),
+    )
+
     """
-    # print('Weight Masks')
-    # masks_metric = {}
-    # masks_results, masked_coms = train_and_get_mask_metric(community, 0.1, loaders, device=device, n_tests=1, n_epochs=1, use_tqdm=1, use_optimal_sparsity=True, symbols=symbols)
-    # masks_props, masks_accs, _, masks_states, masks_spars = list(masks_results.values())
-    # masks_metric, masks_accs, masks_spars = masks_props.mean(0), masks_accs.mean(0).max(-1), masks_spars.mean(0)
 
     community = trained_coms  # ["Without Bottleneck"]
-    # print('Bottlenecks Retrain')
-    bottleneck_results, _ = readout_retrain(
+
+    bottleneck_results_agents, _ = readout_retrain(
         community,
         loaders,
         config,
@@ -162,29 +171,51 @@ def compute_all_metrics(trained_coms, loaders, config, device):
         common_input=config["datasets"]["common_input"],
     )
 
-    bottleneck_metric = bottleneck_results["accs"]  # n_agents n_targets x n_timesepts
+    # n_timesteps x n_agents x n_targets
+
+    bottleneck_results_readout, _ = readout_retrain(
+        community,
+        loaders,
+        config,
+        n_epochs=3,
+        device=device,
+        use_tqdm=use_tqdm,
+        chosen_timesteps=chosen_timesteps,
+        n_hid=30,
+        common_input=config["datasets"]["common_input"],
+        retrain_common=True,
+    )
+    # n_timesteps x n_targets
+
+    bottleneck_metrics = [
+        bottleneck_results_agents["accs"],
+        bottleneck_results_readout["accs"],
+    ]
 
     # ------ Log ------
     # metrics = [correlations_metric, masks_metric, bottleneck_metric]
     # metric_names = ['Correlation', 'Masks', 'Bottleneck']
     # all_results = [correlations_results, masks_results, bottleneck_results]
 
-    metric_names = ["bottleneck"]
-    metrics = [bottleneck_metric]
+    metric_names = ["bottleneck_agents", "bottleneck_readout"]
+    metrics = bottleneck_metrics
 
     metric_results = {
         metric_name: metric for metric, metric_name in zip(metrics, metric_names)
     }
 
-    metric_data = define_and_log(metric_results, wandb.config, community.best_acc)
+    metric_data = define_and_log(metric_results, config, community.best_acc)
 
     return metric_data, metric_results
 
 
 def define_and_log(metrics, config, best_acc):
 
-    varying_params_all = wandb.config["varying_params_local"].copy()
-    varying_params_all.update(wandb.config["varying_params_sweep"])
+    if config is None:
+        config = wandb.config
+
+    varying_params_all = config["varying_params_local"].copy()
+    varying_params_all.update(config["varying_params_sweep"])
 
     diff_metric = lambda metric: (metric[0] - metric[1]) / (metric[0] + metric[1])
     global_diff_metric = (
@@ -211,31 +242,48 @@ def define_and_log(metrics, config, best_acc):
             try:
                 step_single_metrics = metric[step]
 
-                metric_data.setdefault(metric_name + "_det", [])
-                metric_data.setdefault(metric_name + "_det_col_norm", [])
+                if len(step_single_metrics.shape) == 2:
 
-                metric_data[metric_name + "_det"].append(
-                    np.abs(LA.det(step_single_metrics))
-                )
+                    metric_data.setdefault(metric_name + "_det", [])
+                    metric_data.setdefault(metric_name + "_det_col_norm", [])
 
-                metric_data[metric_name + "_det_col_norm"].append(
-                    np.abs(LA.det(step_single_metrics))
-                    / step_single_metrics.sum(0).prod()
-                )
-
-                for norm in [1, 2, "fro", "nuc"]:
-
-                    metric_data.setdefault(metric_name + f"_norm_{norm}", [])
-                    metric_data[metric_name + f"_norm_{norm}"].append(
-                        LA.norm(step_single_metrics, norm)
+                    metric_data[metric_name + "_det"].append(
+                        np.abs(LA.det(step_single_metrics))
                     )
 
-                if step_single_metrics.shape[0] == 2:
-                    community_diff_metric = global_diff_metric(step_single_metrics)
+                    metric_data[metric_name + "_det_col_norm"].append(
+                        np.abs(LA.det(step_single_metrics))
+                        / step_single_metrics.sum(0).prod()
+                    )
 
-                    metric_data.setdefault(metric_name + "_global_diff", [])
-                    metric_data[metric_name + "_global_diff"].append(
-                        community_diff_metric
+                    if False:
+                        for norm in [1, 2, "fro", "nuc"]:
+
+                            metric_data.setdefault(metric_name + f"_norm_{norm}", [])
+                            metric_data[metric_name + f"_norm_{norm}"].append(
+                                LA.norm(step_single_metrics, norm)
+                            )
+
+                    if step_single_metrics.shape[0] == 2:
+                        community_diff_metric = global_diff_metric(step_single_metrics)
+
+                        metric_data.setdefault(metric_name + "_global_diff", [])
+                        metric_data[metric_name + "_global_diff"].append(
+                            community_diff_metric
+                        )
+
+                    for ag, ag_single_metrics in enumerate(step_single_metrics):
+
+                        assert len(ag_single_metrics.shape) == 1
+                        metric_data.setdefault(metric_name + f"_{ag}_local_diff", [])
+                        metric_data[metric_name + f"_{ag}_local_diff"].append(
+                            diff_metric(ag_single_metrics)
+                        )
+
+                elif len(step_single_metrics.shape) == 1:
+                    metric_data.setdefault(metric_name + "_local_diff", [])
+                    metric_data[metric_name + "_local_diff"].append(
+                        diff_metric(step_single_metrics)
                     )
 
             except TypeError:
