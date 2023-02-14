@@ -110,7 +110,7 @@ def get_single_task(task, target, n_classes=None):
                 return torch.where(parity.bool(), digits[0], digits[1])
 
         else:
-            return digits % 2
+            return target % 2
 
     elif task == "mult":
         return target_mult(target)
