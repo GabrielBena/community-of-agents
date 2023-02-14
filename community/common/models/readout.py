@@ -214,6 +214,8 @@ def configure_single_readout(config, task, readout_from=None, n_hid=None):
             if "digits" in task:
                 if "equal" in task:
                     readout_config["n_out"] = n_classes_per_ag + 1
+                elif "sum" in task:
+                    readout_config["n_out"] = 2
             elif "both" in task:
                 readout_config["n_readouts"] = n_symbols
                 readout_config["n_out"] = [2 for _ in range(n_symbols)]
