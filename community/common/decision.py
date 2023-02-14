@@ -127,6 +127,17 @@ def get_agent_decision(outputs, agent_decision, target=None):
             outputs = outputs.sum(0)
             deciding_ags = None
 
+        elif agent_decision == "self":
+            assert len(outputs.shape) > 3
+            outputs = [out[ag] for ag, out in enumerate(outputs)]
+            deciding_ags = None
+            try:
+                outputs = torch.stack(outputs)
+            except TypeError:
+                pass
+
+            return outputs
+
         elif agent_decision == "combine":
             outputs = torch.cat(
                 [
