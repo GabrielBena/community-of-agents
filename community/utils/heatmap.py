@@ -113,7 +113,7 @@ def compute_and_plot_heatmap(
     if log_scale:
 
         """"""
-        # ax.set.xscale("log")
+        ax.set.xscale("log")
         ax.set_yscale("log")
 
     ax.set_ylim(y_values.min(), y_values.max())
@@ -157,5 +157,11 @@ def compute_and_plot_colormesh(
     ax.set_ylim(y_values.min(), y_values.max())
     ax.set_xlim(x_values.min(), x_values.max())
     cbar = fig.colorbar(pcm, ax=ax)
+
+    if log_scale:
+
+        """"""
+        ax.set.xscale("log")
+        ax.set_yscale("log")
 
     return X_mesh, Y_mesh, Z, (fig, ax), cbar
