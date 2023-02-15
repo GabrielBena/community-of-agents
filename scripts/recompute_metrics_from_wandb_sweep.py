@@ -45,7 +45,7 @@ def single_retrain(train_out, config, loaders, parallel):
         device="cpu",
     )
 
-    return metric_data, metric_results
+    return metric_data
 
 
 def retrain_metric(run, training_artifact, metric_artifact, parallel=False):
@@ -73,7 +73,10 @@ def retrain_metric(run, training_artifact, metric_artifact, parallel=False):
         metric_results = get_pandas_from_json(metric_artifact)
 
         config["use_tqdm"] = 2
-        max_size = 10
+        max_size = None
+
+        if max_size is None:
+            max_size = len(training_results)
 
         # print(metric_results["task"].unique())
 
@@ -93,7 +96,7 @@ def retrain_metric(run, training_artifact, metric_artifact, parallel=False):
                         train_out, config, loaders, parallel=parallel
                     )
 
-                new_metric_log.append(metric_data)
+                    new_metric_log.append(metric_data)
 
             else:
                 pool = mp.Pool(mp.cpu_count())
@@ -105,6 +108,7 @@ def retrain_metric(run, training_artifact, metric_artifact, parallel=False):
                 )
 
             final_data = pd.concat([pd.DataFrame.from_dict(d) for d in new_metric_log])
+            final_data["name"] = [run.name] * len(final_data)
 
             return final_data
         else:
@@ -132,7 +136,7 @@ if __name__ == "__main__":
     )
 
     parser.add_argument(
-        "-N", "--max_size", default=3, help="max size of table to process", type=int
+        "-N", "--max_size", default=None, help="max size of table to process", type=int
     )
 
     args = parser.parse_args()
@@ -165,10 +169,10 @@ if __name__ == "__main__":
         runs, all_artifacts, tqdm(range(max_size), desc="Runs", position=0)
     ):
 
-        # try:
-        #    shutil.rmtree("artifacts/")
-        # except FileNotFoundError:
-        #    pass
+        try:
+            shutil.rmtree("artifacts/")
+        except FileNotFoundError:
+            pass
 
         if not None in artifacts:
             config = run.config
@@ -176,7 +180,11 @@ if __name__ == "__main__":
 
             # print(new_metric_data.head())
 
-            new_metric_dataframe.append(new_metric_data)
+            if new_metric_data is not None:
+                new_metric_dataframe.append(new_metric_data)
+
+            final_data = pd.concat(new_metric_dataframe)
+            final_data.to_pickle(save_name)
 
     final_data = pd.concat(new_metric_dataframe)
     final_data.to_pickle(save_name)

@@ -13,7 +13,7 @@ datasets:
   n_digits: 2
   nb_steps: 2
   permute_dataset: true
-  seed: 71
+  seed: 25
   split_classes: false
   symbol_config:
     adjust_probas: false

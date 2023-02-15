@@ -1,8 +1,10 @@
 import torch
 import torch.nn as nn
 import numpy as np
-from community.data.tasks import get_factors_list
 from warnings import warn
+
+from community.data.tasks import get_factors_list
+from community.utils.configs import find_and_change
 
 
 def gather(l, rf):
@@ -18,8 +20,23 @@ def init_readout_weights(readout):
             [init_readout_weights(r) for r in readout]
 
 
-def gather(l, gather_from):
-    return [l[i] for i in gather_from]
+def gather(l, gather_from, ignore_tuple=False):
+
+    if isinstance(gather_from, tuple):
+        if ignore_tuple:
+            out = l[gather_from[1]]
+        else:
+            try:
+                out = l[gather_from[0]][gather_from[1]]
+            except IndexError:
+                out = l[gather_from[0]][-1]
+
+    elif isinstance(gather_from, int):
+        out = l[gather_from]
+    else:
+        out = [gather(l, g, ignore_tuple) for g in gather_from]
+
+    return out
 
 
 def get_readout_dimensions(
@@ -31,6 +48,7 @@ def get_readout_dimensions(
 
     if isinstance(n_readouts, list):
         # every parameters must be follow the same nested structure
+
         assert len(torch.tensor([len(p) for p in nested_params]).unique()) == 1
         # return nested recursive
         return [
@@ -54,25 +72,28 @@ def get_readout_dimensions(
     else:
         if readout_from is None:
             if common_readout:
-                readout_from = np.arange(n_agents)
+                readout_from = np.arange(n_agents).tolist()
             else:
                 readout_from = [0]
+        else:
+            if isinstance(readout_from, int) or isinstance(readout_from, tuple):
+                readout_from = [readout_from]
 
         if n_hid is None:
 
             readout_dims = [
-                np.sum([ag.dims[-2] for ag in gather(agents, readout_from)]),
+                np.sum([ag.dims[-2] for ag in gather(agents, readout_from, True)]),
                 n_out,
             ]
         elif isinstance(n_hid, list):
             readout_dims = [
-                np.sum([ag.dims[-2] for ag in gather(agents, readout_from)]),
+                np.sum([ag.dims[-2] for ag in gather(agents, readout_from, True)]),
                 *n_hid,
                 n_out,
             ]
         else:
             readout_dims = [
-                np.sum([ag.dims[-2] for ag in gather(agents, readout_from)]),
+                np.sum([ag.dims[-2] for ag in gather(agents, readout_from, True)]),
                 n_hid,
                 n_out,
             ]
@@ -108,8 +129,8 @@ def readout_process(readout, readout_from, input):
     else:
         if readout_from is None:
             gathered_input = torch.cat([*input], -1)
-        elif isinstance(readout_from, tuple):
-            gathered_input = torch.cat([s for s in gather(input, readout_from)], -1)
+        # elif isinstance(readout_from, tuple):
+        # gathered_input = torch.cat([s for s in gather(input, readout_from)], -1)
         else:
             gathered_input = torch.cat([s for s in gather(input, [readout_from])], -1)
         try:
@@ -138,6 +159,15 @@ def configure_readouts(config, task=None):
         else:
             readout_config = [configure_readouts(config, t) for t in task]
 
+        readout_config = {
+            k: [r[k] for r in readout_config] for k in readout_config[0].keys()
+        }
+
+    elif (isinstance(readout_from, list)) and len(readout_from) > 1:
+        readout_config = [
+            configure_readouts(find_and_change(config.copy(), "readout_from", rf), task)
+            for rf in readout_from
+        ]
         readout_config = {
             k: [r[k] for r in readout_config] for k in readout_config[0].keys()
         }

@@ -32,6 +32,8 @@ def find_and_change(config, param_name, param_value):
             if key == param_name:
                 config[key] = param_value
 
+    return config
+
 
 sentinel = object()
 

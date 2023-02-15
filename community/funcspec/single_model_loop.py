@@ -29,8 +29,8 @@ def init_and_train(config, loaders, device):
     use_tqdm = config["use_tqdm"]
 
     # Check varying parameters :
-    varying_params_all = wandb.config["varying_params_local"].copy()
-    varying_params_all.update(wandb.config["varying_params_sweep"])
+    varying_params_all = config["varying_params_local"].copy()
+    # varying_params_all.update(wandb.config["varying_params_sweep"])
 
     sentinel = object()
 
@@ -159,7 +159,7 @@ def compute_all_metrics(trained_coms, loaders, config, device):
 
     community = trained_coms  # ["Without Bottleneck"]
 
-    bottleneck_results_agents, _ = readout_retrain(
+    bottleneck_results, _ = readout_retrain(
         community,
         loaders,
         config,
@@ -171,34 +171,17 @@ def compute_all_metrics(trained_coms, loaders, config, device):
         common_input=config["datasets"]["common_input"],
     )
 
-    # n_timesteps x n_agents x n_targets
+    # n_timesteps x (n_agents + 1) x n_targets
 
-    bottleneck_results_readout, _ = readout_retrain(
-        community,
-        loaders,
-        config,
-        n_epochs=3,
-        device=device,
-        use_tqdm=use_tqdm,
-        chosen_timesteps=chosen_timesteps,
-        n_hid=30,
-        common_input=config["datasets"]["common_input"],
-        retrain_common=True,
-    )
-    # n_timesteps x n_targets
-
-    bottleneck_metrics = [
-        bottleneck_results_agents["accs"],
-        bottleneck_results_readout["accs"],
-    ]
+    bottleneck_metrics = bottleneck_results["accs"]
 
     # ------ Log ------
     # metrics = [correlations_metric, masks_metric, bottleneck_metric]
     # metric_names = ['Correlation', 'Masks', 'Bottleneck']
     # all_results = [correlations_results, masks_results, bottleneck_results]
 
-    metric_names = ["bottleneck_agents", "bottleneck_readout"]
-    metrics = bottleneck_metrics
+    metric_names = ["bottleneck"]
+    metrics = [bottleneck_metrics]
 
     metric_results = {
         metric_name: metric for metric, metric_name in zip(metrics, metric_names)
@@ -242,18 +225,19 @@ def define_and_log(metrics, config, best_acc):
             try:
                 step_single_metrics = metric[step]
 
-                if len(step_single_metrics.shape) == 2:
+                ag_single_metrics = step_single_metrics[:-1]
+                if len(ag_single_metrics.shape) == 2:
 
                     metric_data.setdefault(metric_name + "_det", [])
                     metric_data.setdefault(metric_name + "_det_col_norm", [])
 
                     metric_data[metric_name + "_det"].append(
-                        np.abs(LA.det(step_single_metrics))
+                        np.abs(LA.det(ag_single_metrics))
                     )
 
                     metric_data[metric_name + "_det_col_norm"].append(
-                        np.abs(LA.det(step_single_metrics))
-                        / step_single_metrics.sum(0).prod()
+                        np.abs(LA.det(ag_single_metrics))
+                        / ag_single_metrics.sum(0).prod()
                     )
 
                     if False:
@@ -264,26 +248,30 @@ def define_and_log(metrics, config, best_acc):
                                 LA.norm(step_single_metrics, norm)
                             )
 
-                    if step_single_metrics.shape[0] == 2:
-                        community_diff_metric = global_diff_metric(step_single_metrics)
+                    if ag_single_metrics.shape[0] == 2:
+                        community_diff_metric = global_diff_metric(ag_single_metrics)
 
                         metric_data.setdefault(metric_name + "_global_diff", [])
                         metric_data[metric_name + "_global_diff"].append(
                             community_diff_metric
                         )
 
-                    for ag, ag_single_metrics in enumerate(step_single_metrics):
+                        for ag, ag_single_metric in enumerate(ag_single_metrics):
 
-                        assert len(ag_single_metrics.shape) == 1
-                        metric_data.setdefault(metric_name + f"_{ag}_local_diff", [])
-                        metric_data[metric_name + f"_{ag}_local_diff"].append(
-                            diff_metric(ag_single_metrics)
-                        )
+                            assert len(ag_single_metric.shape) == 1
+                            metric_data.setdefault(
+                                metric_name + f"_{ag}_local_diff", []
+                            )
+                            metric_data[metric_name + f"_{ag}_local_diff"].append(
+                                diff_metric(ag_single_metric)
+                            )
 
-                elif len(step_single_metrics.shape) == 1:
-                    metric_data.setdefault(metric_name + "_local_diff", [])
-                    metric_data[metric_name + "_local_diff"].append(
-                        diff_metric(step_single_metrics)
+                common_single_metric = step_single_metrics[-1]
+                if len(common_single_metric.shape) == 1:
+
+                    metric_data.setdefault(metric_name + "_all_local_diff", [])
+                    metric_data[metric_name + "_all_local_diff"].append(
+                        diff_metric(common_single_metric)
                     )
 
             except TypeError:

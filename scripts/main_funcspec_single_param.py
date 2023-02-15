@@ -165,7 +165,7 @@ if __name__ == "__main__":
         "n_agents": n_agents,
     }
 
-    config = {
+    default_config = {
         "model": model_config,
         "datasets": dataset_config,
         "optimization": {
@@ -195,29 +195,24 @@ if __name__ == "__main__":
 
     try:
         os.environ["PBS_ARRAY_INDEX"]
-        config["use_tqdm"] = False
+        default_config["use_tqdm"] = False
     except KeyError:
         pass
 
     with open("latest_config.yml", "w") as config_file:
-        pyaml.dump(config, config_file)
+        pyaml.dump(default_config, config_file)
 
     if debug_run:
-        # os.environ["WANDB_MODE"] = "offline"
+        os.environ["WANDB_MODE"] = "offline"
         pass
 
     # WAndB tracking :
-    wandb.init(project="funcspec", entity="gbena", config=config)
-    run_dir = wandb.run.dir + "/"
-
-    # WAndB tracking :
-
-    wandb.init(project="funcspec_V2", entity="m2snn", config=config)
+    wandb.init(project="funcspec_V2", entity="m2snn", config=default_config)
     # wandb.init(project="Funcspec", entity="gbena", config=config)
 
     run_dir = wandb.run.dir + "/"
 
-    config["save_paths"] = {
+    default_config["save_paths"] = {
         "training": run_dir + "training_results",
         "metrics": run_dir + "metric_results",
     }
@@ -228,9 +223,9 @@ if __name__ == "__main__":
     for param_name, param in varying_params_sweep.items():
         wandb.define_metric(param_name)
         if param is not None:
-            find_and_change(config, param_name, param)
+            find_and_change(default_config, param_name, param)
 
-    n = config["model"]["agents"]["n_hidden"]
+    n = default_config["model"]["agents"]["n_hidden"]
 
     varying_params_local = [
         {"sparsity": s}
@@ -245,17 +240,17 @@ if __name__ == "__main__":
     varying_params_local = [
         {"n_bott": bot, "task": t, "common_readout": c}
         for bot in [None, 5, 10]
-        for t in ["both", "sum", "parity-digits-sum", "bitxor"]
+        for t in ["both", "sum", "parity-digits-sum"]
         for c in [True, False]
     ]
     """
 
-    ensure_config_coherence(config, varying_params_sweep)
+    ensure_config_coherence(default_config, varying_params_sweep)
 
-    loaders, datasets = get_data(config)
+    loaders, datasets = get_data(default_config)
 
     pbar_0 = varying_params_local
-    if config["use_tqdm"]:
+    if default_config["use_tqdm"]:
         pbar_0 = tqdm(pbar_0, position=0, desc="Varying Params", leave=None)
 
     metric_results, metric_datas, training_results = {}, [], []
@@ -266,10 +261,13 @@ if __name__ == "__main__":
         v_params_all = v_params_local.copy()
         # Sweep param always overrides
         v_params_all.update(wandb.config["varying_params_sweep"])
+        config = default_config.copy()
 
         for param_name, param in v_params_local.items():
             wandb.define_metric(param_name)
             find_and_change(config, param_name, param)
+
+        config["varying_params_local"] = v_params_all
 
         if config["use_tqdm"]:
             pbar_0.set_description(f"Varying Params : {v_params_all}")
@@ -330,7 +328,7 @@ if __name__ == "__main__":
     best_test_acc = final_data["best_acc"].mean()
     final_log["best_test_acc"] = best_test_acc
 
-    bottleneck_det = final_data["bottleneck_agents_det"].mean()
+    bottleneck_det = final_data["bottleneck_det"].mean()
     final_log["bottleneck_det"] = bottleneck_det
 
     wandb.log(final_log)

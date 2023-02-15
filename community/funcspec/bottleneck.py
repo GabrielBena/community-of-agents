@@ -33,7 +33,7 @@ def readout_retrain(
     chosen_timesteps=["0", "mid-", "last"],
     task="all",
     n_hid=None,
-    retrain_common=False,
+    #    retrain_common=False,
     common_input=False,
 ):
     """
@@ -77,9 +77,9 @@ def readout_retrain(
 
     f_config["task"] = task
     f_config["model"]["readout"] = {
-        "common_readout": retrain_common,
+        "common_readout": True,
         "n_hid": n_hid,
-        "readout_from": None,
+        "readout_from": [0, 1, None],
     }
 
     readout_config = configure_readouts(f_config)
@@ -119,7 +119,7 @@ def readout_retrain(
             "check_gradients": False,
             "reg_factor": 0.0,
             "train_connections": False,
-            "decision": (training_timestep, "all" if retrain_common else "both"),
+            "decision": (training_timestep, "both"),
             "stopping_acc": None,
             "early_stop": False,
             "deepR_params_dict": {},
@@ -150,12 +150,12 @@ def readout_retrain(
     #    [train_out["test_losses"] for train_out in train_outs], -1
     # )  # n_epochs x n_agents x timesteps
 
-    #print(train_outs)
+    # print(train_outs)
 
     try:
         test_accs = [train_out["test_accs"] for train_out in train_outs]
         test_accs = [acc.max(0) for acc in test_accs]
-        test_accs = np.stack(test_accs, 0)  # timesteps x n_agents x n_targets
+        test_accs = np.stack(test_accs, 0)  # timesteps x (n_agents + 1) x n_targets
 
         # test_accs = test_accs.max(0)  # n_agents x n_targets x timesteps
 
@@ -163,7 +163,7 @@ def readout_retrain(
         print(f"Stack error on accs of shape  {nested_shape(test_accs)}")
 
     return (
-        {"accs": test_accs},  # timesteps x n_agents x n_targets
+        {"accs": test_accs},  # timesteps x (n_agents + 1) x n_targets
         f_community,
     )
 
