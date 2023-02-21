@@ -53,7 +53,7 @@ if __name__ == "__main__":
         seed = np.random.randint(100)
 
     # Use for debugging
-    debug_run = False
+    debug_run = True
     if debug_run:
         print("Debugging Mode is activated ! Only doing mock training")
 
@@ -100,6 +100,7 @@ if __name__ == "__main__":
             "parallel": False,
             "adjust_probas": False,
             "random_transform": False,
+            "cov_ratio": 1.0,
         }
 
         if not symbol_config["static"]:
@@ -190,7 +191,7 @@ if __name__ == "__main__":
         "n_tests": 5 if not debug_run else 2,
         "debug_run": debug_run,
         "use_tqdm": 2,
-        "data_regen": dataset_config["data_type"] != "symbols",
+        "data_regen": [False, dataset_config["data_type"] != "symbols"],
     }
 
     try:
@@ -245,6 +246,8 @@ if __name__ == "__main__":
     ]
     """
 
+    # varying_params_local = [{"cov_ratio": c} for c in [0, 0.5, 1]]
+
     ensure_config_coherence(default_config, varying_params_sweep)
 
     loaders, datasets = get_data(default_config)
@@ -277,6 +280,12 @@ if __name__ == "__main__":
         )
 
         ensure_config_coherence(config, v_params_all)
+
+        if config["data_regen"][0] and v != 0:
+            seed += 1
+            config["datasets"]["seed"] = seed
+            loaders, datasets = get_data(config)
+
         readout_config = configure_readouts(config)
         config["model"]["readout"].update(readout_config)
 
@@ -288,7 +297,7 @@ if __name__ == "__main__":
         # Repetitions per varying parameters
         for test in pbar_1:
 
-            if config["data_regen"] and test * v != 0:
+            if config["data_regen"][1] and test != 0:
                 seed += 1
                 config["datasets"]["seed"] = seed
                 loaders, datasets = get_data(config)

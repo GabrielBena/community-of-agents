@@ -1,4 +1,6 @@
-data_regen: false
+data_regen:
+  - false
+  - false
 datasets:
   batch_size: 512
   common_input: true
@@ -13,10 +15,11 @@ datasets:
   n_digits: 2
   nb_steps: 2
   permute_dataset: true
-  seed: 25
+  seed: 53
   split_classes: false
   symbol_config:
     adjust_probas: false
+    cov_ratio: 1.0
     data_size:
       - 12000
       - 2000

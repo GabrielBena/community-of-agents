@@ -279,10 +279,7 @@ def train_community(
                     n_steps=nb_steps,
                 )
 
-                if task == "family":
-                    t_target, factors = get_task_family(target, n_classes_per_digit)
-                else:
-                    t_target = get_task_target(target, task, n_classes)
+                t_target = get_task_target(target, task, n_classes_per_digit)
 
                 optimizer_agents.zero_grad()
                 if optimizer_connections:
@@ -350,6 +347,10 @@ def train_community(
 
                 loss.backward()
 
+                if False:
+                    for p in model.parameters():
+                        p.grad = torch.sign(p.grad)
+
                 if check_gradients:
                     check_grad(model)
 
@@ -399,7 +400,7 @@ def train_community(
 
             if nested_sup(acc, best_acc):
                 best_acc = acc
-            
+
             test_losses.append(loss)
             test_accs.append(acc)
 
@@ -429,7 +430,7 @@ def train_community(
         if stopping_acc is not None:
             if nested_sup(acc, stopping_acc):
                 return results
-            
+
     return results
 
 
@@ -489,10 +490,7 @@ def test_community(
                 n_steps=nb_steps,
             )
 
-            if task == "family":
-                t_target, factors = get_task_family(t_target, n_classes_per_digit)
-            else:
-                t_target = get_task_target(target, task, n_classes)
+            t_target = get_task_target(target, task, n_classes_per_digit)
 
             if force_connections:
                 conns = fconns[-1].detach().unsqueeze(0)

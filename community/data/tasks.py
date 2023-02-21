@@ -195,7 +195,7 @@ def get_task_target(target, task, n_classes, temporal_target=False):
             return targets
 
     elif task == "family":
-        return get_task_family(target, n_classes)
+        return get_task_family(target, n_classes)[0]
 
     else:
         new_target = deepcopy(target)

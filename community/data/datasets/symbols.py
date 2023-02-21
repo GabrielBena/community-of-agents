@@ -19,6 +19,7 @@ class SymbolsDataset(Dataset):
         self.symbol_size = self.symbols[0].shape[-1]
         self.n_symbols = data_config["n_symbols"]
         self.common_input = data_config["common_input"]
+        self.cov_ratio = data_config["cov_ratio"]
 
         if plot:
             if self.random_transform:
@@ -461,24 +462,48 @@ class SymbolsDataset(Dataset):
         symbol_size = self.symbol_size
 
         if self.data_config["adjust_probas"]:
-            probas = self.get_probabilities((n_symbols + 1) // n_diff_symbols)
+            self.probas = self.get_probabilities((n_symbols + 1) // n_diff_symbols)
         else:
-            probas = np.ones((n_symbols + 1) // n_diff_symbols) / (
+            self.probas = np.ones((n_symbols + 1) // n_diff_symbols) / (
                 (n_symbols + 1) // n_diff_symbols
             )
 
-        if self.common_input:
-
+        if self.cov_ratio == 1:
             labels = (
                 np.stack(
                     [
-                        np.random.multinomial(1, probas, size=(data_size)).argmax(-1)
+                        np.random.multinomial(1, self.probas, size=(data_size)).argmax(
+                            -1
+                        )
                         for _ in range(n_diff_symbols)
                     ],
                     -1,
                 )
                 + 1
             )
+        else:
+            n_labels = len(self.probas)
+
+            cov_matrix = np.ones((n_labels, n_labels))
+            cov_matrix[~np.eye(n_labels, dtype=bool)] *= self.cov_ratio
+            if self.cov_ratio > 0:
+                cov_matrix /= cov_matrix.sum(0)
+
+            first_labels = np.random.multinomial(
+                1, self.probas, size=(data_size)
+            ).argmax(-1)
+
+            cov_probas = cov_matrix[first_labels]
+            multi_sample = lambda p: np.random.multinomial(1, p, size=1).argmax(-1)
+            labels = [
+                np.stack([multi_sample(p) for p in cov_probas]).squeeze()
+                for _ in range(n_diff_symbols - 1)
+            ]
+            labels.insert(0, first_labels)
+            labels = np.stack(labels, -1) + 1
+
+        if self.common_input:
+
             centers = self.get_symbol_positions(
                 data_size, nb_steps, n_symbols, symbol_size, input_size, static
             )
@@ -493,16 +518,7 @@ class SymbolsDataset(Dataset):
             )  # , torch.from_numpy(jitter)
 
         else:
-            labels = (
-                np.stack(
-                    [
-                        np.random.multinomial(1, probas, size=(data_size)).argmax(-1)
-                        for _ in range(n_diff_symbols)
-                    ],
-                    -1,
-                )
-                + 1
-            )
+
             centers = np.stack(
                 [
                     self.get_symbol_positions(

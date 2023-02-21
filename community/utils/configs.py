@@ -101,7 +101,7 @@ def ensure_config_coherence(config, v_params):
             config["datasets"]["n_classes"] // config["model"]["n_agents"]
         )
 
-    elif "common_input" in v_params:
+    if "common_input" in v_params:
         if config["datasets"]["data_type"] != "symbols":
 
             config["datasets"]["input_size"] = 784 * (
@@ -115,3 +115,6 @@ def ensure_config_coherence(config, v_params):
     else:
         if config["training"]["decision"][1] == "all":
             config["training"]["decision"][1] = "both"
+
+    if "cov_ratio" in v_params:
+        config["data_regen"][0] = True
