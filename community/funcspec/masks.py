@@ -431,7 +431,7 @@ def train_and_get_mask_metric(
     symbols = config["datasets"]["data_type"] == "symbols"
     include_ih = config["datasets"]["common_input"]
 
-    include_r = config["model"]["common_readout"]
+    include_r = config["model"]["readout"]["common_readout"]
 
     notebook = is_notebook()
     tqdm_f = tqdm_n if notebook else tqdm
@@ -440,10 +440,7 @@ def train_and_get_mask_metric(
     if use_tqdm:
         pbar = tqdm_f(pbar, position=position, desc="Mask Metric Trials : ", leave=None)
 
-    if config["model"]["common_readout"]:
-        multi_objectives = config["model"]["n_readouts"] > 1
-    else:
-        multi_objectives = config["model"]["agents"]["n_readouts"] > 1
+    multi_objectives = config["model"]["readout"]["n_readouts"] > 1
 
     for ts in pbar:
 
@@ -508,12 +505,12 @@ def train_and_get_mask_metric(
 
     results_dict = {
         "proportions": np.stack(
-            prop_per_agent_total, -1
-        ),  # n_agents x n_targets x timesteps
-        "test_accs": np.stack(test_accuracies_total, -1),
+            prop_per_agent_total
+        ),  # timesteps x n_agents x n_targets
+        "test_accs": np.stack(test_accuracies_total),
         # "test_losses": np.stack(test_losses_total, -1),
         "best_states": best_states_total,
-        "sparsities": np.stack(sparsities_total, -1),
+        "sparsities": np.stack(sparsities_total),
     }
 
     return results_dict, masked_models_total

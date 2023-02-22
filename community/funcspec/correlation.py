@@ -139,15 +139,16 @@ def get_correlation(community, data):
 def get_pearson_metrics(
     community,
     loaders,
+    config,
     fixed_mode="label",
-    double_data=True,
-    symbols=False,
     use_tqdm=False,
     device=torch.device("cuda"),
-    chosen_timesteps=["0", "mid-", "last"],
+    chosen_timesteps=["mid-", "last"],
 ):
 
-    double_test_loader = loaders[1]
+    symbols = config["datasets"]["data_type"] == "symbols"
+    nb_steps = config["datasets"]["nb_steps"]
+    common_input = config["datasets"]["common_input"]
 
     if type(use_tqdm) is int:
         position = use_tqdm
@@ -155,7 +156,7 @@ def get_pearson_metrics(
     elif use_tqdm:
         position = 0
 
-    pbar = double_test_loader
+    pbar = loaders[1]
     if use_tqdm:
         notebook = is_notebook()
         tqdm_f = tqdm_n if notebook else tqdm
@@ -168,10 +169,14 @@ def get_pearson_metrics(
 
     for (datas, label), _ in zip(pbar, range(100)):
 
-        if not symbols:
-            datas = temporal_data(datas).to(device)
-        else:
-            datas = process_data(datas, label, "none", False, True)[0].to(device)
+        datas, _ = process_data(
+            datas,
+            label,
+            task="none",
+            symbols=symbols,
+            n_steps=nb_steps,
+            common_input=common_input,
+        )
 
         chosen_steps = []
         for t in chosen_timesteps:
@@ -192,7 +197,7 @@ def get_pearson_metrics(
         perm = lambda s: randperm_no_fixed(s.shape[0])
 
         base_states = (
-            community(datas)[1][:, :, 0, ...].transpose(0, 1).cpu().data.numpy()
+            community(datas)[1]["ag_states"].transpose(0, 1).cpu().data.numpy()
         )
         base_corrs = np.array(
             [
@@ -202,7 +207,9 @@ def get_pearson_metrics(
                 ]
                 for s_ag in base_states
             ]
-        )  # n_agents x n_timesteps
+        ).transpose(
+            0, 1
+        )  # n_timesteps x n_agents
 
         for target_digit in range(2):
 
@@ -211,14 +218,14 @@ def get_pearson_metrics(
                 label,
                 fixed=target_digit,
                 fixed_mode=fixed_mode,
-                permute_other=double_data,
+                permute_other=not common_input,
                 n_agents=community.n_agents,
             )
             if 0 in [d.shape[2] for d in fixed_data]:
                 break
 
             outs = [community(f) for f in fixed_data]
-            states = [o[1] for o in outs]
+            states = [o[1]["ag_states"] for o in outs]
 
             states_0 = [s[:, 0, 0].cpu().data.numpy() for s in states]
             states_1 = [s[:, 1, 0].cpu().data.numpy() for s in states]
@@ -244,7 +251,9 @@ def get_pearson_metrics(
                 ]
             ).transpose(1, 0)
 
-            corrs = np.stack([corrs_0, corrs_1])  # n_agents x n_classes x n_timesteps
+            corrs = np.stack(
+                [corrs_0, corrs_1], 1
+            )  # n_timesteps x n_agents x n_classes
             if (np.isnan(corrs)).any():
                 return (
                     (corrs_0, corrs_1),
@@ -254,14 +263,14 @@ def get_pearson_metrics(
 
             correlations[target_digit].append(
                 corrs
-            )  # n_batches x n_agents x n_classes x n_timesteps
+            )  # n_batches x n_timesteps x n_agents x n_classes
 
         base_correlations.append(base_corrs)
 
     try:
         correlations = np.stack(
-            [np.stack(c, -1) for c in correlations], 1
-        )  # n_agents x n_targets x n_timesteps x n_classes x n_batches
+            [np.stack(c, 2) for c in correlations], 1
+        )  # n_timesteps x n_agents x n_targets x n_classes x n_batches
         base_correlations = np.stack(
             base_correlations, -1
         )  # n_agents x n_timesteps x n_batches
@@ -286,11 +295,11 @@ def get_pearson_metrics(
 
 def process_correlations(correlations, base_correlations):
 
-    mean_corrs = correlations.mean(-1).mean(-1)  # n_agents x n_targets x n_timesteps
-    base_corrs = base_correlations.mean(-1)  # n_agents x n_timesteps
+    mean_corrs = correlations.mean(-1).mean(-1)  # n_timesteps x n_agents x n_targets
+    base_corrs = base_correlations.mean(-1)  # n_timesteps x n_agents
     relative_corrs = np.array(
-        [[c / b for c in corr] for corr, b in zip(mean_corrs, base_corrs)]
-    )  # n_agents x n_targets x n_timesteps
+        [[c / b for c, b in zip(corr, base_corrs)] for corr in mean_corrs]
+    )  # n_timesteps x n_agents x n_targets
 
     return mean_corrs, relative_corrs, base_corrs
 
