@@ -161,7 +161,7 @@ def compute_and_plot_colormesh(
     if log_scale:
 
         """"""
-        ax.set.xscale("log")
+        ax.set_xscale("log")
         ax.set_yscale("log")
 
     return X_mesh, Y_mesh, Z, (fig, ax), cbar
