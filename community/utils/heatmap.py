@@ -113,7 +113,7 @@ def compute_and_plot_heatmap(
     if log_scale:
 
         """"""
-        ax.set.xscale("log")
+        ax.set_xscale("log")
         ax.set_yscale("log")
 
     ax.set_ylim(y_values.min(), y_values.max())

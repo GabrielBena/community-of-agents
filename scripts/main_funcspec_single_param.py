@@ -53,7 +53,7 @@ if __name__ == "__main__":
         seed = np.random.randint(100)
 
     # Use for debugging
-    debug_run = True
+    debug_run = False
     if debug_run:
         print("Debugging Mode is activated ! Only doing mock training")
 
@@ -69,15 +69,17 @@ if __name__ == "__main__":
     n_classes_per_digit = 16
     n_classes = n_classes_per_digit * n_digits
 
+    use_symbols = True
+
     dataset_config = {
         "batch_size": 512 if use_cuda else 256,
-        "data_sizes": None if (not debug_run) else data_sizes // 10,
+        "data_size": None if (not debug_run) else data_sizes // 10,
         "common_input": True,
         "use_cuda": use_cuda,
         "fix_asym": False,
         "permute_dataset": True,
         "seed": seed,
-        "data_type": "symbols",
+        "data_type": "symbols" if use_symbols else "double_d",
         "n_digits": n_digits,
         "n_classes": n_classes,
         "n_classes_per_digit": n_classes_per_digit,
@@ -99,7 +101,7 @@ if __name__ == "__main__":
             "n_diff_symbols": n_digits,
             "parallel": False,
             "adjust_probas": False,
-            "random_transform": False,
+            "random_transform": True,
             "cov_ratio": 1.0,
         }
 
@@ -115,20 +117,18 @@ if __name__ == "__main__":
 
     p_masks = [0.1]
 
-    lr, gamma = 1e-3, 0.95
     optim_config = {
-        "lr": lr,
-        "gamma": gamma,
+        "lr": 1e-3,
+        "gamma": 0.92,
         "reg_readout": None,
     }
 
-    l1, gdnoise, lr, gamma, cooling = 1e-5, 1e-3, 1e-3, 0.95, 0.95
     deepR_config = {
-        "l1": l1,
-        "gdnoise": gdnoise,
-        "lr": lr,
-        "gamma": gamma,
-        "cooling": cooling,
+        "l1": 1e-5,
+        "gdnoise": 1e-3,
+        "lr": 1e-3,
+        "gamma": 0.95,
+        "cooling": 0.95,
         "global_rewire": False,
     }
 
@@ -136,7 +136,7 @@ if __name__ == "__main__":
         "use_deepR": False,
         "global_rewire": False,
         "comms_dropout": 0.0,
-        "sparsity": 0.01,
+        "sparsity": 0.1,
         "binarize": False,
         "comms_start": "start",
         "comms_out_scale": 1,
@@ -145,7 +145,7 @@ if __name__ == "__main__":
     agents_config = {
         "n_in": dataset_config["input_size"],
         "n_hidden": 20,
-        "n_bot": None,
+        "n_bot": 5,
         "n_layers": 1,
         "train_in_out": (True, True),
         "cell_type": str(nn.RNN),
@@ -154,7 +154,6 @@ if __name__ == "__main__":
 
     readout_config = {
         "common_readout": True,
-        # "dual_readout": True,
         "n_hid": None,
         "readout_from": None,
     }
@@ -175,7 +174,7 @@ if __name__ == "__main__":
         },
         "training": {
             "decision": ["last", "all"],
-            "n_epochs": 15 if not debug_run else 2,
+            "n_epochs": 25 if not debug_run else 2,
             "inverse_task": False,
             "stopping_acc": 0.95,
             "early_stop": False,
@@ -185,10 +184,10 @@ if __name__ == "__main__":
         "varying_params_sweep": {},
         "varying_params_local": {},
         ###------ Task ------
-        "task": "both",
+        "task": "parity-digits",
         ### ------ Task ------
         "metrics_only": False,
-        "n_tests": 5 if not debug_run else 2,
+        "n_tests": 1 if not debug_run else 2,
         "debug_run": debug_run,
         "use_tqdm": 2,
         "data_regen": [False, dataset_config["data_type"] != "symbols"],
@@ -233,7 +232,7 @@ if __name__ == "__main__":
         for s in np.unique(
             (np.geomspace(1, n**2, 2) / n**2)
             if debug_run
-            else (np.geomspace(1, n**2, 25) / n**2)
+            else (np.geomspace(1, n**2, 5, endpoint=True) / n**2)
         )
     ]
 
@@ -250,8 +249,6 @@ if __name__ == "__main__":
 
     ensure_config_coherence(default_config, varying_params_sweep)
 
-    loaders, datasets = get_data(default_config)
-
     pbar_0 = varying_params_local
     if default_config["use_tqdm"]:
         pbar_0 = tqdm(pbar_0, position=0, desc="Varying Params", leave=None)
@@ -262,6 +259,7 @@ if __name__ == "__main__":
     for v, v_params_local in enumerate(pbar_0):
 
         v_params_all = v_params_local.copy()
+
         # Sweep param always overrides
         v_params_all.update(wandb.config["varying_params_sweep"])
         config = default_config.copy()
@@ -281,7 +279,9 @@ if __name__ == "__main__":
 
         ensure_config_coherence(config, v_params_all)
 
-        if config["data_regen"][0] and v != 0:
+        if v == 0:
+            loaders, datasets = get_data(default_config)
+        elif config["data_regen"][0]:
             seed += 1
             config["datasets"]["seed"] = seed
             loaders, datasets = get_data(config)

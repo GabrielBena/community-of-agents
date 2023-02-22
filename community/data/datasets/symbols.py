@@ -13,7 +13,7 @@ class SymbolsDataset(Dataset):
 
         self.data_config = data_config
         self.random_transform = data_config["random_transform"]
-        self.max_angle = 15
+        self.max_angle = 10
 
         self.symbols = self.get_symbols()
         self.symbol_size = self.symbols[0].shape[-1]
