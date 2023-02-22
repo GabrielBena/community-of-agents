@@ -204,7 +204,7 @@ def train_community(
     symbols = config["data_type"] == "symbols"
     force_connections = config["force_connections"]
     common_input = config["common_input"]
-    nb_steps = config["nb_steps"]
+    n_steps = config["nb_steps"]
 
     n_classes = config["n_classes"]
     n_classes_per_digit = config["n_classes_per_digit"]
@@ -246,7 +246,12 @@ def train_community(
     # dummy fwd for shapes
     data, target = next(iter(train_loader))
     data, target = process_data(
-        data, target, symbols=symbols, common_input=common_input, task=task
+        data,
+        target,
+        symbols=symbols,
+        n_steps=n_steps,
+        common_input=common_input,
+        task=task,
     )
     *_, fconns = model(data.to(device))
 
@@ -273,10 +278,10 @@ def train_community(
                     data,
                     target,
                     task,
-                    conv_com,
+                    conv_com=conv_com,
                     symbols=symbols,
                     common_input=common_input,
-                    n_steps=nb_steps,
+                    n_steps=n_steps,
                 )
 
                 t_target = get_task_target(target, task, n_classes_per_digit)
@@ -453,7 +458,7 @@ def test_community(
     n_classes = config["n_classes"]
     n_classes_per_digit = config["n_classes_per_digit"]
     common_input = config["common_input"]
-    nb_steps = config["nb_steps"]
+    n_steps = config["nb_steps"]
 
     task = config["task"]
     decision = config["decision"]
@@ -469,7 +474,13 @@ def test_community(
 
     data, target = next(iter(test_loader))
     data, target = process_data(
-        data, target, task, conv_com, symbols=symbols, common_input=common_input
+        data,
+        target,
+        task=task,
+        conv_com=conv_com,
+        symbols=symbols,
+        common_input=common_input,
+        n_steps=n_steps,
     )
     *_, fconns = model(data.to(device))
     with torch.no_grad():
@@ -483,11 +494,11 @@ def test_community(
             data, t_target = process_data(
                 data,
                 target,
-                task,
-                conv_com,
+                task=task,
+                conv_com=conv_com,
                 symbols=symbols,
                 common_input=common_input,
-                n_steps=nb_steps,
+                n_steps=n_steps,
             )
 
             t_target = get_task_target(target, task, n_classes_per_digit)
@@ -574,13 +585,19 @@ def plot_confusion_mat(
     symbols = config["data_type"] == "symbols"
     decision = config["decision"]
     common_input = config["common_input"]
-
+    n_steps = config["nb_steps"]
     conv_com = type(model) is ConvCommunity
 
     for batch_idx, (data, target) in enumerate(test_loader):
 
         data, target = process_data(
-            data, target, task, conv_com, symbols=symbols, common_input=common_input
+            data,
+            target,
+            task=task,
+            conv_com=conv_com,
+            symbols=symbols,
+            common_input=common_input,
+            n_steps=n_steps,
         )
 
         data, t_target = data.to(device), get_task_target(target, task, n_classes).to(

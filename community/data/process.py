@@ -82,11 +82,11 @@ def process_data(
     data,
     target,
     task,
-    conv_com=False,
     symbols=False,
-    varying_temporal=False,
     n_steps=2,
     common_input=False,
+    varying_temporal=False,
+    conv_com=False,
 ):
 
     if symbols:
