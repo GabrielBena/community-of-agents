@@ -136,8 +136,6 @@ def get_agent_decision(outputs, agent_decision, target=None):
             except TypeError:
                 pass
 
-            return outputs
-
         elif agent_decision == "combine":
             outputs = torch.cat(
                 [
