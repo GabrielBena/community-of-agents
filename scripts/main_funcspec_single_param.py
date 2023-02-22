@@ -9,7 +9,7 @@ import pandas as pd
 import numpy as np
 
 from community.utils.configs import (
-    find_and_change,
+    copy_and_change_config,
     ensure_config_coherence,
 )
 from community.utils.wandb_utils import mkdir_or_save_torch, update_dict
@@ -181,7 +181,7 @@ if __name__ == "__main__":
             "force_connections": False,
         },
         "metrics": {"chosen_timesteps": ["mid-", "last"]},
-        "varying_params_sweep": {},
+        "varying_params_sweep": {"n_bot": None},
         "varying_params_local": {},
         ###------ Task ------
         "task": "parity-digits",
@@ -218,15 +218,11 @@ if __name__ == "__main__":
     }
 
     varying_params_sweep = wandb.config["varying_params_sweep"]
-
     # Adjust Parameters based on wandb sweep
-    for param_name, param in varying_params_sweep.items():
-        wandb.define_metric(param_name)
-        if param is not None:
-            find_and_change(default_config, param_name, param)
+    default_config = copy_and_change_config(default_config, varying_params_sweep)
+    ensure_config_coherence(default_config, varying_params_sweep)
 
     n = default_config["model"]["agents"]["n_hidden"]
-
     varying_params_local = [
         {"sparsity": s}
         for s in np.unique(
@@ -247,8 +243,6 @@ if __name__ == "__main__":
 
     # varying_params_local = [{"cov_ratio": c} for c in [0, 0.5, 1]]
 
-    ensure_config_coherence(default_config, varying_params_sweep)
-
     pbar_0 = varying_params_local
     if default_config["use_tqdm"]:
         pbar_0 = tqdm(pbar_0, position=0, desc="Varying Params", leave=None)
@@ -259,14 +253,10 @@ if __name__ == "__main__":
     for v, v_params_local in enumerate(pbar_0):
 
         v_params_all = v_params_local.copy()
-
         # Sweep param always overrides
         v_params_all.update(wandb.config["varying_params_sweep"])
-        config = default_config.copy()
-
-        for param_name, param in v_params_local.items():
-            wandb.define_metric(param_name)
-            find_and_change(config, param_name, param)
+        config = copy_and_change_config(default_config, v_params_all)
+        ensure_config_coherence(config, v_params_all)
 
         config["varying_params_local"] = v_params_all
 
@@ -276,8 +266,6 @@ if __name__ == "__main__":
         wandb.config.update(
             {"varying_params_local": v_params_local}, allow_val_change=True
         )
-
-        ensure_config_coherence(config, v_params_all)
 
         if v == 0:
             loaders, datasets = get_data(default_config)

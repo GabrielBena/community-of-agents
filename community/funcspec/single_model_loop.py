@@ -33,7 +33,6 @@ def init_and_train(config, loaders, device):
     # varying_params_all.update(wandb.config["varying_params_sweep"])
 
     sentinel = object()
-
     for v_param_name, v_param in varying_params_all.items():
         found = _finditem(config, v_param_name, sentinel)
         if found is sentinel:

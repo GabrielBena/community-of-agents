@@ -4,18 +4,18 @@ data_regen:
 datasets:
   batch_size: 512
   common_input: true
-  data_sizes:
+  data_size:
     - 6000
     - 1000
   data_type: symbols
   fix_asym: false
   input_size: 3600
-  n_classes: 16
-  n_classes_per_digit: 8
+  n_classes: 32
+  n_classes_per_digit: 16
   n_digits: 2
   nb_steps: 2
   permute_dataset: true
-  seed: 95
+  seed: 58
   split_classes: false
   symbol_config:
     adjust_probas: false
@@ -25,7 +25,7 @@ datasets:
       - 2000
     input_size: 60
     n_diff_symbols: 2
-    n_symbols: 15
+    n_symbols: 31
     nb_steps: 2
     parallel: false
     random_transform: true
@@ -65,7 +65,7 @@ model:
 n_tests: 2
 optimization:
   agents:
-    gamma: 0.9
+    gamma: 0.92
     lr: 0.001
     reg_readout:
   connections:
@@ -87,4 +87,5 @@ training:
   stopping_acc: 0.95
 use_tqdm: 2
 varying_params_local: {}
-varying_params_sweep: {}
+varying_params_sweep:
+  n_bot:

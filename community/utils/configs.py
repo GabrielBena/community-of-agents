@@ -1,3 +1,6 @@
+from copy import deepcopy
+
+
 def get_training_dict(config):
 
     training_dict = {
@@ -31,6 +34,15 @@ def find_and_change(config, param_name, param_value):
         else:
             if key == param_name:
                 config[key] = param_value
+
+    return config
+
+
+def copy_and_change_config(config, varying_params):
+
+    config = deepcopy(config)
+    for n, v in varying_params.items():
+        find_and_change(config, n, v)
 
     return config
 
