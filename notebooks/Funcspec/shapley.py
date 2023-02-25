@@ -9,8 +9,8 @@ from community.common.training import get_loss, get_acc
 from community.data.process import process_data
 from community.data.tasks import get_task_target
 from community.common.init import init_community
-from community.utils.configs import configure_readouts
-from community.data.datasets.datasets import get_datasets_symbols
+from community.common.models.readout import configure_readouts
+from community.data.datasets.generate import get_datasets_symbols
 
 from tqdm import tqdm
 from msapy import msa
@@ -26,6 +26,8 @@ from yaml.loader import SafeLoader
 def masked_inference(excluded, community, data, t_target, decision):
 
     excluded = np.array(excluded, dtype=int)
+
+    common_readout = community.readout is not None
 
     n_hid, n_agents = community.agent_dims[1], community.n_agents
     masked_units = [
@@ -72,15 +74,15 @@ def masked_inference(excluded, community, data, t_target, decision):
     loss = get_loss(output, t_target)
 
     pred = output.argmax(dim=-1)
-    correct = pred.eq(tt_target.view_as(pred))
+    correct = pred.eq(t_target.view_as(pred))
     acc = (
-        (correct.sum(-1) * np.prod(tt_target.shape[:-1]) / tt_target.numel())
+        (correct.sum(-1) * np.prod(t_target.shape[:-1]) / t_target.numel())
         .cpu()
         .data.numpy()
     )
 
-    if not common_readout:
-        acc = acc[int(task)]
+    # if not common_readout:
+    # acc = acc[int(task)]
 
     return float(acc)
 
@@ -122,7 +124,7 @@ def compute_shapley_values(
 
     n_classes_per_digit = config["datasets"]["n_classes_per_digit"]
     symbols = config["datasets"]["data_type"] == "symbols"
-    common_readout = community.use_common_readout
+    common_readout = community.readout is not None
     common_input = config["datasets"]["common_input"]
 
     torch.set_num_threads(1)
@@ -135,7 +137,7 @@ def compute_shapley_values(
         if common_readout:
             decision = ["last", task]
         else:
-            decision = ["last", f"max-{task}"]
+            decision = ["last", f"max_{task}"]
 
         data, t_target = get_data(
             task, datasets, n_classes_per_digit, symbols, common_input

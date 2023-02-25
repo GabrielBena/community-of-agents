@@ -166,6 +166,7 @@ def train_community(
     use_tqdm=2,
     device=torch.device("cuda"),
     show_all_acc=True,
+    ag_masks=None,
 ):
     """
     Training and testing function for Community of agents
@@ -300,7 +301,7 @@ def train_community(
                 else:
                     conns = None
 
-                output, out_dict = model(data, conns)
+                output, out_dict = model(data, conns, ag_masks)
                 output, deciding_ags = get_decision(output, *decision, target=t_target)
 
                 try:
@@ -397,7 +398,12 @@ def train_community(
 
         if testing:
             descs[1], loss, acc, _ = test_community(
-                model, device, test_loader, config, show_all_acc=show_all_acc
+                model,
+                device,
+                test_loader,
+                config,
+                show_all_acc,
+                ag_masks,
             )
             if loss < best_loss:
                 best_loss = loss
@@ -445,6 +451,7 @@ def test_community(
     test_loader,
     config,
     show_all_acc=True,
+    ag_masks=None,
     verbose=False,
     seed=None,
 ):
@@ -513,7 +520,7 @@ def test_community(
             else:
                 conns = None
 
-            output, out_dict = model(data, conns)
+            output, out_dict = model(data, conns, ag_masks)
             output, deciding_ags = get_decision(output, *decision, target=t_target)
             try:
 

@@ -187,7 +187,7 @@ if __name__ == "__main__":
         "task": "parity-digits",
         ### ------ Task ------
         "metrics_only": False,
-        "n_tests": 1 if not debug_run else 2,
+        "n_tests": 5 if not debug_run else 2,
         "debug_run": debug_run,
         "use_tqdm": 2,
         "data_regen": [False, dataset_config["data_type"] != "symbols"],
@@ -223,12 +223,18 @@ if __name__ == "__main__":
     ensure_config_coherence(default_config, varying_params_sweep)
 
     n = default_config["model"]["agents"]["n_hidden"]
+
+    sparsities = np.concatenate(
+        [
+            np.array([0]),
+            np.unique(np.geomspace(1, n**2, 50, endpoint=True, dtype=int)) / n**2,
+        ]
+    )
+
     varying_params_local = [
         {"sparsity": s}
         for s in np.unique(
-            (np.geomspace(1, n**2, 2) / n**2)
-            if debug_run
-            else (np.geomspace(1, n**2, 5, endpoint=True) / n**2)
+            (np.geomspace(1, n**2, 2) / n**2) if debug_run else sparsities
         )
     ]
 

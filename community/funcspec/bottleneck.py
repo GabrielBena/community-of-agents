@@ -33,8 +33,8 @@ def readout_retrain(
     chosen_timesteps=["0", "mid-", "last"],
     task="all",
     n_hid=None,
-    #    retrain_common=False,
     common_input=False,
+    retrain_type="all",
 ):
     """
     Retrains the bottleneck-readout connections of each sub-network for each sub-task and stores performance.
@@ -79,8 +79,16 @@ def readout_retrain(
     f_config["model"]["readout"] = {
         "common_readout": True,
         "n_hid": n_hid,
-        "readout_from": [0, 1, None],
     }
+
+    if retrain_type == "all":
+        f_config["model"]["readout"]["readout_from"] = [0, 1, None]
+    elif retrain_type == "agents":
+        f_config["model"]["readout"]["readout_from"] = [0, 1]
+    elif retrain_type == "common_readout":
+        f_config["model"]["readout"]["readout_from"] = None
+    else:
+        raise NotImplementedError(f"Retrain type {retrain_type} not recognized")
 
     readout_config = configure_readouts(f_config)
     f_config["model"]["readout"].update(readout_config)
@@ -119,7 +127,10 @@ def readout_retrain(
             "check_gradients": False,
             "reg_factor": 0.0,
             "train_connections": False,
-            "decision": (training_timestep, "both"),
+            "decision": (
+                training_timestep,
+                "both" if retrain_type != "common_readout" else "all",
+            ),
             "stopping_acc": None,
             "early_stop": False,
             "deepR_params_dict": {},
