@@ -181,7 +181,7 @@ if __name__ == "__main__":
             "force_connections": False,
         },
         "metrics": {"chosen_timesteps": ["mid-", "last"]},
-        "varying_params_sweep": {"n_bot": None},
+        "varying_params_sweep": {},
         "varying_params_local": {},
         ###------ Task ------
         "task": "parity-digits",
@@ -298,9 +298,12 @@ if __name__ == "__main__":
 
             # config = update_dict(config, wandb.config)
 
-            (metric_data, train_outs, metric_result) = train_and_compute_metrics(
-                config, loaders, device
-            )
+            (
+                metric_data,
+                train_outs,
+                metric_result,
+                all_results,
+            ) = train_and_compute_metrics(config, loaders, device)
 
             metric_data["seed"] = np.full_like(list(metric_data.values())[0], seed)
 
@@ -323,22 +326,29 @@ if __name__ == "__main__":
     final_log = {}
 
     try:
-        bottleneck_global_diff = final_data["bottleneck_global_diff"].mean()
-        final_log["bottleneck_global_diff"] = bottleneck_global_diff
+        retraining_global_diff = final_data["retraining_global_diff"].mean()
+        final_log["retraining_global_diff"] = retraining_global_diff
+
+        correlations_global_diff = final_data["correlations_global_diff"].mean()
+        final_log["correlations_global_diff"] = retraining_global_diff
+
+        ablations_global_diff = final_data["ablations_global_diff"].mean()
+        final_log["ablations_global_diff"] = ablations_global_diff
+
     except KeyError:
         pass
 
     best_test_acc = final_data["best_acc"].mean()
     final_log["best_test_acc"] = best_test_acc
 
-    bottleneck_det = final_data["bottleneck_det"].mean()
-    final_log["bottleneck_det"] = bottleneck_det
+    retraining_det = final_data["retraining_det"].mean()
+    final_log["retraining_det"] = retraining_det
 
     wandb.log(final_log)
 
     for name, file in zip(
         ["training_results", "metric_results"],
-        [training_results, metric_results],
+        [training_results, all_results],
     ):
         mkdir_or_save_torch(file, name, run_dir)
         artifact = wandb.Artifact(name=name, type="dict")

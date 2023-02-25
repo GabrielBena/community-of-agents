@@ -8,12 +8,13 @@ import numpy.linalg as LA
 from community.funcspec.masks import train_and_get_mask_metric
 from community.funcspec.bottleneck import readout_retrain
 from community.funcspec.correlation import get_pearson_metrics
-from community.common.training import train_community
+from community.common.training import train_community, test_community
 from community.common.init import init_community, init_optimizers
 from community.utils.configs import get_training_dict, _finditem
 import copy
 from time import sleep
 import warnings
+from copy import deepcopy
 
 
 def init_and_train(config, loaders, device):
@@ -118,22 +119,9 @@ def compute_all_metrics(trained_coms, loaders, config, device):
     chosen_timesteps = config["metrics"]["chosen_timesteps"]
     use_tqdm = config["use_tqdm"]
 
-    """
     # community = trained_coms["Without Bottleneck"]
-
-    # print('Correlations')
-    correlations_results = get_pearson_metrics(
-        community,
-        loaders,
-        device=device,
-        use_tqdm=1 if use_tqdm else False,
-        symbols=symbols,
-        chosen_timesteps=chosen_timesteps,
-    )
-    mean_corrs, relative_corrs, base_corrs = list(
-        correlations_results.values()
-    )  # n_agents x n_targets x n_timesteps
-
+    community = trained_coms
+    """
     print("Weight Masks")
     masks_metric = {}
     masks_results, masked_coms = train_and_get_mask_metric(
@@ -156,9 +144,21 @@ def compute_all_metrics(trained_coms, loaders, config, device):
 
     """
 
-    community = trained_coms  # ["Without Bottleneck"]
+    # ------ Correlations ------
+    correlations_results = get_pearson_metrics(
+        community,
+        loaders,
+        config=config,
+        device=device,
+        use_tqdm=use_tqdm,
+        chosen_timesteps=chosen_timesteps,
+    )
+    mean_corrs, relative_corrs, base_corrs = list(
+        correlations_results.values()
+    )  # n_timesteps x n_agents x n_targets
 
-    bottleneck_results, _ = readout_retrain(
+    # ------ Retraining ------
+    retraining_results = readout_retrain(
         community,
         loaders,
         config,
@@ -169,18 +169,53 @@ def compute_all_metrics(trained_coms, loaders, config, device):
         n_hid=30,
         common_input=config["datasets"]["common_input"],
     )
-
     # n_timesteps x (n_agents + 1) x n_targets
+    retraining_accs = retraining_results[0]["accs"]
+    retrained_community = retraining_results[1]
 
-    bottleneck_metrics = bottleneck_results["accs"]
+    # ------ Ablations ------
+    retrained_community.readout_config["readout_from"] = None
+    retrained_community.readout = retrained_community.readout[-1]
+
+    ablated_accs = []
+
+    for ts in chosen_timesteps:
+
+        ablation_config = get_training_dict(deepcopy(config))
+        ablation_config["task"] = "both"
+        ablation_config["decision"][1] = "all"
+        ablation_config["decision"][0] = ts
+
+        ablated_accs.append(
+            [
+                test_community(
+                    retrained_community,
+                    device,
+                    loaders[1],
+                    ablation_config,
+                    ag_masks=[
+                        torch.ones(ag.dims[-2]) * (i != n_ag)
+                        for i, ag in enumerate(community.agents)
+                    ],
+                )[2]
+                for n_ag in range(2)
+            ]
+        )
+
+    ablated_accs_ratio = [
+        (retraining_accs[-1][-1] - a) / retraining_accs[-1][-1] for a in ablated_accs
+    ]
+    ablated_accs = np.array(ablated_accs)
+    ablated_accs_ratio = 1 - np.array(ablated_accs_ratio)
+    ablation_results = {"accs": ablated_accs, "ratio": ablated_accs_ratio}
 
     # ------ Log ------
     # metrics = [correlations_metric, masks_metric, bottleneck_metric]
     # metric_names = ['Correlation', 'Masks', 'Bottleneck']
-    # all_results = [correlations_results, masks_results, bottleneck_results]
+    all_results = [correlations_results, retraining_results, ablation_results]
 
-    metric_names = ["bottleneck"]
-    metrics = [bottleneck_metrics]
+    metric_names = ["retraining", "correlations", "ablations"]
+    metrics = [retraining_accs, mean_corrs, ablated_accs_ratio]
 
     metric_results = {
         metric_name: metric for metric, metric_name in zip(metrics, metric_names)
@@ -188,7 +223,7 @@ def compute_all_metrics(trained_coms, loaders, config, device):
 
     metric_data = define_and_log(metric_results, config, community.best_acc)
 
-    return metric_data, metric_results
+    return metric_data, metric_results, all_results
 
 
 def define_and_log(metrics, config, best_acc):
@@ -224,7 +259,11 @@ def define_and_log(metrics, config, best_acc):
             try:
                 step_single_metrics = metric[step]
 
-                ag_single_metrics = step_single_metrics[:-1]
+                if metric_name == "retraining":
+                    ag_single_metrics = step_single_metrics[:-1]
+                else:
+                    ag_single_metrics = step_single_metrics
+
                 if len(ag_single_metrics.shape) == 2:
 
                     metric_data.setdefault(metric_name + "_det", [])
@@ -265,13 +304,14 @@ def define_and_log(metrics, config, best_acc):
                                 diff_metric(ag_single_metric)
                             )
 
-                common_single_metric = step_single_metrics[-1]
-                if len(common_single_metric.shape) == 1:
+                if metric_name == "retraining":
+                    common_single_metric = step_single_metrics[-1]
+                    if len(common_single_metric.shape) == 1:
 
-                    metric_data.setdefault(metric_name + "_all_local_diff", [])
-                    metric_data[metric_name + "_all_local_diff"].append(
-                        diff_metric(common_single_metric)
-                    )
+                        metric_data.setdefault(metric_name + "_all_local_diff", [])
+                        metric_data[metric_name + "_all_local_diff"].append(
+                            diff_metric(common_single_metric)
+                        )
 
             except TypeError:
                 continue
@@ -287,8 +327,8 @@ def train_and_compute_metrics(config, loaders, device):
 
     # ------ Metrics ------
 
-    metric_data, metric_results = compute_all_metrics(
+    metric_data, metric_results, all_results = compute_all_metrics(
         trained_coms, loaders, config, device
     )
 
-    return metric_data, train_outs, metric_results
+    return metric_data, train_outs, metric_results, all_results

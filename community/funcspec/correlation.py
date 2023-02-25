@@ -177,6 +177,7 @@ def get_pearson_metrics(
             n_steps=nb_steps,
             common_input=common_input,
         )
+        datas = datas.to(device)
 
         chosen_steps = []
         for t in chosen_timesteps:
