@@ -2,11 +2,9 @@ data_regen:
   - false
   - false
 datasets:
-  batch_size: 512
+  batch_size: 256
   common_input: true
   data_size:
-    - 6000
-    - 1000
   data_type: symbols
   fix_asym: false
   input_size: 3600
@@ -15,14 +13,14 @@ datasets:
   n_digits: 2
   nb_steps: 2
   permute_dataset: true
-  seed: 85
+  seed: 22
   split_classes: false
   symbol_config:
     adjust_probas: false
     cov_ratio: 1.0
     data_size:
-      - 12000
-      - 2000
+      - 60000
+      - 10000
     input_size: 60
     n_diff_symbols: 2
     n_symbols: 31
@@ -31,8 +29,8 @@ datasets:
     random_transform: true
     static: true
     symbol_type: mod_5
-  use_cuda: true
-debug_run: true
+  use_cuda: false
+debug_run: false
 metrics:
   chosen_timesteps:
     - mid-
@@ -62,7 +60,7 @@ model:
     common_readout: true
     n_hid:
     readout_from:
-n_tests: 2
+n_tests: 5
 optimization:
   agents:
     gamma: 0.92
@@ -83,9 +81,8 @@ training:
   early_stop: false
   force_connections: false
   inverse_task: false
-  n_epochs: 2
+  n_epochs: 25
   stopping_acc: 0.95
-use_tqdm: 2
+use_tqdm: false
 varying_params_local: {}
-varying_params_sweep:
-  n_bot:
+varying_params_sweep: {}

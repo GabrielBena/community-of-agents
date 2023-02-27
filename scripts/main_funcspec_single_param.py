@@ -330,7 +330,7 @@ if __name__ == "__main__":
         final_log["retraining_global_diff"] = retraining_global_diff
 
         correlations_global_diff = final_data["correlations_global_diff"].mean()
-        final_log["correlations_global_diff"] = retraining_global_diff
+        final_log["correlations_global_diff"] = correlations_global_diff
 
         ablations_global_diff = final_data["ablations_global_diff"].mean()
         final_log["ablations_global_diff"] = ablations_global_diff
