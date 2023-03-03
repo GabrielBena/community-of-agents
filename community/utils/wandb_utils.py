@@ -80,13 +80,13 @@ def get_wandb_artifact(
     return torch.load(wanted_artifact.file()), wanted_artifacts, runs
 
 
-def mkdir_or_save_torch(to_save, save_name, save_path):
-    try:
+def mkdir_or_save(to_save, save_name, save_path, save_mode="torch"):
+    path = Path(save_path)
+    path.mkdir(parents=True, exist_ok=True)
+    if save_mode == "torch":
         torch.save(to_save, save_path + save_name)
-    except FileNotFoundError:
-        path = Path(save_path)
-        path.mkdir(parents=True)
-        torch.save(to_save, save_path + save_name)
+    elif save_mode == "csv":
+        to_save.to_csv(save_path + save_name)
 
 
 def update_dict(config, new_config):

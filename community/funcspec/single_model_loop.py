@@ -20,6 +20,7 @@ from copy import deepcopy
 def init_and_train(config, loaders, device):
 
     use_wandb = wandb.run is not None
+    wandb_log = use_wandb and config['wandb_log']
 
     agents_params_dict = config["model"]["agents"]
     connections_params_dict = config["model"]["connections"]
@@ -42,7 +43,7 @@ def init_and_train(config, loaders, device):
             assert (
                 found == v_param
             ), f"{v_param_name} is different ({found}) than expected ({v_param}) !"
-            if use_wandb:
+            if wandb_log:
                 wandb.log({v_param_name: v_param})
                 if v_param_name == "sparsity":
                     wandb.log({"q_measure": (1 - v_param) / (2 * (1 + v_param))})
@@ -85,18 +86,12 @@ def init_and_train(config, loaders, device):
 
             try:
                 for m, sub_metric in enumerate(metric):
-                    if use_wandb:
+                    if wandb_log:
                         wandb.define_metric(metric_name + f"_{m}")
-                    if use_wandb:
-                        wandb.define_metric(metric_name + f"_{m}")
-                    if use_wandb:
                         wandb.log({metric_name + f"_{m}": sub_metric})
             except:
-                if use_wandb:
+                if wandb_log:
                     wandb.define_metric(metric_name)
-                if use_wandb:
-                    wandb.define_metric(metric_name)
-                if use_wandb:
                     wandb.log({metric_name: metric})
 
         community.best_acc = best_test_acc
@@ -121,6 +116,7 @@ def compute_all_metrics(trained_coms, loaders, config, device):
 
     # community = trained_coms["Without Bottleneck"]
     community = trained_coms
+
     """
     print("Weight Masks")
     masks_metric = {}
@@ -221,12 +217,12 @@ def compute_all_metrics(trained_coms, loaders, config, device):
         metric_name: metric for metric, metric_name in zip(metrics, metric_names)
     }
 
-    metric_data = define_and_log(metric_results, config, community.best_acc)
+    metric_data = create_metric_table(metric_results, config, community.best_acc)
 
     return metric_data, metric_results, all_results
 
 
-def define_and_log(metrics, config, best_acc):
+def create_metric_table(metrics, config, best_acc):
 
     if config is None:
         config = wandb.config

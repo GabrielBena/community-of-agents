@@ -10,7 +10,7 @@ import wandb
 from scipy.stats import pearsonr
 
 from community.utils.others import is_notebook
-from community.utils.wandb_utils import get_wandb_artifact, mkdir_or_save_torch
+from community.utils.wandb_utils import get_wandb_artifact, mkdir_or_save
 from community.data.tasks import get_digits, rotation_conflict_task
 from community.data.process import process_data, temporal_data
 from community.common.init import init_community
@@ -399,7 +399,7 @@ def compute_correlation_metric(
             "Pearson_Label": pearson_corrs_label,
             "Pearson_Rotation": pearson_corrs_rotation,
         }
-        mkdir_or_save_torch(final_correlations, save_name, save_path)
+        mkdir_or_save(final_correlations, save_name, save_path)
 
     figures = fig1, fig2 = plot_correlations(final_correlations)
     if use_wandb:

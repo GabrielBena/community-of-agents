@@ -17,7 +17,7 @@ from ..utils.others import (
     is_notebook,
 )
 from ..utils.nested import nested_shape, nested_round, nested_sup, nested_len
-from ..utils.wandb_utils import mkdir_or_save_torch
+from ..utils.wandb_utils import mkdir_or_save
 
 from ..utils.configs import get_training_dict
 
@@ -756,6 +756,6 @@ def compute_trained_communities(
                 }
             )
 
-        mkdir_or_save_torch(community_states, save_name, save_path)
+        mkdir_or_save(community_states, save_name, save_path)
 
     wandb.log_artifact(total_path, name="state_dicts", type="model_saves")

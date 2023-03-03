@@ -16,7 +16,7 @@ from community.common.init import init_community, init_optimizers
 from community.utils.others import is_notebook
 from community.utils.nested import nested_shape
 from community.common.models.readout import configure_readouts
-from community.utils.wandb_utils import get_wandb_artifact, mkdir_or_save_torch
+from community.utils.wandb_utils import get_wandb_artifact, mkdir_or_save
 
 # ------ Bottleneck Metric ------ :
 
@@ -255,7 +255,7 @@ def compute_bottleneck_metrics(
         # metrics[p_con]['losses'] = np.array(metrics[p_con]['losses'])
         metrics[p_con]["accs"] = np.array(metrics[p_con]["accs"])
 
-        mkdir_or_save_torch(metrics, save_name, save_path)
+        mkdir_or_save(metrics, save_name, save_path)
 
     figures = fig1, fig2 = plot_bottleneck_results(metrics)
 

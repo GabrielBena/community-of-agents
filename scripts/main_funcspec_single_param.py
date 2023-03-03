@@ -12,7 +12,7 @@ from community.utils.configs import (
     copy_and_change_config,
     ensure_config_coherence,
 )
-from community.utils.wandb_utils import mkdir_or_save_torch, update_dict
+from community.utils.wandb_utils import mkdir_or_save, update_dict
 from community.data.datasets.generate import get_datasets_alphabet, get_datasets_symbols
 from community.data.tasks import get_task_target
 from community.funcspec.single_model_loop import train_and_compute_metrics
@@ -53,9 +53,11 @@ if __name__ == "__main__":
         seed = np.random.randint(100)
 
     # Use for debugging
-    debug_run = False
+    debug_run = True
     if debug_run:
         print("Debugging Mode is activated ! Only doing mock training")
+
+    wandb_log = False
 
     use_cuda = torch.cuda.is_available()
     device = torch.device("cuda" if use_cuda else "cpu")
@@ -187,10 +189,11 @@ if __name__ == "__main__":
         "task": "parity-digits",
         ### ------ Task ------
         "metrics_only": False,
-        "n_tests": 5 if not debug_run else 2,
+        "n_tests": 5 if not debug_run else 1,
         "debug_run": debug_run,
         "use_tqdm": 2,
         "data_regen": [False, dataset_config["data_type"] != "symbols"],
+        "wandb_log": wandb_log,
     }
 
     try:
@@ -203,7 +206,7 @@ if __name__ == "__main__":
         pyaml.dump(default_config, config_file)
 
     if debug_run:
-        os.environ["WANDB_MODE"] = "offline"
+        # os.environ["WANDB_MODE"] = "offline"
         pass
 
     # WAndB tracking :
@@ -212,10 +215,19 @@ if __name__ == "__main__":
 
     run_dir = wandb.run.dir + "/"
 
-    default_config["save_paths"] = {
-        "training": run_dir + "training_results",
-        "metrics": run_dir + "metric_results",
-    }
+    if wandb_log:
+        save_path = run_dir
+    else:
+        dir_path = os.path.dirname(os.path.abspath(__file__))
+        save_path = f"{dir_path}/../wandb_results/"
+        if wandb.run.sweep_id:
+            save_path += f"sweeps/{wandb.run.sweep_id}/"
+        else:
+            save_path += "runs/"
+
+        save_path += f"{wandb.run.id}/"
+
+    default_config["save_path"] = save_path
 
     varying_params_sweep = wandb.config["varying_params_sweep"]
     # Adjust Parameters based on wandb sweep
@@ -269,9 +281,11 @@ if __name__ == "__main__":
         if config["use_tqdm"]:
             pbar_0.set_description(f"Varying Params : {v_params_all}")
 
-        wandb.config.update(
-            {"varying_params_local": v_params_local}, allow_val_change=True
-        )
+        if wandb_log:
+
+            wandb.config.update(
+                {"varying_params_local": v_params_local}, allow_val_change=True
+            )
 
         if v == 0:
             loaders, datasets = get_data(default_config)
@@ -314,45 +328,51 @@ if __name__ == "__main__":
                 metric_results.setdefault(m_name, [])
                 metric_results[m_name].append(metric)
 
-    final_data = pd.concat([pd.DataFrame.from_dict(d) for d in metric_datas])
-    data_table = wandb.Table(dataframe=final_data)
-    wandb.log({"Metric Results": data_table})
+    final_table = pd.concat([pd.DataFrame.from_dict(d) for d in metric_datas])
+    if wandb_log:
+        data_table = wandb.Table(dataframe=final_table)
+        wandb.log({"Metric Results": data_table})
 
     try:
         metric_results = {k: np.stack(v, -1) for k, v in metric_results.items()}
     except ValueError:
         pass
 
-    final_log = {}
+    if wandb_log:
 
-    try:
-        retraining_global_diff = final_data["retraining_global_diff"].mean()
-        final_log["retraining_global_diff"] = retraining_global_diff
+        final_log = {}
 
-        correlations_global_diff = final_data["correlations_global_diff"].mean()
-        final_log["correlations_global_diff"] = correlations_global_diff
+        try:
+            retraining_global_diff = final_table["retraining_global_diff"].mean()
+            final_log["retraining_global_diff"] = retraining_global_diff
 
-        ablations_global_diff = final_data["ablations_global_diff"].mean()
-        final_log["ablations_global_diff"] = ablations_global_diff
+            correlations_global_diff = final_table["correlations_global_diff"].mean()
+            final_log["correlations_global_diff"] = correlations_global_diff
 
-    except KeyError:
-        pass
+            ablations_global_diff = final_table["ablations_global_diff"].mean()
+            final_log["ablations_global_diff"] = ablations_global_diff
 
-    best_test_acc = final_data["best_acc"].mean()
-    final_log["best_test_acc"] = best_test_acc
+        except KeyError:
+            pass
 
-    retraining_det = final_data["retraining_det"].mean()
-    final_log["retraining_det"] = retraining_det
+        best_test_acc = final_table["best_acc"].mean()
+        final_log["best_test_acc"] = best_test_acc
 
-    wandb.log(final_log)
+        retraining_det = final_table["retraining_det"].mean()
+        final_log["retraining_det"] = retraining_det
 
-    for name, file in zip(
-        ["training_results", "metric_results"],
-        [training_results, all_results],
+        wandb.log(final_log)
+
+    for name, file, save_mode in zip(
+        ["training_results", "metric_results", "metric_table"],
+        [training_results, all_results, final_table],
+        ["torch", "torch", "csv"],
     ):
-        mkdir_or_save_torch(file, name, run_dir)
-        artifact = wandb.Artifact(name=name, type="dict")
-        artifact.add_file(run_dir + name)
-        wandb.log_artifact(artifact)
+        mkdir_or_save(file, name, default_config["save_path"], save_mode)
+
+        if wandb_log and save_mode == "torch":
+            artifact = wandb.Artifact(name=name, type="dict")
+            artifact.add_file(default_config["save_path"] + name)
+            wandb.log_artifact(artifact)
 
     wandb.finish()
