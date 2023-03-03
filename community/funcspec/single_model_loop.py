@@ -194,7 +194,7 @@ def compute_all_metrics(trained_coms, loaders, config, device):
                     loaders[1],
                     ablation_config,
                     ag_masks=[
-                        torch.ones(ag.dims[-2]) * (i != n_ag)
+                        torch.ones(ag.dims[1]) * (i != n_ag)
                         for i, ag in enumerate(community.agents)
                     ],
                 )[2]
