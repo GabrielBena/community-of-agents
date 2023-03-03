@@ -53,7 +53,7 @@ if __name__ == "__main__":
         seed = np.random.randint(100)
 
     # Use for debugging
-    debug_run = True
+    debug_run = False
     if debug_run:
         print("Debugging Mode is activated ! Only doing mock training")
 
