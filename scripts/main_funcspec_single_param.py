@@ -53,7 +53,7 @@ if __name__ == "__main__":
         seed = np.random.randint(100)
 
     # Use for debugging
-    debug_run = True
+    debug_run = False
     if debug_run:
         print("Debugging Mode is activated ! Only doing mock training")
 
@@ -252,16 +252,7 @@ if __name__ == "__main__":
         )
     ]
 
-    """
-    varying_params_local = [
-        {"n_bott": bot, "task": t, "common_readout": c}
-        for bot in [None, 5, 10]
-        for t in ["both", "sum", "parity-digits-sum"]
-        for c in [True, False]
-    ]
-    """
-
-    varying_params_local = [{"cov_ratio": c} for c in [0, 0.5, 1]]
+    # varying_params_local = [{"cov_ratio": c} for c in [0, 0.5, 1]]
 
     pbar_0 = varying_params_local
     if default_config["use_tqdm"]:
