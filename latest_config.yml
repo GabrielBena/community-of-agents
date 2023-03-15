@@ -1,36 +1,23 @@
 data_regen:
   - false
-  - false
+  - true
 datasets:
   batch_size: 512
   common_input: true
   data_size:
     - 6000
     - 1000
-  data_type: symbols
+  data_type: double_d
   fix_asym: false
-  input_size: 3600
-  n_classes: 32
-  n_classes_per_digit: 16
+  input_size: 1568
+  n_classes: 20
+  n_classes_per_digit: 10
   n_digits: 2
   nb_steps: 2
   permute_dataset: true
-  seed: 25
+  seed: 47
   split_classes: false
-  symbol_config:
-    adjust_probas: false
-    cov_ratio: 1.0
-    data_size:
-      - 12000
-      - 2000
-    input_size: 60
-    n_diff_symbols: 2
-    n_symbols: 31
-    nb_steps: 2
-    parallel: false
-    random_transform: true
-    static: true
-    symbol_type: mod_5
+  symbol_config: {}
   use_cuda: true
 debug_run: true
 metrics:
@@ -44,7 +31,7 @@ model:
     cell_type: '<class ''torch.nn.modules.rnn.RNN''>'
     n_bot: 5
     n_hidden: 20
-    n_in: 3600
+    n_in: 1568
     n_layers: 1
     train_in_out:
       - true
@@ -77,15 +64,17 @@ optimization:
     lr: 0.001
 task: parity-digits
 training:
+  check_gradients: false
   decision:
     - last
     - all
   early_stop: false
   force_connections: false
   inverse_task: false
-  n_epochs: 2
+  n_epochs: 1
   stopping_acc: 0.95
 use_tqdm: 2
 varying_params_local: {}
-varying_params_sweep: {}
+varying_params_sweep:
+  common_readout: false
 wandb_log: false

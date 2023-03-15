@@ -100,7 +100,7 @@ class Agent(nn.Module):
 
         self.readout = None
 
-    def forward(self, x_in, x_h=None, x_connect=0, softmax=False):
+    def forward(self, x_in, x_h=None, x_connect=0, state_mask=None, softmax=False):
 
         bott = None
 
@@ -138,7 +138,13 @@ class Agent(nn.Module):
 
             x, h = self.cell(x_in, h)
 
+        if state_mask is not None:
+
+            h *= torch.tensor(state_mask).to(x_in.device)
+            x *= torch.tensor(state_mask).to(x_in.device)
+
         output = x
+
         if self.dropout:
             output = self.dropout(output)
 

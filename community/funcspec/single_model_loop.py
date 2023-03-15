@@ -20,7 +20,7 @@ from copy import deepcopy
 def init_and_train(config, loaders, device):
 
     use_wandb = wandb.run is not None
-    wandb_log = use_wandb and config['wandb_log']
+    wandb_log = use_wandb and config["wandb_log"]
 
     agents_params_dict = config["model"]["agents"]
     connections_params_dict = config["model"]["connections"]
@@ -198,11 +198,9 @@ def compute_all_metrics(trained_coms, loaders, config, device):
             ]
         )
 
-    ablated_accs_ratio = [
-        (retraining_accs[-1][-1] - a) / retraining_accs[-1][-1] for a in ablated_accs
-    ]
+    ablated_accs_ratio = [1 - a / retraining_accs[-1][-1] for a in ablated_accs]
     ablated_accs = np.array(ablated_accs)
-    ablated_accs_ratio = 1 - np.array(ablated_accs_ratio)
+    ablated_accs_ratio = np.array(ablated_accs_ratio)
     ablation_results = {"accs": ablated_accs, "ratio": ablated_accs_ratio}
 
     # ------ Log ------

@@ -171,12 +171,15 @@ class Community(nn.Module):
 
                     # out, h = ag1(inputs, states[t-1][i], inputs_connect)
 
-                out, h, bott = ag1(inputs, states[i][-1], inputs_connect)
+                out, h, bott = ag1(
+                    inputs,
+                    states[i][-1],
+                    inputs_connect,
+                    state_masks[i] if state_masks is not None else None,
+                )
+
                 ag_outputs[i].append(out)
                 ag_bottlenecks[i].append(bott)
-
-                if state_masks is not None:
-                    h *= torch.tensor(state_masks[i]).to(x.device)
 
                 ag_states.append(h)
                 connections[i].append(inputs_connect)

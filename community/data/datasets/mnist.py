@@ -218,7 +218,7 @@ class DoubleMNIST(Dataset):
             self.permutation2 = torch.randperm(self.n_classes)
 
             self.permutations = [self.permutation1, self.permutation2]
-            print(self.permutations)
+            # print(self.permutations)
         else:
             self.permutations = [
                 torch.arange(self.n_classes),

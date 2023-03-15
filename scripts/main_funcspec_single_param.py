@@ -53,7 +53,7 @@ if __name__ == "__main__":
         seed = np.random.randint(100)
 
     # Use for debugging
-    debug_run = False
+    debug_run = True
     if debug_run:
         print("Debugging Mode is activated ! Only doing mock training")
 
@@ -68,10 +68,10 @@ if __name__ == "__main__":
 
     data_sizes = np.array([60000, 10000])
 
-    n_classes_per_digit = 16
+    n_classes_per_digit = 10
     n_classes = n_classes_per_digit * n_digits
 
-    use_symbols = True
+    use_symbols = False
 
     dataset_config = {
         "batch_size": 512 if use_cuda else 256,
@@ -176,11 +176,12 @@ if __name__ == "__main__":
         },
         "training": {
             "decision": ["last", "all"],
-            "n_epochs": 25 if not debug_run else 2,
+            "n_epochs": 25 if not debug_run else 1,
             "inverse_task": False,
             "stopping_acc": 0.95,
             "early_stop": False,
             "force_connections": False,
+            "check_gradients": False,
         },
         "metrics": {"chosen_timesteps": ["mid-", "last"]},
         "varying_params_sweep": {},
@@ -206,7 +207,7 @@ if __name__ == "__main__":
         pyaml.dump(default_config, config_file)
 
     if debug_run:
-        # os.environ["WANDB_MODE"] = "offline"
+        os.environ["WANDB_MODE"] = "offline"
         pass
 
     # WAndB tracking :
@@ -239,7 +240,7 @@ if __name__ == "__main__":
     sparsities = np.concatenate(
         [
             np.array([0]),
-            np.unique(np.geomspace(1, n**2, 50, endpoint=True, dtype=int)) / n**2,
+            np.unique(np.geomspace(1, n**2, 10, endpoint=True, dtype=int)) / n**2,
         ]
     )
 

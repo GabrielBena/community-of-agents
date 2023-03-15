@@ -26,7 +26,9 @@ def fixed_information_data(
     n_classes = len(digits[0].unique())
 
     if len(data.shape) == 3:
-        data = torch.stack([data for _ in range(n_agents)], 1)
+        # data = torch.stack([data for _ in range(n_agents)], 1)
+        data = torch.stack(data.split(data.shape[-1] // 2, dim=-1), 1)
+        reshape = True
 
     if permute_other:
         data[:, 1 - fixed, ...] = data[:, 1 - fixed, torch.randperm(bs), ...]
@@ -41,6 +43,8 @@ def fixed_information_data(
     datas = [[data[:, j, idx, :] for idx in d_idxs] for j in range(2)]
 
     new_data = [torch.stack([d1, d2], axis=1) for d1, d2 in zip(*datas)]
+    if reshape:
+        new_data = [d.transpose(1, -2).flatten(start_dim=-2) for d in new_data]
 
     """
     if 0 in [d.shape[2] for d in new_data]:
@@ -53,10 +57,12 @@ def fixed_information_data(
 
 
 def fixed_rotation_data(data, digits, fixed_dig, n_angles=4, reshape=None):
+
     if reshape is None:
         reshape = data.shape[-1] == 784
     if reshape:
         data = data[0].reshape(*data[0].shape[:2][::-1], 28, 28)
+
     data, target, angle_values = rotation_conflict_task(data, digits, n_angles)
     data = temporal_data(data)
     possible_angles = np.unique(angle_values.cpu())
