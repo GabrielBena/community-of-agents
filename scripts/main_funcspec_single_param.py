@@ -87,6 +87,7 @@ if __name__ == "__main__":
         "n_classes_per_digit": n_classes_per_digit,
         "nb_steps": 2,
         "split_classes": False,
+        "cov_ratio": 1.0,
     }
 
     if dataset_config["data_type"] == "symbols":
@@ -104,7 +105,7 @@ if __name__ == "__main__":
             "parallel": False,
             "adjust_probas": False,
             "random_transform": True,
-            "cov_ratio": 1.0,
+            "cov_ratio": dataset_config["cov_ratio"],
         }
 
         if not symbol_config["static"]:
@@ -260,7 +261,7 @@ if __name__ == "__main__":
     ]
     """
 
-    # varying_params_local = [{"cov_ratio": c} for c in [0, 0.5, 1]]
+    varying_params_local = [{"cov_ratio": c} for c in [0, 0.5, 1]]
 
     pbar_0 = varying_params_local
     if default_config["use_tqdm"]:
@@ -289,7 +290,7 @@ if __name__ == "__main__":
             )
 
         if v == 0:
-            loaders, datasets = get_data(default_config)
+            loaders, datasets = get_data(config)
         elif config["data_regen"][0]:
             seed += 1
             config["datasets"]["seed"] = seed

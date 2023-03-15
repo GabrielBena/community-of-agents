@@ -78,6 +78,7 @@ def get_datasets_alphabet(root, data_config):
     split_classes = data_config["split_classes"]
     permute = data_config["permute_dataset"]
     seed = data_config["seed"]
+    cov_ratio = data_config["cov_ratio"]
 
     train_kwargs = {"batch_size": batch_size, "shuffle": True, "drop_last": True}
     test_kwargs = {"batch_size": batch_size, "shuffle": False, "drop_last": True}
@@ -100,6 +101,7 @@ def get_datasets_alphabet(root, data_config):
         )
         for t in [True, False]
     ]
+
     double_digits = [
         DoubleMNIST(
             root,
@@ -108,6 +110,7 @@ def get_datasets_alphabet(root, data_config):
             truncate=truncate_digits,
             permute=permute,
             seed=seed,
+            cov_ratio=cov_ratio,
         )
         for t in [True, False]
     ]

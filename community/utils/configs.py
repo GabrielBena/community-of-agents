@@ -88,8 +88,11 @@ def ensure_config_coherence(config, v_params):
         except KeyError:
             pass
 
-    if "parity" in config["task"]:
-        config["datasets"]["fix_asym"] = True
+    if "parity" in config["task"] and False:
+        if config["datasets"]["cov_ratio"] == 1:
+            config["datasets"]["fix_asym"] = True
+        else:
+            config["datasets"]["fix_asym"] = False
 
     if "n_classes_per_digit" in v_params:
         config["datasets"]["n_classes"] = (
@@ -129,4 +132,7 @@ def ensure_config_coherence(config, v_params):
             config["training"]["decision"][1] = "both"
 
     if "cov_ratio" in v_params:
+        config["datasets"]["symbol_config"]["cov_ratio"] = config["datasets"][
+            "cov_ratio"
+        ]
         config["data_regen"][0] = True

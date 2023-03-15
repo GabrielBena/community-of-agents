@@ -177,7 +177,14 @@ class DoubleMNIST(Dataset):
     """
 
     def __init__(
-        self, root, train=True, fix_asym=True, permute=False, seed=None, truncate=None
+        self,
+        root,
+        train=True,
+        fix_asym=True,
+        permute=False,
+        seed=None,
+        truncate=None,
+        cov_ratio=1,
     ):
         super().__init__()
 
@@ -200,13 +207,6 @@ class DoubleMNIST(Dataset):
             self.n_classes = 10
 
         self.fix_asym = fix_asym
-        self.secondary_index = torch.randperm(len(self.mnist_dataset))
-        if self.fix_asym:
-            self.new_idxs = self.get_forbidden_indexs()
-            # self.secondary_index = self.secondary_index[: len(self.new_idxs)]
-        else:
-            self.new_idxs = torch.arange(len(dataset))
-
         self.permute = permute
         if self.permute:
             if seed is None:
@@ -225,10 +225,48 @@ class DoubleMNIST(Dataset):
                 torch.arange(self.n_classes),
             ]
 
+        self.cov_ratio = cov_ratio
+        self.create_all_idxs()
+
         self.data = self.create_data()
 
+    def create_all_idxs(self):
+
+        targets = self.mnist_dataset.targets
+        sorted_idxs = np.argsort(targets)
+
+        t_idxs = [torch.where(targets == t)[0] for t in range(10)]
+        c_idxs = [torch.where(targets != t)[0] for t in range(10)]
+
+        idxs = [np.concatenate((t_idx, c_idx)) for t_idx, c_idx in zip(t_idxs, c_idxs)]
+
+        ps = np.stack(
+            [
+                np.concatenate(
+                    (np.ones_like(t_idx), self.cov_ratio * np.ones_like(c_idx))
+                )
+                for t_idx, c_idx, idx in zip(t_idxs, c_idxs, idxs)
+            ],
+            -1,
+        ).astype(float)
+        ps /= ps.sum(0)
+
+        self.cov_idxs = np.concatenate(
+            [
+                np.random.choice(idxs[t], size=len(t_idx), p=ps[:, t])
+                for t, t_idx in enumerate(t_idxs)
+            ]
+        )[np.argsort(sorted_idxs)]
+
+        # print((targets == targets[self.cov_idxs]).float().mean())
+
+        if self.fix_asym:
+            self.new_idxs = self.get_forbidden_indexs()
+        else:
+            self.new_idxs = torch.arange(len(self.mnist_dataset))
+
     def valid_idx(self, idx):
-        idx1, idx2 = idx, self.secondary_index[idx]
+        idx1, idx2 = idx, self.cov_idxs[idx]
         _, target_1 = self.mnist_dataset[idx1]
         _, target_2 = self.mnist_dataset[idx2]
 
@@ -246,7 +284,7 @@ class DoubleMNIST(Dataset):
         if manual_idx:
 
             index_1 = self.new_idxs[index]
-            index_2 = self.secondary_index[index_1]
+            index_2 = self.cov_idxs[index_1]
 
             digit_1, target_1 = self.mnist_dataset[index_1]
             digit_2, target_2 = self.mnist_dataset[index_2]
@@ -283,7 +321,7 @@ class DoubleMNIST(Dataset):
                 d[torch.tensor(idx)]
                 for i, d in enumerate([self.mnist_data, self.mnist_dataset.targets])
             ]
-            for idx in [self.new_idxs, self.secondary_index[self.new_idxs]]
+            for idx in [self.new_idxs, self.cov_idxs[self.new_idxs]]
         ]
 
         data = [torch.stack(d, 1).squeeze() for i, d in enumerate(zip(*data))]
