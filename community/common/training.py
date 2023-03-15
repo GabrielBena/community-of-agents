@@ -239,7 +239,7 @@ def train_community(
     deciding_agents = []
     best_loss, best_acc = 1e10, 0.0
 
-    pbar = range(n_epochs)
+    pbar = range(n_epochs + 1)
     if use_tqdm:
         tqdm_f = tqdm_n if notebook else tqdm
         pbar = tqdm_f(pbar, position=position, leave=None, desc="Train Epoch:")
@@ -262,7 +262,7 @@ def train_community(
     #    pass
 
     for epoch in pbar:
-        if training:
+        if training and epoch > 0:
 
             model.train()
             for batch_idx, (data, target) in enumerate(train_loader):

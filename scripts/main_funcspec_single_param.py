@@ -364,9 +364,9 @@ if __name__ == "__main__":
         wandb.log(final_log)
 
     for name, file, save_mode in zip(
-        ["training_results", "metric_results", "metric_table"],
-        [training_results, all_results, final_table],
-        ["torch", "torch", "csv"],
+        ["metric_results", "metric_table", "training_results"],
+        [all_results, final_table],
+        ["torch", "pickle", "torch"],
     ):
         mkdir_or_save(file, name, default_config["save_path"], save_mode)
 

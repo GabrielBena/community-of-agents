@@ -7,7 +7,7 @@ def get_training_dict(config):
         "n_epochs": config["training"]["n_epochs"],
         "task": config["task"],
         "global_rewire": config["optimization"]["connections"]["global_rewire"],
-        "check_gradients": False,
+        "check_gradients": config["training"]["check_gradients"],
         "reg_factor": 0.0,
         "train_connections": True,
         "decision": config["training"]["decision"],

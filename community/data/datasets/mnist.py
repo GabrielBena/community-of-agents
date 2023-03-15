@@ -209,10 +209,23 @@ class DoubleMNIST(Dataset):
 
         self.permute = permute
         if self.permute:
-            if seed is not None:
-                torch.manual_seed(seed)
-            self.permutation = torch.randperm(self.n_classes)
-            # print(self.permutation)
+            if seed is None:
+                seed = 42
+
+            torch.manual_seed(seed)
+            self.permutation1 = torch.randperm(self.n_classes)
+            torch.manual_seed(seed + 1)
+            self.permutation2 = torch.randperm(self.n_classes)
+
+            self.permutations = [self.permutation1, self.permutation2]
+            print(self.permutations)
+        else:
+            self.permutations = [
+                torch.arange(self.n_classes),
+                torch.arange(self.n_classes),
+            ]
+
+        self.data = self.create_data()
 
     def valid_idx(self, idx):
         idx1, idx2 = idx, self.secondary_index[idx]
@@ -221,11 +234,6 @@ class DoubleMNIST(Dataset):
 
         return not (target_1 == target_2 or target_1 == (target_2 - 1) % 10)
 
-    def permute_labels(self, seed=None):
-        if seed is not None:
-            torch.manual_seed(seed)
-        self.permutation = torch.randperm(10)
-
     def get_forbidden_indexs(self):
         new_idxs = []
         for idx in range(len(self.mnist_dataset)):
@@ -233,32 +241,56 @@ class DoubleMNIST(Dataset):
                 new_idxs.append(idx)
         return new_idxs
 
-    def __getitem__(self, index):
-        index_1 = self.new_idxs[index]
-        index_2 = self.secondary_index[index_1]
+    def __getitem__(self, index, manual_idx=False):
 
-        digit_1, target_1 = self.mnist_dataset[index_1]
-        digit_2, target_2 = self.mnist_dataset[index_2]
+        if manual_idx:
 
-        if self.permute:
-            target_1, target_2 = self.permutation[target_1], self.permutation[target_2]
+            index_1 = self.new_idxs[index]
+            index_2 = self.secondary_index[index_1]
 
-        digits = torch.cat([digit_1, digit_2], axis=0)
-        targets = [target_1, target_2]
+            digit_1, target_1 = self.mnist_dataset[index_1]
+            digit_2, target_2 = self.mnist_dataset[index_2]
 
-        return digits, torch.tensor(targets)
+            if self.permute:
+                target_1, target_2 = (
+                    self.permutation1[target_1],
+                    self.permutation2[target_2],
+                )
+
+            digits = torch.cat([digit_1, digit_2], axis=0)
+            targets = torch.tensor([target_1, target_2])
+        else:
+            digits, targets = [d[index] for d in self.data]
+
+        return digits, targets
 
     def __len__(self):
         # return len(self.mnist_dataset)
         return len(self.new_idxs)
 
-    @property
-    def data(self):
-        datas = [
+    def tf_img(self, img):
+        img = Image.fromarray(img.numpy(), mode="L")
+        if self.transform is not None:
+            img = self.transform(img)
+        return img
+
+    def create_data(self):
+
+        self.mnist_data = torch.stack([self.tf_img(d) for d in self.mnist_dataset.data])
+
+        data = [
             [
                 d[torch.tensor(idx)]
-                for d in [self.mnist_dataset.data, self.mnist_dataset.targets]
+                for i, d in enumerate([self.mnist_data, self.mnist_dataset.targets])
             ]
             for idx in [self.new_idxs, self.secondary_index[self.new_idxs]]
         ]
-        return [torch.stack(d, 1) for i, d in enumerate(zip(*datas))]
+
+        data = [torch.stack(d, 1).squeeze() for i, d in enumerate(zip(*data))]
+
+        if self.permute:
+            data[1] = torch.stack(
+                [self.permutations[i][t] for i, t in enumerate(data[1].T)], -1
+            )
+        data[0] = data[0].float()
+        return data

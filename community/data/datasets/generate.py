@@ -82,7 +82,7 @@ def get_datasets_alphabet(root, data_config):
     train_kwargs = {"batch_size": batch_size, "shuffle": True, "drop_last": True}
     test_kwargs = {"batch_size": batch_size, "shuffle": False, "drop_last": True}
     if use_cuda:
-        cuda_kwargs = {"num_workers": 0, "pin_memory": True}
+        cuda_kwargs = {"num_workers": 4, "pin_memory": True}
 
         train_kwargs.update(cuda_kwargs)
         test_kwargs.update(cuda_kwargs)
@@ -192,7 +192,7 @@ def get_datasets_symbols(data_config, use_cuda=True, n_classes=10, plot=False):
     train_kwargs = {"batch_size": batch_size, "shuffle": True, "drop_last": True}
     test_kwargs = {"batch_size": batch_size, "shuffle": False, "drop_last": True}
     if use_cuda:
-        cuda_kwargs = {"num_workers": 0, "pin_memory": True}
+        cuda_kwargs = {"num_workers": 4, "pin_memory": True}
 
         train_kwargs.update(cuda_kwargs)
         test_kwargs.update(cuda_kwargs)

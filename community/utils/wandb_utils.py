@@ -87,6 +87,8 @@ def mkdir_or_save(to_save, save_name, save_path, save_mode="torch"):
         torch.save(to_save, save_path + save_name)
     elif save_mode == "csv":
         to_save.to_csv(save_path + save_name)
+    elif save_mode == "pickle":
+        to_save.to_pickle(save_path + save_name)
 
 
 def update_dict(config, new_config):
