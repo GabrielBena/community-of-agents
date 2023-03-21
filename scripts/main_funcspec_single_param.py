@@ -172,6 +172,16 @@ if __name__ == "__main__":
         "n_agents": n_agents,
     }
 
+    training_config = {
+        "decision": ["last", "all"],
+        "n_epochs": 25 if not debug_run else 1,
+        "inverse_task": False,
+        "stopping_acc": 0.95,
+        "early_stop": False,
+        "force_connections": False,
+        "check_gradients": False,
+    }
+
     default_config = {
         "model": model_config,
         "datasets": dataset_config,
@@ -179,15 +189,7 @@ if __name__ == "__main__":
             "agents": optim_config,
             "connections": deepR_config,
         },
-        "training": {
-            "decision": ["last", "all"],
-            "n_epochs": 25 if not debug_run else 1,
-            "inverse_task": False,
-            "stopping_acc": 0.95,
-            "early_stop": False,
-            "force_connections": False,
-            "check_gradients": False,
-        },
+        "training": training_config,
         "metrics": {"chosen_timesteps": ["mid-", "last"]},
         "varying_params_sweep": {},
         "varying_params_local": {},
