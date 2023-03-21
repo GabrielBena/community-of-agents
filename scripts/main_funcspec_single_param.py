@@ -47,10 +47,14 @@ def get_data(config):
 
 if __name__ == "__main__":
 
+    os.environ["WANDB_MODE"] = "offline"
+
     try:
         seed = int(os.environ["PBS_ARRAY_INDEX"])
+        hpc = True
     except KeyError:
         seed = np.random.randint(100)
+        hpc = False
 
     # Use for debugging
     debug_run = False
@@ -193,16 +197,11 @@ if __name__ == "__main__":
         "metrics_only": False,
         "n_tests": 5 if not debug_run else 1,
         "debug_run": debug_run,
-        "use_tqdm": 2,
+        "use_tqdm": 2 if not hpc else False,
         "data_regen": [False, dataset_config["data_type"] != "symbols"],
         "wandb_log": wandb_log,
+        "sweep_id": None,
     }
-
-    try:
-        os.environ["PBS_ARRAY_INDEX"]
-        default_config["use_tqdm"] = False
-    except KeyError:
-        pass
 
     with open("latest_config.yml", "w") as config_file:
         pyaml.dump(default_config, config_file)
@@ -213,23 +212,8 @@ if __name__ == "__main__":
 
     # WAndB tracking :
     wandb.init(project="funcspec_V2", entity="m2snn", config=default_config)
-    # wandb.init(project="Funcspec", entity="gbena", config=config)
 
     run_dir = wandb.run.dir + "/"
-
-    if wandb_log:
-        save_path = run_dir
-    else:
-        dir_path = os.path.dirname(os.path.abspath(__file__))
-        save_path = f"{dir_path}/../wandb_results/"
-        if wandb.run.sweep_id:
-            save_path += f"sweeps/{wandb.run.sweep_id}/"
-        else:
-            save_path += "runs/"
-
-        save_path += f"{wandb.run.id}/"
-
-    default_config["save_path"] = save_path
 
     varying_params_sweep = wandb.config["varying_params_sweep"]
     # Adjust Parameters based on wandb sweep
@@ -238,10 +222,27 @@ if __name__ == "__main__":
 
     n = default_config["model"]["agents"]["n_hidden"]
 
+    if wandb_log:
+        save_path = run_dir
+    else:
+        dir_path = os.path.dirname(os.path.abspath(__file__))
+        save_path = f"{dir_path}/../wandb_results/"
+        if wandb.run.sweep_id:
+            save_path += f"sweeps/{wandb.run.sweep_id}/"
+        elif default_config["sweep_id"]:
+            save_path += f"sweeps/{default_config['sweep_id']}/"
+        else:
+            save_path += "runs/"
+
+        save_path += f"{wandb.run.id}/"
+
+    print(save_path)
+    default_config["save_path"] = save_path
+
     sparsities = np.concatenate(
         [
             np.array([0]),
-            np.unique(np.geomspace(1, n**2, 10, endpoint=True, dtype=int)) / n**2,
+            np.unique(np.geomspace(1, n**2, 20, endpoint=True, dtype=int)) / n**2,
         ]
     )
 

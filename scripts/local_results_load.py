@@ -9,9 +9,9 @@ from tqdm import tqdm
 from pathlib import Path
 
 
-def get_pandas_from_json(run, sweep_path, name="metric_table"):
+def get_pandas_from_json(run, sweep_local_path, name="metric_table"):
 
-    save = f"{sweep_path}/{run}/{name}"
+    save = f"{sweep_local_path}/{run}/{name}"
 
     with open(save, "r") as j:
         contents = json.loads(j.read())
@@ -23,9 +23,9 @@ def get_pandas_from_json(run, sweep_path, name="metric_table"):
     return data
 
 
-def get_pandas_from_csv(run, sweep_path, name="metric_table"):
+def get_pandas_from_csv(run, sweep_local_path, name="metric_table"):
 
-    save = f"{sweep_path}/{run}/{name}"
+    save = f"{sweep_local_path}/{run}/{name}"
     data = pd.read_csv(save)
     names = [run] * len(data)
     data["name"] = names
@@ -33,9 +33,9 @@ def get_pandas_from_csv(run, sweep_path, name="metric_table"):
     return data
 
 
-def get_pandas_from_pickle(run, sweep_path, name="metric_table"):
+def get_pandas_from_pickle(run, sweep_local_path, name="metric_table"):
 
-    save = f"{sweep_path}/{run}/{name}"
+    save = f"{sweep_local_path}/{run}/{name}"
     data = pd.read_pickle(save)
     names = [run] * len(data)
     data["name"] = names
@@ -54,8 +54,9 @@ def get_all_data_and_save(
 
     pool = mp.Pool(mp.cpu_count())
 
-    sweep_path = f"/mnt/storage/gb21/wandb_results/sweeps/{sweep_id}/"
-    runs = os.listdir(sweep_path)
+    sweep_local_path = f"/mnt/storage/gb21/wandb_results/sweeps/{sweep_id}/"
+    runs = os.listdir(sweep_local_path)
+
     if max_size is None:
         max_size = len(runs)
     save_name = save_path + f"/{name}_{sweep_id}"
@@ -70,18 +71,24 @@ def get_all_data_and_save(
 
     if name == "metric_table":
         if format == "json":
-            partial_load = partial(get_pandas_from_json, sweep_path=sweep_path)
+            partial_load = partial(
+                get_pandas_from_json, sweep_local_path=sweep_local_path
+            )
             dfs = pool.map(partial_load, tqdm(runs))
         elif format == "csv":
-            partial_load = partial(get_pandas_from_csv, sweep_path=sweep_path)
+            partial_load = partial(
+                get_pandas_from_csv, sweep_local_path=sweep_local_path
+            )
             dfs = pool.map(partial_load, tqdm(runs))
         elif format == "pickle":
-            partial_load = partial(get_pandas_from_pickle, sweep_path=sweep_path)
+            partial_load = partial(
+                get_pandas_from_pickle, sweep_local_path=sweep_local_path
+            )
             dfs = pool.map(partial_load, tqdm(runs))
     else:
         dfs = None
 
-    # dfs = pool.map(get_df, zip(tqdm(range(max_size)), [sweep_path] * max_size))
+    # dfs = pool.map(get_df, zip(tqdm(range(max_size)), [sweep_local_path] * max_size))
 
     if dfs is not None:
         total_data = pd.concat(dfs)
@@ -100,7 +107,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "-p1",
         "--sweep_id",
-        default="0s9fg2jm",
+        default="y5b65d4l",
         help="path of sweep to use",
     )
 
@@ -108,7 +115,7 @@ if __name__ == "__main__":
         "-p2",
         "--save_path",
         help="path to save gathered data",
-        default="/mnt/storage/gb21/wandb_results/compiled/",
+        default="/mnt/storage/gb21/compiled_wandb_results/",
     )
     parser.add_argument(
         "-N", "--max_size", default=None, help="max size of table to process", type=int
@@ -127,7 +134,7 @@ if __name__ == "__main__":
     )
 
     parser.add_argument(
-        "-f", "--format", default="csv", help="Format to load", type=str
+        "-f", "--format", default="pickle", help="Format to load", type=str
     )
 
     args = parser.parse_args()

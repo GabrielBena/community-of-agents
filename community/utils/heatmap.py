@@ -109,7 +109,14 @@ def compute_and_plot_heatmap(
     else:
         fig, ax = figax
 
-    pc = ax.pcolormesh(X, Y, Z, cmap="viridis", vmin=minmax[0], vmax=minmax[1])
+    pc = ax.pcolormesh(
+        X,
+        Y,
+        Z,
+        cmap="viridis",
+        vmin=minmax[0] if minmax is not None else None,
+        vmax=minmax[1] if minmax is not None else None,
+    )
     if log_scale:
 
         """"""
