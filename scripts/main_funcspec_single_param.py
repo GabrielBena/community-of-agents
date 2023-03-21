@@ -222,8 +222,7 @@ if __name__ == "__main__":
     default_config = copy_and_change_config(default_config, varying_params_sweep)
     ensure_config_coherence(default_config, varying_params_sweep)
 
-    n = default_config["model"]["agents"]["n_hidden"]
-
+    # ------ Save Path ------
     if wandb_log:
         save_path = run_dir
     else:
@@ -237,10 +236,10 @@ if __name__ == "__main__":
             save_path += "runs/"
 
         save_path += f"{wandb.run.id}/"
-
-    print(save_path)
     default_config["save_path"] = save_path
 
+    # ------ Local Varying Params ------
+    n = default_config["model"]["agents"]["n_hidden"]
     sparsities = np.concatenate(
         [
             np.array([0]),
@@ -255,15 +254,13 @@ if __name__ == "__main__":
         )
     ]
 
-    # varying_params_local = [{"cov_ratio": c} for c in [0, 0.5, 1]]
-
+    # ------- Do Local Sweep ------
     pbar_0 = varying_params_local
     if default_config["use_tqdm"]:
         pbar_0 = tqdm(pbar_0, position=0, desc="Varying Params", leave=None)
 
     metric_results, metric_datas, training_results = {}, [], []
 
-    # Go through local sweep
     for v, v_params_local in enumerate(pbar_0):
 
         v_params_all = v_params_local.copy()
