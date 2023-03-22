@@ -1,4 +1,16 @@
 from copy import deepcopy
+from itertools import product
+
+
+def get_all_v_params(varying_params, excluded_params={}):
+    return [
+        {
+            k: p
+            for k, p in zip(varying_params.keys(), params)
+            if k not in excluded_params
+        }
+        for params in product(*varying_params.values())
+    ]
 
 
 def get_training_dict(config):

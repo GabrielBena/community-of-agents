@@ -212,7 +212,7 @@ def get_task_target(target, task, n_classes, temporal_target=False):
         return new_target
 
 
-def get_factors_list(n_digits, device=torch.device("cpu"), include_singles=True):
+def get_factors_list(n_digits, device=torch.device("cpu"), include_singles=False):
 
     accepted = np.arange(n_digits + 1).tolist()
     if not include_singles:

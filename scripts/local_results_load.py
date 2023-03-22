@@ -54,7 +54,7 @@ def get_all_data_and_save(
 
     pool = mp.Pool(mp.cpu_count())
 
-    sweep_local_path = f"/mnt/storage/gb21/wandb_results/sweeps/{sweep_id}/"
+    sweep_local_path = f"/mnt/storage/gb21/community/wandb_results/sweeps/{sweep_id}/"
     runs = os.listdir(sweep_local_path)
 
     if max_size is None:
@@ -107,7 +107,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "-p1",
         "--sweep_id",
-        default="y5b65d4l",
+        default="1skgp5vr",
         help="path of sweep to use",
     )
 
@@ -115,7 +115,7 @@ if __name__ == "__main__":
         "-p2",
         "--save_path",
         help="path to save gathered data",
-        default="/mnt/storage/gb21/compiled_wandb_results/",
+        default="/mnt/storage/gb21/community/compiled_wandb_results/",
     )
     parser.add_argument(
         "-N", "--max_size", default=None, help="max size of table to process", type=int
