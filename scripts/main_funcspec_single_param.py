@@ -83,7 +83,7 @@ if __name__ == "__main__":
     sweep_id = None
 
     wandb_log = False
-    manual_sweep = False
+    manual_sweep = True
 
     try:
         seed = int(os.environ["PBS_ARRAY_INDEX"])
@@ -93,7 +93,7 @@ if __name__ == "__main__":
         hpc = False
 
     # Use for debugging
-    debug_run = True
+    debug_run = False
     if debug_run:
         print("Debugging Mode is activated ! Only doing mock training")
 
@@ -106,10 +106,10 @@ if __name__ == "__main__":
 
     data_sizes = np.array([60000, 10000])
 
-    n_classes_per_digit = 10
+    n_classes_per_digit = 16
     n_classes = n_classes_per_digit * n_digits
 
-    use_symbols = False
+    use_symbols = True
 
     dataset_config = {
         "batch_size": 512 if use_cuda else 256,
@@ -152,7 +152,7 @@ if __name__ == "__main__":
 
     optim_config = {
         "lr": 1e-3,
-        "gamma": 0.92,
+        "gamma": 0.95,
         "reg_readout": None,
     }
 
@@ -178,7 +178,7 @@ if __name__ == "__main__":
     agents_config = {
         "n_in": dataset_config["input_size"],
         "n_hidden": 20,
-        "n_bot": 5,
+        "n_bot": None,
         "n_layers": 1,
         "train_in_out": (True, True),
         "cell_type": str(nn.RNN),
@@ -223,7 +223,7 @@ if __name__ == "__main__":
         "task": "parity-digits",
         ### ------ Task ------
         "metrics_only": False,
-        "n_tests": 5 if not debug_run else 1,
+        "n_tests": 10 if not debug_run else 1,
         "debug_run": debug_run,
         "use_tqdm": 2 if not hpc else False,
         "data_regen": [False, dataset_config["data_type"] != "symbols"],
