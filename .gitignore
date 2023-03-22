@@ -1,6 +1,7 @@
 wandb
 wandb_results
-sweeps
+sweeps/*
+!/sweeps/latest/
 
 .history/*
 
