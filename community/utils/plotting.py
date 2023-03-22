@@ -9,6 +9,22 @@ import shutil, os
 # ------ Plotting utils ------
 
 
+def legend_without_duplicate_labels(ax):
+    handles, labels = ax.get_legend_handles_labels()
+    unique = [
+        (h, l)
+        for i, (h, l) in enumerate(zip(handles[::-1], labels[::-1]))
+        if l not in labels[::-1][:i]
+    ]
+    ax.legend(*zip(*unique))
+
+
+def set_style():
+    file_path = os.path.realpath(__file__)
+    file_path = file_path.replace("plotting.py", "style_sheet.mplstyle")
+    plt.style.use(file_path)
+
+
 def plot_running_data(data, ax=None, m=1, **plot_kwargs):
     try:
         x, metric = data

@@ -120,7 +120,7 @@ def compute_and_plot_heatmap(
     if log_scale:
 
         """"""
-        ax.set_xscale("log")
+        # ax.set_xscale("log")
         ax.set_yscale("log")
 
     ax.set_ylim(y_values.min(), y_values.max())
@@ -149,11 +149,14 @@ def compute_and_plot_colormesh(
         Y = np.geomspace(np.maximum(y_values.min(), eps), y_values.max(), resolution)
         # print(Y)
 
+        # X = np.linspace(x_values.min(), x_values.max(), resolution)
+        # Y = np.linspace(
+        #    y_values.min(), y_values.max(), resolution
+        # )  # 500 x 500 takes 10s
+
     X_mesh, Y_mesh = np.meshgrid(X, Y)
 
-    Z = gd(
-        (x_values, y_values), z_values, (X_mesh, Y_mesh), method=method, rescale=True
-    )
+    Z = gd((x_values, y_values), z_values, (X_mesh, Y_mesh), method=method)
     if (figax) is None:
         fig, ax = plt.subplots(1, 1, figsize=(10, 5))
     else:
@@ -161,14 +164,14 @@ def compute_and_plot_colormesh(
 
     fig, ax = figax
     pcm = ax.pcolormesh(X_mesh, Y_mesh, Z, cmap="viridis")
-    ax.set_ylim(y_values.min(), y_values.max())
-    ax.set_xlim(x_values.min(), x_values.max())
+    # ax.set_ylim(y_values.min(), y_values.max())
+    # ax.set_xlim(x_values.min(), x_values.max())
     cbar = fig.colorbar(pcm, ax=ax)
 
     if log_scale:
 
         """"""
-        ax.set_xscale("log")
+        # ax.set_xscale("log")
         ax.set_yscale("log")
 
     return X_mesh, Y_mesh, Z, (fig, ax), cbar
