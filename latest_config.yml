@@ -16,7 +16,7 @@ datasets:
   n_digits: 2
   nb_steps: 2
   permute_dataset: true
-  seed: 84
+  seed: 28
   split_classes: false
   symbol_config: {}
   use_cuda: true

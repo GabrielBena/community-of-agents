@@ -34,7 +34,8 @@ if __name__ == "__main__":
 
     sweep_id = generate_id()
     f_path = os.path.realpath(__file__)
-    sweep_path = f"{os.path.split(f_path)[0]}/sweeps/{sweep_id}"
+    d_path = os.path.split(f_path)[0]
+    sweep_path = f"{d_path}/sweeps/{sweep_id}"
     path = Path(sweep_path)
     path.mkdir(exist_ok=True, parents=True)
     varying_params["sweep_id"] = [sweep_id]
@@ -44,5 +45,5 @@ if __name__ == "__main__":
     with open(f"{sweep_path}/varying_params", "w") as fp:
         json.dump(varying_params, fp)
 
-    os.unlink(f"{os.path.split(f_path)[0]}/sweeps/latest")
-    os.symlink(sweep_path, f"{os.path.split(f_path)[0]}/sweeps/latest")
+    with open(f"{d_path}/latest", "w") as fp:
+        json.dump(sweep_id, fp)

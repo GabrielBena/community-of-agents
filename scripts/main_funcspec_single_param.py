@@ -28,6 +28,7 @@ from filelock import Timeout, FileLock
 import secrets
 import string
 import sys
+import json
 
 
 def get_config_manual(sweep_path, run_id):
@@ -260,7 +261,8 @@ if __name__ == "__main__":
         os.environ["WANDB_MODE"] = "offline"
 
         if sweep_id is None:
-            sweep_id = "latest"
+            with open(f"{dir_path}/manual_sweeps/latest") as fp:
+                sweep_id = json.load(fp)
 
         sweep_path = f"{dir_path}/manual_sweeps/sweeps/{sweep_id}"
         run_id = generate_id()
