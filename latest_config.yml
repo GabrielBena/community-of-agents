@@ -1,6 +1,6 @@
 data_regen:
   - false
-  - true
+  - false
 datasets:
   batch_size: 512
   common_input: true
@@ -8,15 +8,15 @@ datasets:
   data_size:
     - 6000
     - 1000
-  data_type: double_d
+  data_type: symbols
   fix_asym: false
-  input_size: 1568
-  n_classes: 20
-  n_classes_per_digit: 10
+  input_size: 3600
+  n_classes: 32
+  n_classes_per_digit: 16
   n_digits: 2
   nb_steps: 2
   permute_dataset: true
-  seed: 97
+  seed: 22
   split_classes: false
   symbol_config:
     adjust_probas: false
@@ -39,9 +39,9 @@ model:
   agents:
     ag_dropout: 0.0
     cell_type: '<class ''torch.nn.modules.rnn.RNN''>'
-    n_bot: 5
+    n_bot:
     n_hidden: 20
-    n_in: 1568
+    n_in: 3600
     n_layers: 1
     train_in_out:
       - true
@@ -62,7 +62,7 @@ model:
 n_tests: 1
 optimization:
   agents:
-    gamma: 0.92
+    gamma: 0.95
     lr: 0.001
     reg_readout:
   connections:

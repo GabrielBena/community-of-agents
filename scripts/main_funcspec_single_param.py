@@ -93,7 +93,7 @@ if __name__ == "__main__":
         hpc = False
 
     # Use for debugging
-    debug_run = False
+    debug_run = True
     if debug_run:
         print("Debugging Mode is activated ! Only doing mock training")
 

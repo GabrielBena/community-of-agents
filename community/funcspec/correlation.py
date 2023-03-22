@@ -29,6 +29,8 @@ def fixed_information_data(
         # data = torch.stack([data for _ in range(n_agents)], 1)
         data = torch.stack(data.split(data.shape[-1] // 2, dim=-1), 1)
         reshape = True
+    else:
+        reshape = False
 
     if permute_other:
         data[:, 1 - fixed, ...] = data[:, 1 - fixed, torch.randperm(bs), ...]
@@ -43,6 +45,7 @@ def fixed_information_data(
     datas = [[data[:, j, idx, :] for idx in d_idxs] for j in range(2)]
 
     new_data = [torch.stack([d1, d2], axis=1) for d1, d2 in zip(*datas)]
+
     if reshape:
         new_data = [d.transpose(1, -2).flatten(start_dim=-2) for d in new_data]
 

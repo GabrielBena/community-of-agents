@@ -7,6 +7,7 @@ import os
 from pathlib import Path
 import joblib
 import yaml
+import json
 
 
 def generate_id(length: int = 8) -> str:
@@ -21,11 +22,11 @@ if __name__ == "__main__":
 
     # ----- Define Varyings Params -----
     varying_params = {
-        "n_hidden": np.unique(np.geomspace(10, 100, 25, dtype=int)).tolist(),
-        "cov_ratio": np.unique(np.linspace(0.01, 1, 25).round(2)).tolist(),
+        "n_bot": [None, 5],
         "common_input": [False, True],
         "common_readout": [False, True],
-        "n_bot": [None, 5],
+        "n_hidden": np.unique(np.geomspace(10, 100, 25, dtype=int)).tolist(),
+        "cov_ratio": np.unique(np.linspace(0.01, 1, 25).round(2)).tolist(),
     }
 
     """
@@ -51,6 +52,6 @@ if __name__ == "__main__":
         yaml.dump(varying_params, fp)
 
     with open(f"{d_path}/latest", "w") as fp:
-        yaml.dump(sweep_id, fp)
+        json.dump(sweep_id, fp)
 
     print(sweep_id)
