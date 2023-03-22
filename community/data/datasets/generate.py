@@ -188,9 +188,14 @@ def get_datasets_alphabet(root, data_config):
 
 def get_datasets_symbols(data_config, use_cuda=True, n_classes=10, plot=False):
 
-    symbol_config = data_config["symbol_config"]
+    symbol_config = data_config["symbol_config"].copy()
     batch_size = data_config["batch_size"]
     symbol_config["common_input"] = data_config["common_input"]
+
+    symbol_config["cov_ratio"] = data_config["cov_ratio"]
+    symbol_config["nb_steps"] = data_config["nb_steps"]
+    symbol_config["n_diff_symbols"] = data_config["n_digits"]
+    symbol_config["n_symbols"] = data_config["n_classes"] - 1
 
     train_kwargs = {"batch_size": batch_size, "shuffle": True, "drop_last": True}
     test_kwargs = {"batch_size": batch_size, "shuffle": False, "drop_last": True}

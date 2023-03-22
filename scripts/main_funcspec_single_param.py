@@ -83,7 +83,7 @@ if __name__ == "__main__":
     sweep_id = None
 
     wandb_log = False
-    manual_sweep = True
+    manual_sweep = False
 
     try:
         seed = int(os.environ["PBS_ARRAY_INDEX"])
@@ -128,33 +128,25 @@ if __name__ == "__main__":
         "cov_ratio": 1.0,
     }
 
+    symbol_config = {
+        "data_size": data_sizes if not debug_run else data_sizes // 5,
+        "input_size": 60,
+        "static": True,
+        "symbol_type": "mod_5",
+        "parallel": False,
+        "adjust_probas": False,
+        "random_transform": True,
+    }
+
+    if not symbol_config["static"]:
+        symbol_config["nb_steps"] = 50
+
+    dataset_config["symbol_config"] = symbol_config
+
     if dataset_config["data_type"] == "symbols":
-
-        print(f"Training for {n_classes} classes")
-
-        symbol_config = {
-            "data_size": data_sizes if not debug_run else data_sizes // 5,
-            "nb_steps": dataset_config["nb_steps"],
-            "n_symbols": n_classes - 1,
-            "input_size": 60,
-            "static": True,
-            "symbol_type": "mod_5",
-            "n_diff_symbols": n_digits,
-            "parallel": False,
-            "adjust_probas": False,
-            "random_transform": True,
-            "cov_ratio": dataset_config["cov_ratio"],
-        }
-
-        if not symbol_config["static"]:
-            symbol_config["nb_steps"] = 50
-
         dataset_config["input_size"] = symbol_config["input_size"] ** 2
-        dataset_config["symbol_config"] = symbol_config
-
     else:
         dataset_config["input_size"] = 784 * (1 + dataset_config["common_input"])
-        dataset_config["symbol_config"] = {}
 
     p_masks = [0.1]
 

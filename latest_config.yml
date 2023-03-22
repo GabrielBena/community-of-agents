@@ -16,9 +16,18 @@ datasets:
   n_digits: 2
   nb_steps: 2
   permute_dataset: true
-  seed: 28
+  seed: 97
   split_classes: false
-  symbol_config: {}
+  symbol_config:
+    adjust_probas: false
+    data_size:
+      - 12000
+      - 2000
+    input_size: 60
+    parallel: false
+    random_transform: true
+    static: true
+    symbol_type: mod_5
   use_cuda: true
 debug_run: true
 metrics:

@@ -148,3 +148,14 @@ def ensure_config_coherence(config, v_params):
             "cov_ratio"
         ]
         config["data_regen"][0] = True
+
+    if config["datasets"]["data_type"] == "symbols":
+        config["datasets"]["input_size"] = (
+            config["datasets"]["symbol_config"]["input_size"] ** 2
+        )
+    else:
+        config["datasets"]["input_size"] = 784 * (
+            1 + config["datasets"]["common_input"]
+        )
+
+    config["model"]["n_in"] = config["datasets"]["input_size"]
