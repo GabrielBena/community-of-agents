@@ -1,5 +1,6 @@
 wandb
 wandb_results
+sweeps
 
 .history/*
 

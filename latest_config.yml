@@ -6,6 +6,8 @@ datasets:
   common_input: true
   cov_ratio: 1.0
   data_size:
+    - 6000
+    - 1000
   data_type: double_d
   fix_asym: false
   input_size: 1568
@@ -14,11 +16,11 @@ datasets:
   n_digits: 2
   nb_steps: 2
   permute_dataset: true
-  seed: 51
+  seed: 84
   split_classes: false
   symbol_config: {}
   use_cuda: true
-debug_run: false
+debug_run: true
 metrics:
   chosen_timesteps:
     - mid-
@@ -48,7 +50,7 @@ model:
     common_readout: true
     n_hid:
     readout_from:
-n_tests: 5
+n_tests: 1
 optimization:
   agents:
     gamma: 0.92
@@ -71,7 +73,7 @@ training:
   early_stop: false
   force_connections: false
   inverse_task: false
-  n_epochs: 25
+  n_epochs: 1
   stopping_acc: 0.95
 use_tqdm: 2
 varying_params_local: {}

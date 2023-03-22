@@ -22,6 +22,28 @@ import wandb
 from tqdm import tqdm
 from tqdm.notebook import tqdm as tqdm_n
 
+import joblib
+from filelock import Timeout, FileLock
+
+import secrets
+import string
+import sys
+
+
+def get_config_manual(sweep_path, run_id):
+    lock = FileLock(f"{sweep_path}/all_params.lock")
+    with lock:
+        all_configs = joblib.load(f"{sweep_path}/all_params")
+        for config in all_configs:
+            try:
+                config["run_id"]
+            except KeyError:
+                config["run_id"] = run_id
+                joblib.dump(all_configs, f"{sweep_path}/all_params")
+                return config
+
+    return
+
 
 def get_data(config):
 
@@ -43,11 +65,24 @@ def get_data(config):
     return loaders, datasets
 
 
+def generate_id(length: int = 8) -> str:
+    """Generate a random base-36 string of `length` digits."""
+    # There are ~2.8T base-36 8-digit strings. If we generate 210k ids,
+    # we'll have a ~1% chance of collision.
+    alphabet = string.ascii_lowercase + string.digits
+    return "".join(secrets.choice(alphabet) for _ in range(length))
+
+
 # warnings.filterwarnings('ignore')
 
 if __name__ == "__main__":
 
-    os.environ["WANDB_MODE"] = "offline"
+    f_path = os.path.realpath(__file__)
+    dir_path = os.path.split(f_path)[0]
+    sweep_id = None
+
+    wandb_log = False
+    manual_sweep = True
 
     try:
         seed = int(os.environ["PBS_ARRAY_INDEX"])
@@ -57,11 +92,9 @@ if __name__ == "__main__":
         hpc = False
 
     # Use for debugging
-    debug_run = False
+    debug_run = True
     if debug_run:
         print("Debugging Mode is activated ! Only doing mock training")
-
-    wandb_log = False
 
     use_cuda = torch.cuda.is_available()
     device = torch.device("cuda" if use_cuda else "cpu")
@@ -212,23 +245,53 @@ if __name__ == "__main__":
         os.environ["WANDB_MODE"] = "offline"
         pass
 
-    # WAndB tracking :
-    wandb.init(project="funcspec_V2", entity="m2snn", config=default_config)
+    if not manual_sweep:
 
-    run_dir = wandb.run.dir + "/"
+        # WAndB tracking :
+        wandb.init(project="funcspec_V2", entity="m2snn", config=default_config)
+        varying_params_sweep = wandb.config["varying_params_sweep"]
+        # Adjust Parameters based on wandb sweep
 
-    varying_params_sweep = wandb.config["varying_params_sweep"]
-    # Adjust Parameters based on wandb sweep
-    default_config = copy_and_change_config(default_config, varying_params_sweep)
-    ensure_config_coherence(default_config, varying_params_sweep)
+        default_config = copy_and_change_config(default_config, varying_params_sweep)
+        ensure_config_coherence(default_config, varying_params_sweep)
+
+    else:
+
+        os.environ["WANDB_MODE"] = "offline"
+
+        if sweep_id is None:
+            sweep_id = "latest"
+
+        sweep_path = f"{dir_path}/manual_sweeps/sweeps/{sweep_id}"
+        run_id = generate_id()
+        # Manually retreive parameter of sweep
+        varying_params_sweep = get_config_manual(sweep_path, run_id)
+
+        if varying_params_sweep is None:
+            print("sweep done")
+            quit()
+
+        sweep_id = varying_params_sweep["sweep_id"]
+        default_config = copy_and_change_config(default_config, varying_params_sweep)
+        ensure_config_coherence(default_config, varying_params_sweep)
+        default_config["varying_params_sweep"] = varying_params_sweep
+
+        wandb.init(
+            project="funcspec_V2",
+            entity="m2snn",
+            config=default_config,
+            id=run_id,
+            group=sweep_id,
+        )
 
     # ------ Save Path ------
-    if wandb_log:
-        save_path = run_dir
+    if wandb_log and not manual_sweep:
+        save_path = wandb.run.dir + "/"
     else:
         dir_path = os.path.dirname(os.path.abspath(__file__))
         save_path = f"{dir_path}/../wandb_results/"
-        if wandb.run.sweep_id:
+
+        if not manual_sweep and wandb.run.sweep_id:
             save_path += f"sweeps/{wandb.run.sweep_id}/"
         elif default_config["sweep_id"]:
             save_path += f"sweeps/{default_config['sweep_id']}/"
@@ -236,6 +299,7 @@ if __name__ == "__main__":
             save_path += "runs/"
 
         save_path += f"{wandb.run.id}/"
+
     default_config["save_path"] = save_path
 
     # ------ Local Varying Params ------
@@ -369,3 +433,6 @@ if __name__ == "__main__":
             wandb.log_artifact(artifact)
 
     wandb.finish()
+
+    if manual_sweep:
+        os.execv(sys.executable, ["python"] + sys.argv)
