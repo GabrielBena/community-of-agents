@@ -57,8 +57,6 @@ def readout_retrain(
 
     tqdm_f = tqdm_n if notebook else tqdm
 
-    # chosen_timesteps = ['mid-', 'mid+']
-
     pbar = chosen_timesteps
     if use_tqdm:
         pbar = tqdm_f(
@@ -143,18 +141,21 @@ def readout_retrain(
         }
 
         train_outs.append(
-            train_community(
+            [
+                train_community(
+                    f_community,
+                    *loaders,
+                    optimizers,
+                    schedulers=schedulers,
+                    config=training_dict,
+                    trials=(True, True),
+                    joint_training=True,
+                    use_tqdm=position if use_tqdm else False,
+                    device=device,
+                    show_all_acc=is_notebook(),
+                ),
                 f_community,
-                *loaders,
-                optimizers,
-                schedulers=schedulers,
-                config=training_dict,
-                trials=(True, True),
-                joint_training=True,
-                use_tqdm=position if use_tqdm else False,
-                device=device,
-                show_all_acc=is_notebook(),
-            )
+            ]
         )
 
     # test_losses = np.stack(
@@ -164,7 +165,7 @@ def readout_retrain(
     # print(train_outs)
 
     try:
-        test_accs = [train_out["test_accs"] for train_out in train_outs]
+        test_accs = [train_out[0]["test_accs"] for train_out in train_outs]
         test_accs = [acc.max(0) for acc in test_accs]
         test_accs = np.stack(test_accs, 0)  # timesteps x (n_agents + 1) x n_targets
 
@@ -173,9 +174,11 @@ def readout_retrain(
     except ValueError:
         print(f"Stack error on accs of shape  {nested_shape(test_accs)}")
 
+    retrained_nets = [train_out[1] for train_out in train_outs]
+
     return (
         {"accs": test_accs},  # timesteps x (n_agents + 1) x n_targets
-        f_community,
+        retrained_nets,
     )
 
 

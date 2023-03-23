@@ -167,15 +167,17 @@ def compute_all_metrics(trained_coms, loaders, config, device):
     )
     # n_timesteps x (n_agents + 1) x n_targets
     retraining_accs = retraining_results[0]["accs"]
-    retrained_community = retraining_results[1]
+    retrained_nets = retraining_results[1]
 
     # ------ Ablations ------
-    retrained_community.readout_config["readout_from"] = None
-    retrained_community.readout = retrained_community.readout[-1]
+    for retrained_community in retrained_nets:
+
+        retrained_community.readout_config["readout_from"] = None
+        retrained_community.readout = retrained_community.readout[-1]
 
     ablated_accs = []
 
-    for ts in chosen_timesteps:
+    for ts, retrained_community in zip(chosen_timesteps, retrained_nets):
 
         ablation_config = get_training_dict(deepcopy(config))
         ablation_config["task"] = "both"
@@ -198,8 +200,8 @@ def compute_all_metrics(trained_coms, loaders, config, device):
             ]
         )
 
-    ablated_accs_ratio = [1 - a / retraining_accs[-1][-1] for a in ablated_accs]
     ablated_accs = np.array(ablated_accs)
+    ablated_accs_ratio = 1 - ablated_accs / retraining_accs[:, -1, None, :]
     ablated_accs_ratio = np.array(ablated_accs_ratio)
     ablation_results = {"accs": ablated_accs, "ratio": ablated_accs_ratio}
 

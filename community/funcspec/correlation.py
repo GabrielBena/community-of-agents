@@ -23,7 +23,8 @@ def fixed_information_data(
     # Return a modified version of data sample, where one quality is fixed (digit label, or parity, etc)
     digits = get_digits(target)
     bs = digits[0].shape[0]
-    n_classes = len(digits[0].unique())
+
+    classes = [d.unique() for d in digits]
 
     if len(data.shape) == 3:
         # data = torch.stack([data for _ in range(n_agents)], 1)
@@ -36,7 +37,7 @@ def fixed_information_data(
         data[:, 1 - fixed, ...] = data[:, 1 - fixed, torch.randperm(bs), ...]
 
     if fixed_mode == "label":
-        d_idxs = [torch.where(digits[fixed] == d)[0] for d in range(n_classes)]
+        d_idxs = [torch.where(digits[fixed] == d)[0] for d in classes[fixed]]
     elif fixed_mode == "parity":
         d_idxs = [torch.where(digits[fixed] % 2 == p)[0] for p in range(2)]
     else:
@@ -201,24 +202,17 @@ def get_pearson_metrics(
                     chosen_steps.append(-1)
                 else:
                     raise ValueError(
-                        "timestep at which tpo compute correleation not recognized"
+                        f"timestep {t} at which to compute correleation not recognized"
                     )
 
         perm = lambda s: randperm_no_fixed(s.shape[0])
 
-        base_states = (
-            community(datas)[1]["ag_states"].transpose(0, 1).cpu().data.numpy()
-        )
+        base_states = community(datas)[1]["ag_states"].cpu().data.numpy()
         base_corrs = np.array(
             [
-                [
-                    v_pearsonr(s, s[perm(s)])[0].mean()
-                    for s in [s_ag[t] for t in chosen_steps]
-                ]
-                for s_ag in base_states
+                [v_pearsonr(s, s[perm(s)])[0].mean() for s in s_ag]
+                for s_ag in [base_states[t] for t in chosen_steps]
             ]
-        ).transpose(
-            0, 1
         )  # n_timesteps x n_agents
 
         for target_digit in range(2):
@@ -231,14 +225,15 @@ def get_pearson_metrics(
                 permute_other=not common_input,
                 n_agents=community.n_agents,
             )
-            if 0 in [d.shape[2] for d in fixed_data]:
-                break
+
+            # if 0 in [d.shape[2] for d in fixed_data]:
+            #    break
 
             outs = [community(f) for f in fixed_data]
             states = [o[1]["ag_states"] for o in outs]
 
-            states_0 = [s[:, 0, 0].cpu().data.numpy() for s in states]
-            states_1 = [s[:, 1, 0].cpu().data.numpy() for s in states]
+            states_0 = [s[:, 0].cpu().data.numpy() for s in states if 0 not in s.shape]
+            states_1 = [s[:, 1].cpu().data.numpy() for s in states if 0 not in s.shape]
 
             corrs_0 = np.array(
                 [
