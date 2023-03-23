@@ -102,7 +102,7 @@ if __name__ == "__main__":
         "-d",
         "--debug",
         help="Do a debug run with limited data and iterations",
-        default=True,
+        default=False,
     )
     parser.add_argument(
         "-v",
