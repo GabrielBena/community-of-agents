@@ -29,6 +29,7 @@ import secrets
 import string
 import sys
 import json
+import argparse
 
 
 def get_config_manual(sweep_path, run_id):
@@ -41,6 +42,12 @@ def get_config_manual(sweep_path, run_id):
             except KeyError:
                 config["run_id"] = run_id
                 joblib.dump(all_configs, f"{sweep_path}/all_params")
+
+                with open(f"{sweep_path}/all_params_readable", "w") as pf:
+                    for d in all_configs:
+                        json.dump(d, pf)
+                        pf.write("\n")
+
                 return config
 
     return
@@ -78,12 +85,40 @@ def generate_id(length: int = 8) -> str:
 
 if __name__ == "__main__":
 
+    parser = argparse.ArgumentParser(
+        prog="Main Training",
+        description="Train and compute metrics, run sweeps",
+    )
+
+    parser.add_argument("-l", "--wandb_log", help="Log the run in wandb", default=False)
+    parser.add_argument(
+        "-m",
+        "--manual",
+        help="Do manual sweep with locked files",
+        default=False,
+    )
+
+    parser.add_argument(
+        "-d",
+        "--debug",
+        help="Do a debug run with limited data and iterations",
+        default=True,
+    )
+    parser.add_argument(
+        "-v",
+        "--varying_params_sweep",
+        default={},
+        help="Varying params passed by wandb agent for sweep",
+    )
+
+    args = parser.parse_args()
+
     f_path = os.path.realpath(__file__)
     dir_path = os.path.split(f_path)[0]
     sweep_id = None
 
-    wandb_log = False
-    manual_sweep = True
+    wandb_log = args.wandb_log
+    manual_sweep = args.manual
 
     try:
         seed = int(os.environ["PBS_ARRAY_INDEX"])
@@ -93,7 +128,7 @@ if __name__ == "__main__":
         hpc = False
 
     # Use for debugging
-    debug_run = True
+    debug_run = args.debug
     if debug_run:
         print("Debugging Mode is activated ! Only doing mock training")
 

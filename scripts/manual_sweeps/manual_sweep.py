@@ -29,12 +29,10 @@ if __name__ == "__main__":
         "cov_ratio": np.unique(np.linspace(0.01, 1, 25).round(2)).tolist(),
     }
 
-    """
     varying_params = {
         "n_hidden": [10, 100],
         "cov_ratio": [0, 1],
     }
-    """
 
     # ------ Create Sweep Id (length 8) ------
 
