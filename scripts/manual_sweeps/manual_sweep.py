@@ -46,8 +46,14 @@ if __name__ == "__main__":
     all_params = get_all_v_params(varying_params)
 
     joblib.dump(all_params, f"{sweep_path}/all_params")
+
     with open(f"{sweep_path}/varying_params", "w") as fp:
         yaml.dump(varying_params, fp)
+
+    with open(f"{sweep_path}/all_params_readable", "w") as pf:
+        for d in all_params:
+            json.dump(d, pf)
+            pf.write("\n")
 
     with open(f"{d_path}/latest", "w") as fp:
         json.dump(sweep_id, fp)
