@@ -17,40 +17,19 @@ from community.data.datasets.generate import get_datasets_alphabet, get_datasets
 from community.data.tasks import get_task_target
 from community.funcspec.single_model_loop import train_and_compute_metrics
 from community.common.models.readout import configure_readouts
+from community.common.manual_sweeps import get_config_manual_lock
 import wandb
 
 from tqdm import tqdm
 from tqdm.notebook import tqdm as tqdm_n
 
 import joblib
-from filelock import Timeout, FileLock
 
 import secrets
 import string
 import sys
 import json
 import argparse
-
-
-def get_config_manual(sweep_path, run_id):
-    lock = FileLock(f"{sweep_path}/all_params.lock")
-    with lock:
-        all_configs = joblib.load(f"{sweep_path}/all_params")
-        for config in all_configs:
-            try:
-                config["run_id"]
-            except KeyError:
-                config["run_id"] = run_id
-                joblib.dump(all_configs, f"{sweep_path}/all_params")
-
-                with open(f"{sweep_path}/all_params_readable", "w") as pf:
-                    for d in all_configs:
-                        json.dump(d, pf)
-                        pf.write("\n")
-
-                return config
-
-    return
 
 
 def get_data(config):
@@ -90,35 +69,53 @@ if __name__ == "__main__":
         description="Train and compute metrics, run sweeps",
     )
 
-    parser.add_argument("-l", "--wandb_log", help="Log the run in wandb", default=False)
     parser.add_argument(
-        "-m",
-        "--manual",
-        help="Do manual sweep with locked files",
+        "-l",
+        "--wandb_log",
+        help="Log the run in wandb",
         default=False,
+        action="store_true",
     )
 
+    parser.add_argument(
+        "-m",
+        "--manual_sweep",
+        help="Do manual sweep with locked files",
+        default=False,
+        action="store_true",
+    )
     parser.add_argument(
         "-d",
         "--debug",
         help="Do a debug run with limited data and iterations",
+        action="store_true",
         default=False,
     )
+
     parser.add_argument(
         "-v",
         "--varying_params_sweep",
         default={},
         help="Varying params passed by wandb agent for sweep",
+        type=dict,
+    )
+    parser.add_argument(
+        "-s",
+        "--use_symbols",
+        help="Use Symbol Generation",
+        default=False,
+        action="store_true",
     )
 
     args = parser.parse_args()
+    print(args)
 
     f_path = os.path.realpath(__file__)
     dir_path = os.path.split(f_path)[0]
     sweep_id = None
 
     wandb_log = args.wandb_log
-    manual_sweep = args.manual
+    manual_sweep = args.manual_sweep
 
     try:
         seed = int(os.environ["PBS_ARRAY_INDEX"])
@@ -138,13 +135,11 @@ if __name__ == "__main__":
 
     n_agents = 2
     n_digits = n_agents
-
     data_sizes = np.array([60000, 10000])
-
-    n_classes_per_digit = 16
+    n_classes_per_digit = 10
     n_classes = n_classes_per_digit * n_digits
 
-    use_symbols = True
+    use_symbols = args.use_symbols
 
     dataset_config = {
         "batch_size": 512 if use_cuda else 256,
@@ -158,7 +153,7 @@ if __name__ == "__main__":
         "n_digits": n_digits,
         "n_classes": n_classes,
         "n_classes_per_digit": n_classes_per_digit,
-        "nb_steps": 2,
+        "nb_steps": 3,
         "split_classes": False,
         "cov_ratio": 1.0,
     }
@@ -182,6 +177,9 @@ if __name__ == "__main__":
         dataset_config["input_size"] = symbol_config["input_size"] ** 2
     else:
         dataset_config["input_size"] = 784 * (1 + dataset_config["common_input"])
+        if dataset_config["data_type"] == "double_d":
+            # dataset_config["n_classes"] = min(10, dataset_config["n_classes"])
+            pass
 
     p_masks = [0.1]
 
@@ -206,7 +204,7 @@ if __name__ == "__main__":
         "comms_dropout": 0.0,
         "sparsity": 0.1,
         "binarize": False,
-        "comms_start": "start",
+        "comms_start": "last",
         "comms_out_scale": 1,
     }
 
@@ -251,14 +249,14 @@ if __name__ == "__main__":
             "connections": deepR_config,
         },
         "training": training_config,
-        "metrics": {"chosen_timesteps": ["mid-", "last"]},
+        "metrics": {"chosen_timesteps": ["0", "mid-", "last"]},
         "varying_params_sweep": {},
         "varying_params_local": {},
         ###------ Task ------
-        "task": "parity-digits",
+        "task": "parity-digits-both",
         ### ------ Task ------
         "metrics_only": False,
-        "n_tests": 10 if not debug_run else 1,
+        "n_tests": 5 if not debug_run else 1,
         "debug_run": debug_run,
         "use_tqdm": 2 if not hpc else False,
         "data_regen": [False, dataset_config["data_type"] != "symbols"],
@@ -294,7 +292,7 @@ if __name__ == "__main__":
         sweep_path = f"{dir_path}/manual_sweeps/sweeps/{sweep_id}"
         run_id = generate_id()
         # Manually retreive parameter of sweep
-        varying_params_sweep = get_config_manual(sweep_path, run_id)
+        varying_params_sweep = get_config_manual_lock(sweep_path, run_id)
 
         if varying_params_sweep is None:
             print("sweep done")
@@ -317,6 +315,7 @@ if __name__ == "__main__":
     if wandb_log and not manual_sweep:
         save_path = wandb.run.dir + "/"
     else:
+
         dir_path = os.path.dirname(os.path.abspath(__file__))
         save_path = f"{dir_path}/../wandb_results/"
 
@@ -336,7 +335,7 @@ if __name__ == "__main__":
     sparsities = np.concatenate(
         [
             np.array([0]),
-            np.unique(np.geomspace(1, n**2, 20, endpoint=True, dtype=int)) / n**2,
+            np.unique(np.geomspace(1, n**2, 10, endpoint=True, dtype=int)) / n**2,
         ]
     )
 

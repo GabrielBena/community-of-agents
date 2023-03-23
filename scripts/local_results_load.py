@@ -107,7 +107,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "-p1",
         "--sweep_id",
-        default="1skgp5vr",
+        default="66loft7e",
         help="path of sweep to use",
     )
 

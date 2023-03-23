@@ -1,37 +1,36 @@
 data_regen:
   - false
-  - false
+  - true
 datasets:
   batch_size: 512
   common_input: true
   cov_ratio: 1.0
   data_size:
-    - 6000
-    - 1000
-  data_type: symbols
+  data_type: double_d
   fix_asym: false
-  input_size: 3600
-  n_classes: 32
-  n_classes_per_digit: 16
+  input_size: 1568
+  n_classes: 20
+  n_classes_per_digit: 10
   n_digits: 2
-  nb_steps: 2
+  nb_steps: 3
   permute_dataset: true
-  seed: 88
+  seed: 73
   split_classes: false
   symbol_config:
     adjust_probas: false
     data_size:
-      - 12000
-      - 2000
+      - 60000
+      - 10000
     input_size: 60
     parallel: false
     random_transform: true
     static: true
     symbol_type: mod_5
   use_cuda: true
-debug_run: true
+debug_run: false
 metrics:
   chosen_timesteps:
+    - 0
     - mid-
     - last
 metrics_only: false
@@ -41,7 +40,7 @@ model:
     cell_type: '<class ''torch.nn.modules.rnn.RNN''>'
     n_bot:
     n_hidden: 20
-    n_in: 3600
+    n_in: 1568
     n_layers: 1
     train_in_out:
       - true
@@ -50,7 +49,7 @@ model:
     binarize: false
     comms_dropout: 0.0
     comms_out_scale: 1
-    comms_start: start
+    comms_start: last
     global_rewire: false
     sparsity: 0.1
     use_deepR: false
@@ -59,7 +58,7 @@ model:
     common_readout: true
     n_hid:
     readout_from:
-n_tests: 1
+n_tests: 5
 optimization:
   agents:
     gamma: 0.95
@@ -73,7 +72,7 @@ optimization:
     l1: 1.0e-05
     lr: 0.001
 sweep_id:
-task: parity-digits
+task: parity-digits-both
 training:
   check_gradients: false
   decision:
@@ -82,7 +81,7 @@ training:
   early_stop: false
   force_connections: false
   inverse_task: false
-  n_epochs: 1
+  n_epochs: 25
   stopping_acc: 0.95
 use_tqdm: 2
 varying_params_local: {}
