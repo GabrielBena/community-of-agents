@@ -256,7 +256,7 @@ if __name__ == "__main__":
         "task": "parity-digits-both",
         ### ------ Task ------
         "metrics_only": False,
-        "n_tests": 5 if not debug_run else 1,
+        "n_tests": 10 if not debug_run else 1,
         "debug_run": debug_run,
         "use_tqdm": 2 if not hpc else False,
         "data_regen": [False, dataset_config["data_type"] != "symbols"],
@@ -335,7 +335,11 @@ if __name__ == "__main__":
     sparsities = np.concatenate(
         [
             np.array([0]),
-            np.unique(np.geomspace(1, n**2, 10, endpoint=True, dtype=int)) / n**2,
+            np.unique(
+                (np.geomspace(1, n**2, 20, endpoint=True, dtype=int) / n**2).round(
+                    2
+                )
+            ),
         ]
     )
 
