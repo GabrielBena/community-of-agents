@@ -140,7 +140,7 @@ class Agent(nn.Module):
 
         if state_mask is not None:
 
-            h *= torch.tensor(state_mask).to(x_in.device)
+            # h *= torch.tensor(state_mask).to(x_in.device)
             x *= torch.tensor(state_mask).to(x_in.device)
 
         output = x

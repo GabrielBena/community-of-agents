@@ -55,6 +55,10 @@ def get_all_data_and_save(
     pool = mp.Pool(mp.cpu_count())
 
     sweep_local_path = f"/mnt/storage/gb21/community/wandb_results/sweeps/{sweep_id}/"
+    sweep_local_path = (
+        f"/home/gb21/Code/ANNs/community-of-agents/wandb_results/sweeps/{sweep_id}/"
+    )
+
     runs = os.listdir(sweep_local_path)
 
     if max_size is None:
@@ -107,7 +111,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "-p1",
         "--sweep_id",
-        default="66loft7e",
+        default=None,
         help="path of sweep to use",
     )
 
@@ -139,6 +143,13 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
     print(vars(args))
+
+    if args.sweep_id is None:
+        dir_path = os.path.dirname(os.path.abspath(__file__))
+        with open(f"{dir_path}/manual_sweeps/latest") as fp:
+            sweep_id = json.load(fp)
+            args.sweep_id = sweep_id
+            print(sweep_id)
 
     total_data = get_all_data_and_save(**vars(args))
 
