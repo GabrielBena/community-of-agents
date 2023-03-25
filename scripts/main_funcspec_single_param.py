@@ -84,7 +84,7 @@ if __name__ == "__main__":
         "--debug",
         help="Do a debug run with limited data and iterations",
         action="store_true",
-        default=True,
+        default=False,
     )
 
     parser.add_argument(

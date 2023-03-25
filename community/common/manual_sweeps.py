@@ -48,7 +48,7 @@ def generate_sweep(varying_params, d_path):
 def load_params(path):
     with open(path, "r") as f:
         # Read each line and parse the JSON string back into a dictionary
-
+        os.fsync(f.fileno())
         return [json.loads(line) for line in f]
 
 
@@ -65,6 +65,7 @@ def save_params(path, all_params):
 def get_config_manual_lock(sweep_path, run_id):
     lock = FileLock(f"{sweep_path}/all_params.lock")
     with lock:
+        time.sleep(np.random.random() * 2 + 0.1)
         all_configs = load_params(f"{sweep_path}/all_params")
         for config in all_configs:
             try:
@@ -72,7 +73,7 @@ def get_config_manual_lock(sweep_path, run_id):
             except KeyError:
                 config["run_id"] = run_id
                 save_params(f"{sweep_path}/all_params", all_configs)
-                time.sleep(0.1)
+                time.sleep(np.random.random() * 2 + 0.1)
                 return config
 
     return
