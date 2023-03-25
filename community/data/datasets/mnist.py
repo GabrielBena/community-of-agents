@@ -430,7 +430,7 @@ class DoubleDataset(Dataset):
                 ]
             )[np.argsort(sorted_idxs)]
 
-            print((targets[0] == targets[1][self.cov_idxs]).float().mean())
+            #print((targets[0] == targets[1][self.cov_idxs]).float().mean())
 
         else:
             self.cov_idxs = torch.arange(len(self.datasets[1]))
