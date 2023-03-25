@@ -84,7 +84,7 @@ if __name__ == "__main__":
         "--debug",
         help="Do a debug run with limited data and iterations",
         action="store_true",
-        default=False,
+        default=True,
     )
 
     parser.add_argument(
@@ -94,6 +94,7 @@ if __name__ == "__main__":
         help="Varying params passed by wandb agent for sweep",
         type=dict,
     )
+
     parser.add_argument(
         "-s",
         "--use_symbols",
@@ -139,12 +140,12 @@ if __name__ == "__main__":
     dataset_config = {
         "batch_size": 512 if use_cuda else 256,
         "data_size": None if (not debug_run) else data_sizes // 10,
-        "common_input": True,
+        "common_input": False,
         "use_cuda": use_cuda,
         "fix_asym": False,
         "permute_dataset": True,
         "seed": seed,
-        "data_type": "symbols" if use_symbols else "double_letters",
+        "data_type": "symbols" if use_symbols else "double_digits",
         "n_digits": n_digits,
         "n_classes": n_classes,
         "n_classes_per_digit": n_classes_per_digit,
@@ -248,7 +249,7 @@ if __name__ == "__main__":
         "varying_params_sweep": {},
         "varying_params_local": {},
         ###------ Task ------
-        "task": "parity-digits-both",
+        "task": "family",
         ### ------ Task ------
         "metrics_only": False,
         "n_tests": 10 if not debug_run else 1,
@@ -341,7 +342,7 @@ if __name__ == "__main__":
     varying_params_local = [
         {"sparsity": s}
         for s in np.unique(
-            (np.geomspace(1, n**2, 2) / n**2) if debug_run else sparsities
+            (np.geomspace(1, n**2, 1) / n**2) if debug_run else sparsities
         )
     ]
 

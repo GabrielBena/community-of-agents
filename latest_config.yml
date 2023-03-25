@@ -1,23 +1,23 @@
 data_regen:
   - false
-  - true
+  - false
 datasets:
   batch_size: 512
-  common_input: true
+  common_input: false
   cov_ratio: 1.0
   data_size:
     - 6000
     - 1000
-  data_type: double_letters
+  data_type: double_digits
   fix_asym: false
-  input_size: 1568
-  n_classes: 20
-  n_classes_per_digit: 10
+  input_size: 784
+  n_classes: 32
+  n_classes_per_digit: 16
   n_digits: 2
   nb_steps: 3
   permute_dataset: true
-  seed: 25
-  split_classes: false
+  seed: 36
+  split_classes: true
   symbol_config:
     adjust_probas: false
     data_size:
@@ -42,7 +42,7 @@ model:
     cell_type: '<class ''torch.nn.modules.rnn.RNN''>'
     n_bot:
     n_hidden: 20
-    n_in: 1568
+    n_in: 784
     n_layers: 1
     train_in_out:
       - true
@@ -74,7 +74,7 @@ optimization:
     l1: 1.0e-05
     lr: 0.001
 sweep_id:
-task: parity-digits-both
+task: family
 training:
   check_gradients: false
   decision:

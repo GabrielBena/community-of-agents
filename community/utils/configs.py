@@ -137,12 +137,17 @@ def ensure_config_coherence(config, v_params):
 
     if config["model"]["readout"]["common_readout"]:
 
+        config["training"]["decision"][1] = "all"
+
+        """
         if config["datasets"]["common_input"]:
+
             if config["training"]["decision"][1] == "both":
                 config["training"]["decision"][1] = "all"
         else:
             if config["training"]["decision"][1] == "all":
                 config["training"]["decision"][1] = "both"
+        """
     else:
         config["training"]["decision"][1] = "max"
 
@@ -161,6 +166,11 @@ def ensure_config_coherence(config, v_params):
             1 + config["datasets"]["common_input"]
         )
         if "digits" in config["datasets"]["data_type"]:
-            config["datasets"]["n_classes"] = min(10, config["datasets"]["n_classes"])
+            config["datasets"]["n_classes_per_digit"] = min(
+                10, config["datasets"]["n_classes_per_digit"]
+            )
+            config["datasets"]["n_classes"] = (
+                config["datasets"]["n_classes_per_digit"] * config["model"]["n_agents"]
+            )
 
     config["model"]["n_in"] = config["datasets"]["input_size"]

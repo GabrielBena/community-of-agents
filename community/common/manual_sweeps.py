@@ -11,6 +11,7 @@ import yaml
 import json
 import pickle
 from filelock import Timeout, FileLock
+import time
 
 
 def generate_id(length: int = 8) -> str:
@@ -33,6 +34,7 @@ def generate_sweep(varying_params, d_path):
 
     # joblib.dump(all_params, f"{sweep_path}/all_params")
     save_params(f"{sweep_path}/all_params", all_params)
+    save_params(f"{sweep_path}/all_params_init", all_params)
 
     with open(f"{sweep_path}/varying_params", "w") as fp:
         yaml.dump(varying_params, fp)
@@ -46,6 +48,7 @@ def generate_sweep(varying_params, d_path):
 def load_params(path):
     with open(path, "r") as f:
         # Read each line and parse the JSON string back into a dictionary
+
         return [json.loads(line) for line in f]
 
 
@@ -54,6 +57,9 @@ def save_params(path, all_params):
         # Iterate over list of dictionaries and write each one on a new line
         for d in all_params:
             f.write(json.dumps(d) + "\n")
+
+        f.flush()
+        os.fsync(f.fileno())
 
 
 def get_config_manual_lock(sweep_path, run_id):
@@ -66,6 +72,7 @@ def get_config_manual_lock(sweep_path, run_id):
             except KeyError:
                 config["run_id"] = run_id
                 save_params(f"{sweep_path}/all_params", all_configs)
+                time.sleep(0.1)
                 return config
 
     return
