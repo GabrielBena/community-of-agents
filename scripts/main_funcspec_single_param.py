@@ -290,8 +290,10 @@ if __name__ == "__main__":
         # Manually retreive parameter of sweep
 
         load = True
-        while load:
+        max, trials = 10, 0
+        while load and trials < max:
             varying_params_sweep, load = get_config_manual_lock(sweep_path, run_id)
+            trials +1
 
         if varying_params_sweep is None:
             print("sweep done")
