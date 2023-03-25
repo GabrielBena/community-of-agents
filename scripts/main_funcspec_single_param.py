@@ -42,12 +42,7 @@ def get_data(config):
         )
     else:
         all_loaders = get_datasets_alphabet("data/", config["datasets"])
-        loaders = all_loaders[
-            ["multi", "double_d", "double_l", "single_d" "single_l"].index(
-                config["datasets"]["data_type"]
-            )
-        ]
-        datasets = [l.dataset for l in loaders]
+        datasets, loaders = all_loaders[config["datasets"]["data_type"]]
 
     return loaders, datasets
 
@@ -136,7 +131,7 @@ if __name__ == "__main__":
     n_agents = 2
     n_digits = n_agents
     data_sizes = np.array([60000, 10000])
-    n_classes_per_digit = 10
+    n_classes_per_digit = 16
     n_classes = n_classes_per_digit * n_digits
 
     use_symbols = args.use_symbols
@@ -149,12 +144,12 @@ if __name__ == "__main__":
         "fix_asym": False,
         "permute_dataset": True,
         "seed": seed,
-        "data_type": "symbols" if use_symbols else "double_d",
+        "data_type": "symbols" if use_symbols else "double_letters",
         "n_digits": n_digits,
         "n_classes": n_classes,
         "n_classes_per_digit": n_classes_per_digit,
         "nb_steps": 3,
-        "split_classes": False,
+        "split_classes": True,
         "cov_ratio": 1.0,
     }
 
@@ -178,7 +173,7 @@ if __name__ == "__main__":
     else:
         dataset_config["input_size"] = 784 * (1 + dataset_config["common_input"])
         if dataset_config["data_type"] == "double_d":
-            # dataset_config["n_classes"] = min(10, dataset_config["n_classes"])
+            dataset_config["n_classes"] = min(10, dataset_config["n_classes"])
             pass
 
     p_masks = [0.1]
@@ -233,7 +228,7 @@ if __name__ == "__main__":
 
     training_config = {
         "decision": ["last", "all"],
-        "n_epochs": 25 if not debug_run else 1,
+        "n_epochs": 50 if not debug_run else 1,
         "inverse_task": False,
         "stopping_acc": 0.95,
         "early_stop": False,
@@ -259,7 +254,7 @@ if __name__ == "__main__":
         "n_tests": 10 if not debug_run else 1,
         "debug_run": debug_run,
         "use_tqdm": 2 if not hpc else False,
-        "data_regen": [False, dataset_config["data_type"] != "symbols"],
+        "data_regen": [False, False],  # dataset_config["data_type"] != "symbols"],
         "wandb_log": wandb_log,
         "sweep_id": None,
     }
@@ -336,7 +331,7 @@ if __name__ == "__main__":
         [
             np.array([0]),
             np.unique(
-                (np.geomspace(1, n**2, 20, endpoint=True, dtype=int) / n**2).round(
+                (np.geomspace(1, n**2, 30, endpoint=True, dtype=int) / n**2).round(
                     2
                 )
             ),

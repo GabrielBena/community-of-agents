@@ -127,7 +127,6 @@ def ensure_config_coherence(config, v_params):
         config["datasets"]["n_classes_per_digit"] = (
             config["datasets"]["n_classes"] // config["model"]["n_agents"]
         )
-
     if "common_input" in v_params:
         if config["datasets"]["data_type"] != "symbols":
 
@@ -137,11 +136,15 @@ def ensure_config_coherence(config, v_params):
             config["model"]["agents"]["n_in"] = config["datasets"]["input_size"]
 
     if config["model"]["readout"]["common_readout"]:
-        if config["training"]["decision"][1] == "both":
-            config["training"]["decision"][1] = "all"
+
+        if config["datasets"]["common_input"]:
+            if config["training"]["decision"][1] == "both":
+                config["training"]["decision"][1] = "all"
+        else:
+            if config["training"]["decision"][1] == "all":
+                config["training"]["decision"][1] = "both"
     else:
-        if config["training"]["decision"][1] == "all":
-            config["training"]["decision"][1] = "both"
+        config["training"]["decision"][1] = "max"
 
     if "cov_ratio" in v_params:
         config["datasets"]["symbol_config"]["cov_ratio"] = config["datasets"][
@@ -157,5 +160,7 @@ def ensure_config_coherence(config, v_params):
         config["datasets"]["input_size"] = 784 * (
             1 + config["datasets"]["common_input"]
         )
+        if "digits" in config["datasets"]["data_type"]:
+            config["datasets"]["n_classes"] = min(10, config["datasets"]["n_classes"])
 
     config["model"]["n_in"] = config["datasets"]["input_size"]

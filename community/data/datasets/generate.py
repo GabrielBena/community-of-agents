@@ -4,68 +4,12 @@ from torchvision import transforms
 from torchvision.datasets import FashionMNIST, Omniglot
 import torchvision.transforms.functional as tF
 import numpy as np
-from community.data.datasets.mnist import Custom_EMNIST, DoubleMNIST, Custom_MNIST
+from community.data.datasets.mnist import (
+    Custom_EMNIST,
+    DoubleDataset,
+    Custom_MNIST,
+)
 from community.data.datasets.symbols import SymbolsDataset
-
-
-class MultiDataset(Dataset):
-    def __init__(self, datasets, shuffle=False, fix_asym=False):
-
-        self.datasets = datasets
-        self.small_dataset_idx = np.argmin([len(d) for d in self.datasets])
-        self.small_dataset = datasets[self.small_dataset_idx]
-        self.shuffle = shuffle
-
-        self.fix_asym = fix_asym
-        self.secondary_idxs = [
-            torch.randperm(len(self.small_dataset))
-            if i != self.small_dataset_idx and shuffle
-            else torch.arange(len(self.small_dataset))
-            for i, d in enumerate(self.datasets)
-        ]
-
-        self.n_classes = len(self.small_dataset.targets.unique())
-
-        if self.fix_asym:
-            self.new_idxs = self.get_forbidden_indexs()
-        else:
-            self.new_idxs = torch.arange(len(self.small_dataset))
-
-    def valid_idx(self, idx):
-        idx1, idx2 = self.secondary_idxs[0][idx], self.secondary_idxs[1][idx]
-        _, target_1 = self.datasets[0][idx1]
-        _, target_2 = self.datasets[1][idx2]
-
-        valid = not (
-            target_1 == (target_2 - 1) % self.n_classes or target_1 == target_2
-        )
-
-        return valid
-
-    def get_forbidden_indexs(self):
-        new_idxs = []
-        for idx in range(len(self.small_dataset)):
-            if self.valid_idx(idx):
-                new_idxs.append(idx)
-        return new_idxs
-
-    def __len__(self):
-        # return  len(self.small_dataset)
-        return len(self.new_idxs)
-
-    def __getitem__(self, idx):
-        # get images and labels here
-        # returned images must be tensor
-        # labels should be int
-        idx = self.new_idxs[idx]
-        idxs = [s_idx[idx] for s_idx in self.secondary_idxs]
-
-        samples = [d[idx] for (d, idx) in zip(self.datasets, idxs)]
-        datas, labels = [d[0] for d in samples], [d[1] for d in samples]
-        try:
-            return torch.stack(datas), torch.tensor(labels)
-        except:
-            return datas, labels
 
 
 def get_datasets_alphabet(root, data_config):
@@ -87,8 +31,18 @@ def get_datasets_alphabet(root, data_config):
 
         train_kwargs.update(cuda_kwargs)
         test_kwargs.update(cuda_kwargs)
-    transform = transforms.Compose(
+
+    transform_digits = transforms.Compose(
         [transforms.ToTensor(), transforms.Normalize((0.1307,), (0.3081,))]
+    )
+
+    transform_letters = transforms.Compose(
+        [
+            lambda img: transforms.functional.rotate(img, -90),
+            lambda img: transforms.functional.hflip(img),
+            transforms.ToTensor(),
+            transforms.Normalize((0.1307,), (0.3081,)),
+        ]
     )
 
     truncate_digits = np.arange(n_classes)
@@ -97,37 +51,19 @@ def get_datasets_alphabet(root, data_config):
 
     single_digits = [
         Custom_MNIST(
-            root, train=t, download=True, transform=transform, truncate=truncate_digits
-        )
-        for t in [True, False]
-    ]
-
-    double_digits = [
-        DoubleMNIST(
             root,
             train=t,
-            fix_asym=fix_asym,
+            download=True,
+            transform=transform_digits,
             truncate=truncate_digits,
-            permute=permute,
-            seed=seed,
-            cov_ratio=cov_ratio,
         )
         for t in [True, False]
     ]
 
     single_fashion = [
-        FashionMNIST(root, train=t, transform=transform, download=True)
+        FashionMNIST(root, train=t, transform=transform_digits, download=True)
         for t in [True, False]
     ]
-
-    transform = transforms.Compose(
-        [
-            lambda img: transforms.functional.rotate(img, -90),
-            lambda img: transforms.functional.hflip(img),
-            transforms.ToTensor(),
-            transforms.Normalize((0.1307,), (0.3081,)),
-        ]
-    )
 
     truncates = np.arange(10, 47)
     excludes = [18, 19, 21]  # exclude I, J, L
@@ -146,28 +82,72 @@ def get_datasets_alphabet(root, data_config):
     single_letters = [
         [
             Custom_EMNIST(
-                root, train=t, data_type="balanced", truncate=trunc, transform=transform
+                root,
+                train=t,
+                data_type="balanced",
+                truncate=trunc,
+                transform=transform_letters,
             )
             for t in [True, False]
         ]
         for trunc in truncates
     ]
 
-    multi_datasets = [
-        MultiDataset([s1, s2], fix_asym=False)
-        for (s1, s2) in zip(single_digits, single_letters[0])
+    """
+    double_digits = [
+        DoubleMNIST(
+            root,
+            train=t,
+            fix_asym=fix_asym,
+            truncate=truncate_digits,
+            permute=permute,
+            seed=seed,
+            cov_ratio=cov_ratio,
+        )
+        for t in [True, False]
     ]
+
+
+    multi_datasets = [
+            MultiDataset([s1, s2], fix_asym=False)
+            for (s1, s2) in zip(single_digits, single_letters[0])
+        ]
+        double_letters = [
+            MultiDataset([s1, s2], fix_asym=False, shuffle=True)
+            for (s1, s2) in zip(single_letters[0], single_letters[1])
+        ]
+
+    """
+
+    double_digits = [
+        DoubleDataset(
+            [d, d],
+            fix_asym=fix_asym,
+            permute=permute,
+            seed=seed,
+            cov_ratio=cov_ratio,
+            transform=transform_digits,
+        )
+        for d in single_digits
+    ]
+
     double_letters = [
-        MultiDataset([s1, s2], fix_asym=False, shuffle=True)
+        DoubleDataset(
+            [s1, s2],
+            fix_asym=fix_asym,
+            permute=permute,
+            seed=seed,
+            cov_ratio=cov_ratio,
+            transform=transform_letters,
+        )
         for (s1, s2) in zip(single_letters[0], single_letters[1])
     ]
 
     datasets = [
         single_digits,
         double_digits,
-        double_letters,
-        multi_datasets,
         single_letters,
+        double_letters,
     ]
     if data_sizes is not None:
         datasets = [
@@ -183,7 +163,19 @@ def get_datasets_alphabet(root, data_config):
         for dsets in datasets
     ]
 
-    return loaders
+    return {
+        k: [dataset, loader]
+        for k, dataset, loader in zip(
+            [
+                "single_digits",
+                "double_digits",
+                "single_letters",
+                "double_letters",
+            ],
+            datasets,
+            loaders,
+        )
+    }
 
 
 def get_datasets_symbols(data_config, use_cuda=True, n_classes=10, plot=False):
