@@ -288,7 +288,10 @@ if __name__ == "__main__":
         sweep_path = f"{dir_path}/manual_sweeps/sweeps/{sweep_id}"
         run_id = generate_id()
         # Manually retreive parameter of sweep
-        varying_params_sweep = get_config_manual_lock(sweep_path, run_id)
+
+        load = True
+        while load:
+            varying_params_sweep, load = get_config_manual_lock(sweep_path, run_id)
 
         if varying_params_sweep is None:
             print("sweep done")

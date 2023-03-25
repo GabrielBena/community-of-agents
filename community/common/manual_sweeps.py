@@ -12,6 +12,7 @@ import json
 import pickle
 from filelock import Timeout, FileLock
 import time
+from json.decoder import JSONDecodeError
 
 
 def generate_id(length: int = 8) -> str:
@@ -63,20 +64,26 @@ def save_params(path, all_params):
 
 
 def get_config_manual_lock(sweep_path, run_id):
+
     lock = FileLock(f"{sweep_path}/all_params.lock")
     with lock:
-        time.sleep(np.random.random() * 2 + 0.1)
-        all_configs = load_params(f"{sweep_path}/all_params")
-        for config in all_configs:
-            try:
-                config["run_id"]
-            except KeyError:
-                config["run_id"] = run_id
-                save_params(f"{sweep_path}/all_params", all_configs)
-                time.sleep(np.random.random() * 2 + 0.1)
-                return config
+        try:
 
-    return
+            time.sleep(np.random.random() * 2 + 0.1)
+            all_configs = load_params(f"{sweep_path}/all_params")
+            for config in all_configs:
+                try:
+                    config["run_id"]
+                except KeyError:
+                    config["run_id"] = run_id
+                    save_params(f"{sweep_path}/all_params", all_configs)
+                    time.sleep(np.random.random() * 2 + 0.1)
+                    return config, False
+
+        except JSONDecodeError:
+            return None, True
+
+    return None, False
 
 
 if __name__ == "__main__":
