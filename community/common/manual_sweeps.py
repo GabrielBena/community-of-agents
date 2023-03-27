@@ -39,8 +39,9 @@ def generate_sweep(varying_params, d_path):
     all_params = get_all_v_params(varying_params)
 
     # joblib.dump(all_params, f"{sweep_path}/all_params")
-    save_params(f"{sweep_path}/all_params", all_params, use_json=True)
+    save_params(f"{sweep_path}/all_params", all_params)
     save_params(f"{sweep_path}/all_params_init", all_params, use_json=True)
+    save_params(f"{sweep_path}/all_params_json", all_params, use_json=True)
 
     with open(f"{sweep_path}/varying_params", "w") as fp:
         yaml.dump(varying_params, fp)
@@ -123,6 +124,10 @@ def get_config_manual_lock(sweep_path, run_id, mark_as_done=False):
                 config["run_id"]
                 if config["run_id"] == run_id and mark_as_done:
                     config["done"] = True
+                    save_params(f"{sweep_path}/all_params", all_configs)
+                    save_params(
+                        f"{sweep_path}/all_params_json", all_configs, use_json=True
+                    )
                     return config, False
             except KeyError:
                 config["run_id"] = run_id

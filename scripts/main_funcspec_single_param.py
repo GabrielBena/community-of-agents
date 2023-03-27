@@ -467,6 +467,6 @@ if __name__ == "__main__":
 
     if manual_sweep:
         varying_params_sweep, load = get_config_manual_lock(
-            sweep_path, run_id, mark_done=True
+            sweep_path, run_id, mark_as_done=True
         )
         os.execv(sys.executable, ["python"] + sys.argv)
