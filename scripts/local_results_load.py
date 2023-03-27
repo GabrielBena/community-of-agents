@@ -54,12 +54,15 @@ def get_all_data_and_save(
 
     pool = mp.Pool(mp.cpu_count())
 
-    sweep_local_path = f"/mnt/storage/gb21/community/wandb_results/sweeps/{sweep_id}/"
-    sweep_local_path = (
-        f"/home/gb21/Code/ANNs/community-of-agents/wandb_results/sweeps/{sweep_id}/"
-    )
-
-    runs = os.listdir(sweep_local_path)
+    try:
+        sweep_local_path = (
+            f"/mnt/storage/gb21/community/wandb_results/sweeps/{sweep_id}/"
+        )
+        runs = os.listdir(sweep_local_path)
+    except FileNotFoundError:
+        sweep_local_path = (
+            f"/home/gb21/Code/ANNs/community-of-agents/wandb_results/sweeps/{sweep_id}/"
+        )
 
     if max_size is None:
         max_size = len(runs)

@@ -62,6 +62,8 @@ def compute_and_plot_heatmap(
     smoothness=7,
     resolution=100,
     eps=1e-4,
+    cbar=True,
+    plot=True,
 ):
 
     x_values, y_values, z_values = filter_nans(values)
@@ -104,29 +106,36 @@ def compute_and_plot_heatmap(
     if plot_f:
         plot_filters(sigmas, values)
 
-    if (figax) is None:
-        fig, ax = plt.subplots(1, 1, figsize=(10, 5))
+    if plot:
+
+        if (figax) is None:
+            fig, ax = plt.subplots(1, 1, figsize=(10, 5))
+        else:
+            fig, ax = figax
+
+        pc = ax.pcolorfast(
+            X,
+            Y,
+            Z,
+            cmap="viridis",
+            vmin=minmax[0] if minmax is not None else None,
+            vmax=minmax[1] if minmax is not None else None,
+            rasterized=True,
+        )
+        if log_scale:
+
+            """"""
+            # ax.set_xscale("log")
+            ax.set_yscale("log")
+
+        ax.set_ylim(y_values.min(), y_values.max())
+        ax.set_xlim(x_values.min(), x_values.max())
+
+        if cbar:
+            cbar = fig.colorbar(pc, ax=ax)
+
     else:
-        fig, ax = figax
-
-    pc = ax.pcolormesh(
-        X,
-        Y,
-        Z,
-        cmap="viridis",
-        vmin=minmax[0] if minmax is not None else None,
-        vmax=minmax[1] if minmax is not None else None,
-    )
-    if log_scale:
-
-        """"""
-        # ax.set_xscale("log")
-        ax.set_yscale("log")
-
-    ax.set_ylim(y_values.min(), y_values.max())
-    ax.set_xlim(x_values.min(), x_values.max())
-
-    cbar = fig.colorbar(pc, ax=ax)
+        fig = ax = cbar = None
 
     return (X, Y), (Xm, Ym), Z, sigmas, (fig, ax), cbar
 
@@ -163,7 +172,8 @@ def compute_and_plot_colormesh(
         fig, ax = figax
 
     fig, ax = figax
-    pcm = ax.pcolormesh(X_mesh, Y_mesh, Z, cmap="viridis")
+    # pcm = ax.pcolormesh(X_mesh, Y_mesh, Z, cmap="viridis")
+    pcm = ax.pcolor(X_mesh, Y_mesh, Z, cmap="viridis")
     # ax.set_ylim(y_values.min(), y_values.max())
     # ax.set_xlim(x_values.min(), x_values.max())
     cbar = fig.colorbar(pcm, ax=ax)

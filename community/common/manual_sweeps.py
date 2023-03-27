@@ -9,11 +9,12 @@ from pathlib import Path
 import joblib
 import yaml
 import json
+
 try:
     import cPickle as pickle
 except ModuleNotFoundError:
     import pickle
-    
+
 from filelock import Timeout, FileLock
 import time
 from json.decoder import JSONDecodeError
@@ -38,8 +39,8 @@ def generate_sweep(varying_params, d_path):
     all_params = get_all_v_params(varying_params)
 
     # joblib.dump(all_params, f"{sweep_path}/all_params")
-    save_params(f"{sweep_path}/all_params", all_params)
-    save_params(f"{sweep_path}/all_params_init", all_params)
+    save_params(f"{sweep_path}/all_params", all_params, use_json=True)
+    save_params(f"{sweep_path}/all_params_init", all_params, use_json=True)
 
     with open(f"{sweep_path}/varying_params", "w") as fp:
         yaml.dump(varying_params, fp)
@@ -52,45 +53,44 @@ def generate_sweep(varying_params, d_path):
 
 def load_params(path, use_json=False):
 
-    if use_json :  
+    if use_json:
         with open(path, "r") as f:
             # Read each line and parse the JSON string back into a dictionary
             os.fsync(f.fileno())
             return [json.loads(line) for line in f]
-        
-    else :
-        try : 
-            with open(path, "rb") as f:   
+
+    else:
+        try:
+            with open(path, "rb") as f:
                 os.fsync(f.fileno())
                 return pickle.load(f), False
-        
-        except EOFError : 
+
+        except EOFError:
             return None, True
-        
-        #return joblib.load(path)
+
+        # return joblib.load(path)
 
 
 def save_params(path, all_params, use_json=False):
 
-    if use_json : 
+    if use_json:
         with open(path, "w") as f:
-            
+
             # Iterate over list of dictionaries and write each one on a new line
             for d in all_params:
                 f.write(json.dumps(d) + "\n")
 
             f.flush()
             os.fsync(f.fileno())
-                
-    else : 
+
+    else:
         with open(path, "wb") as f:
             pickle.dump(all_params, f)
 
             f.flush()
             os.fsync(f.fileno())
-    
-    
-    #else : 
+
+    # else :
     #    f = open(path, 'w')
     #    #joblib.dump(all_params, path, compress=False)
     #    pickle.dumps(all_params, path)
@@ -104,34 +104,36 @@ def get_config_manual_lock(sweep_path, run_id, mark_as_done=False):
     time.sleep(np.random.random() * 10)
 
     with lock:
-        #try:
-        if not 'all_params' in os.listdir(sweep_path) : 
+        # try:
+        if not "all_params" in os.listdir(sweep_path):
             all_configs = load_params(f"{sweep_path}/all_params_json", use_json=True)
             save_params(f"{sweep_path}/all_params", all_configs)
-        
+
         load, i = True, 0
 
-        while load and i<10000:
+        while load and i < 10000:
             all_configs, load = load_params(f"{sweep_path}/all_params")
-        if all_configs is None : 
+            i += 1
+
+        if all_configs is None:
             return None, False
 
         for config in all_configs:
             try:
                 config["run_id"]
-                if config['run_id'] == run_id and mark_as_done : 
-                    config['done'] = True
+                if config["run_id"] == run_id and mark_as_done:
+                    config["done"] = True
                     return config, False
             except KeyError:
                 config["run_id"] = run_id
-                config['done'] = False
+                config["done"] = False
                 save_params(f"{sweep_path}/all_params", all_configs)
                 save_params(f"{sweep_path}/all_params_json", all_configs, use_json=True)
-                #time.sleep(np.random.random() * 2 + 0.1)
+                # time.sleep(np.random.random() * 2 + 0.1)
                 return config, False
 
-        #except JSONDecodeError:
-            #return None, True
+        # except JSONDecodeError:
+        # return None, True
 
     return None, False
 

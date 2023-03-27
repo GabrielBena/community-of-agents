@@ -33,6 +33,7 @@ def get_training_dict(config):
         "n_classes_per_digit": config["datasets"]["n_classes_per_digit"],
         "common_input": config["datasets"]["common_input"],
         "nb_steps": config["datasets"]["nb_steps"],
+        "hpc": config["hpc"],
     }
 
     return training_dict

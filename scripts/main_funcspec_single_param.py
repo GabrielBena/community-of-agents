@@ -254,10 +254,11 @@ if __name__ == "__main__":
         "metrics_only": False,
         "n_tests": 10 if not debug_run else 1,
         "debug_run": debug_run,
-        "use_tqdm": 2 if not hpc else False,
+        "use_tqdm": 2,
         "data_regen": [False, False],  # dataset_config["data_type"] != "symbols"],
         "wandb_log": wandb_log,
         "sweep_id": None,
+        "hpc": hpc,
     }
 
     with open("latest_config.yml", "w") as config_file:
@@ -290,10 +291,7 @@ if __name__ == "__main__":
         # Manually retreive parameter of sweep
 
         load = True
-        max, trials = 10, 0
-        while load and trials < max:
-            varying_params_sweep, load = get_config_manual_lock(sweep_path, run_id)
-            trials +1
+        varying_params_sweep, load = get_config_manual_lock(sweep_path, run_id)
 
         if varying_params_sweep is None:
             print("sweep done")
@@ -338,7 +336,7 @@ if __name__ == "__main__":
             np.array([0]),
             np.unique(
                 (np.geomspace(1, n**2, 30, endpoint=True, dtype=int) / n**2).round(
-                    2
+                    4
                 )
             ),
         ]
@@ -468,5 +466,7 @@ if __name__ == "__main__":
     wandb.finish()
 
     if manual_sweep:
-        varying_params_sweep, load = get_config_manual_lock(sweep_path, run_id, mark_done=True)
+        varying_params_sweep, load = get_config_manual_lock(
+            sweep_path, run_id, mark_done=True
+        )
         os.execv(sys.executable, ["python"] + sys.argv)

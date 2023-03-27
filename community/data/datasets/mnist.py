@@ -8,6 +8,40 @@ from torchvision import datasets, transforms
 from PIL import Image
 
 
+def estimate_covariance(cov_ratio, n_classes_per_digit, data_size=10000):
+
+    targets = [
+        np.random.randint(0, n_classes_per_digit, size=data_size) for _ in range(2)
+    ]
+
+    sorted_idxs = np.argsort(targets[0])
+
+    t_idxs = [np.where(targets[1] == t)[0] for t in range(n_classes_per_digit)]
+    c_idxs = [np.where(targets[1] != t)[0] for t in range(n_classes_per_digit)]
+
+    idxs = [np.concatenate((t_idx, c_idx)) for t_idx, c_idx in zip(t_idxs, c_idxs)]
+
+    ps = np.stack(
+        [
+            np.concatenate((np.ones_like(t_idx), cov_ratio * np.ones_like(c_idx)))
+            for t_idx, c_idx in zip(t_idxs, c_idxs)
+        ],
+        -1,
+    ).astype(float)
+    ps /= ps.sum(0)
+
+    cov_idxs = np.concatenate(
+        [
+            np.random.choice(idxs[t], size=len(t_idx), p=ps[:, t])
+            for t, t_idx in enumerate(t_idxs)
+        ]
+    )[np.argsort(sorted_idxs)]
+
+    targets[1] = targets[1][cov_idxs]
+    targets = np.stack(targets)
+    return np.corrcoef(targets)[0, 1]
+
+
 class Custom_MNIST(MNIST):
     def __init__(
         self,
@@ -399,41 +433,34 @@ class DoubleDataset(Dataset):
 
     def create_all_idxs(self):
 
-        if self.cov_ratio != 1:
+        targets = [p[d.targets] for d, p in zip(self.datasets, self.permutations)]
 
-            targets = [p[d.targets] for d, p in zip(self.datasets, self.permutations)]
+        sorted_idxs = np.argsort(targets[0])
 
-            sorted_idxs = np.argsort(targets[0])
+        t_idxs = [torch.where(targets[1] == t)[0] for t in range(self.n_classes)]
+        c_idxs = [torch.where(targets[1] != t)[0] for t in range(self.n_classes)]
 
-            t_idxs = [torch.where(targets[1] == t)[0] for t in range(self.n_classes)]
-            c_idxs = [torch.where(targets[1] != t)[0] for t in range(self.n_classes)]
+        idxs = [np.concatenate((t_idx, c_idx)) for t_idx, c_idx in zip(t_idxs, c_idxs)]
 
-            idxs = [
-                np.concatenate((t_idx, c_idx)) for t_idx, c_idx in zip(t_idxs, c_idxs)
+        ps = np.stack(
+            [
+                np.concatenate(
+                    (np.ones_like(t_idx), self.cov_ratio * np.ones_like(c_idx))
+                )
+                for t_idx, c_idx in zip(t_idxs, c_idxs)
+            ],
+            -1,
+        ).astype(float)
+        ps /= ps.sum(0)
+
+        self.cov_idxs = np.concatenate(
+            [
+                np.random.choice(idxs[t], size=len(t_idx), p=ps[:, t])
+                for t, t_idx in enumerate(t_idxs)
             ]
+        )[np.argsort(sorted_idxs)]
 
-            ps = np.stack(
-                [
-                    np.concatenate(
-                        (np.ones_like(t_idx), self.cov_ratio * np.ones_like(c_idx))
-                    )
-                    for t_idx, c_idx in zip(t_idxs, c_idxs)
-                ],
-                -1,
-            ).astype(float)
-            ps /= ps.sum(0)
-
-            self.cov_idxs = np.concatenate(
-                [
-                    np.random.choice(idxs[t], size=len(t_idx), p=ps[:, t])
-                    for t, t_idx in enumerate(t_idxs)
-                ]
-            )[np.argsort(sorted_idxs)]
-
-            #print((targets[0] == targets[1][self.cov_idxs]).float().mean())
-
-        else:
-            self.cov_idxs = torch.arange(len(self.datasets[1]))
+        # print((targets[0] == targets[1][self.cov_idxs]).float().mean())
 
         if self.fix_asym:
             self.new_idxs = self.get_forbidden_indexs()

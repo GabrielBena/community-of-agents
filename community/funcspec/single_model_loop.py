@@ -28,7 +28,7 @@ def init_and_train(config, loaders, device):
     deepR_params_dict = config["optimization"]["connections"]
     params_dict = config["optimization"]["agents"]
 
-    use_tqdm = config["use_tqdm"]
+    use_tqdm = config["use_tqdm"] if not config["hpc"] else False
 
     # Check varying parameters :
     varying_params_all = config["varying_params_local"].copy()
