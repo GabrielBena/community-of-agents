@@ -98,7 +98,7 @@ def save_params(path, all_params, use_json=False):
     #    os.fsync(f.fileno())
 
 
-def get_config_manual_lock(sweep_path, run_id):
+def get_config_manual_lock(sweep_path, run_id, mark_as_done=False):
 
     lock = FileLock(f"{sweep_path}/all_params.lock")
     time.sleep(np.random.random() * 10)
@@ -119,8 +119,12 @@ def get_config_manual_lock(sweep_path, run_id):
         for config in all_configs:
             try:
                 config["run_id"]
+                if config['run_id'] == run_id and mark_as_done : 
+                    config['done'] = True
+                    return config, False
             except KeyError:
                 config["run_id"] = run_id
+                config['done'] = False
                 save_params(f"{sweep_path}/all_params", all_configs)
                 save_params(f"{sweep_path}/all_params_json", all_configs, use_json=True)
                 #time.sleep(np.random.random() * 2 + 0.1)

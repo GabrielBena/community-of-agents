@@ -468,4 +468,5 @@ if __name__ == "__main__":
     wandb.finish()
 
     if manual_sweep:
+        varying_params_sweep, load = get_config_manual_lock(sweep_path, run_id, mark_done=True)
         os.execv(sys.executable, ["python"] + sys.argv)

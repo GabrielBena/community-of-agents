@@ -14,7 +14,7 @@ datasets:
   n_digits: 2
   nb_steps: 3
   permute_dataset: true
-  seed: 25
+  seed: 46
   split_classes: true
   symbol_config:
     adjust_probas: false
@@ -83,7 +83,7 @@ training:
   inverse_task: false
   n_epochs: 50
   stopping_acc: 0.95
-use_tqdm: 2
+use_tqdm: false
 varying_params_local: {}
 varying_params_sweep: {}
 wandb_log: false
