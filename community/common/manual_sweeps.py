@@ -59,9 +59,13 @@ def load_params(path, use_json=False):
             return [json.loads(line) for line in f]
         
     else :
-        with open(path, "rb") as f:   
-            os.fsync(f.fileno())
-            return pickle.load(f)
+        try : 
+            with open(path, "rb") as f:   
+                os.fsync(f.fileno())
+                return pickle.load(f), False
+        
+        except EOFError : 
+            return None, True
         
         #return joblib.load(path)
 
@@ -105,7 +109,12 @@ def get_config_manual_lock(sweep_path, run_id):
             all_configs = load_params(f"{sweep_path}/all_params_json", use_json=True)
             save_params(f"{sweep_path}/all_params", all_configs)
         
-        all_configs = load_params(f"{sweep_path}/all_params")
+        load, i = True, 0
+
+        while load and i<10000:
+            all_configs, load = load_params(f"{sweep_path}/all_params")
+        if all_configs is None : 
+            return None, False
 
         for config in all_configs:
             try:
