@@ -26,7 +26,7 @@ axes.linewidth : 2
 
 
 # FONT
-font.size : 12
+font.size : 20
 
 # FIG 
 figure.figsize : 5, 5 
@@ -39,12 +39,12 @@ lines.linewidth : 3
 
 # LEGEND
 legend.frameon : False 
-legend.fontsize : 8
+legend.fontsize : 12
 
 # TICKS 
 
-xtick.labelsize: 12
-ytick.labelsize: 12
+xtick.labelsize: 20
+ytick.labelsize: 20
 xtick.major.width : 2
 ytick.major.width : 2
 xtick.major.size : 5

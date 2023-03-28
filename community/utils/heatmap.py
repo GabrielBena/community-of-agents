@@ -84,10 +84,14 @@ def compute_and_plot_heatmap(
             y_values.min(), y_values.max(), resolution
         )  # 500 x 500 takes 10s
     else:
-        X = np.geomspace(np.maximum(x_values.min(), eps), x_values.max(), resolution)
-        Y = np.geomspace(np.maximum(y_values.min(), eps), y_values.max(), resolution)
+        X = np.linspace(x_values.min(), x_values.max(), resolution)
+        # X = np.geomspace(np.maximum(x_values.min(), eps), x_values.max(), resolution)
+        # Y = np.geomspace(np.maximum(y_values.min(), eps), y_values.max(), resolution)
+        Y = np.linspace(y_values.min(), y_values.max(), resolution)
         # print(Y)
         # print(Y)
+
+    # print(X.shape, Y.shape)
 
     Xm, Ym = np.meshgrid(X, Y)
 
@@ -102,6 +106,7 @@ def compute_and_plot_heatmap(
         lambda x, y: weighted_average(x, y, sigmas, values), signature=("(),()->()")
     )
     Z = vect_avg(Xm, Ym)
+    # print(Xm.shape, Z.shape, X.shape)
 
     if plot_f:
         plot_filters(sigmas, values)
@@ -141,7 +146,7 @@ def compute_and_plot_heatmap(
 
 
 def compute_and_plot_colormesh(
-    values, figax=None, method="nearest", log_scale=True, resolution=300
+    values, figax=None, method="nearest", log_scale=True, resolution=300, cbar=True
 ):
 
     x_values, y_values, z_values = values
@@ -173,10 +178,11 @@ def compute_and_plot_colormesh(
 
     fig, ax = figax
     # pcm = ax.pcolormesh(X_mesh, Y_mesh, Z, cmap="viridis")
-    pcm = ax.pcolor(X_mesh, Y_mesh, Z, cmap="viridis")
+    pcm = ax.pcolor(X, Y, Z, cmap="viridis", rasterized=True)
     # ax.set_ylim(y_values.min(), y_values.max())
     # ax.set_xlim(x_values.min(), x_values.max())
-    cbar = fig.colorbar(pcm, ax=ax)
+    if cbar:
+        cbar = fig.colorbar(pcm, ax=ax)
 
     if log_scale:
 
