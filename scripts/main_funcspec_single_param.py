@@ -416,6 +416,17 @@ if __name__ == "__main__":
                 metric_results.setdefault(m_name, [])
                 metric_results[m_name].append(metric)
 
+            
+        final_table = pd.concat([pd.DataFrame.from_dict(d) for d in metric_datas])
+        for name, file, save_mode in zip(
+            ["metric_table"],
+            [final_table],
+            ["pickle"],
+        ):
+            mkdir_or_save(file, name, default_config["save_path"], save_mode)
+
+            
+
     final_table = pd.concat([pd.DataFrame.from_dict(d) for d in metric_datas])
     if wandb_log:
         data_table = wandb.Table(dataframe=final_table)
@@ -469,4 +480,5 @@ if __name__ == "__main__":
         varying_params_sweep, load = get_config_manual_lock(
             sweep_path, run_id, mark_as_done=True
         )
+        #Rerun 
         os.execv(sys.executable, ["python"] + sys.argv)
