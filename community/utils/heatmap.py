@@ -7,6 +7,11 @@ from scipy.interpolate import griddata as gd
 
 def gaussian_filter(x, y, sigmas):
 
+    try:
+        sigmas[0]
+    except (TypeError, IndexError) as e:
+        sigmas = [sigmas, sigmas]
+
     eps = 1e-10
     filter = np.exp(-((x / sigmas[0]) ** 2 + (y / sigmas[1]) ** 2))
 
@@ -27,24 +32,29 @@ def weighted_average(x, y, sigmas, values):
     ).sum() / gaussian_filter(x - x_values, y - y_values, sigmas).sum()
 
 
-def plot_filters(sigmas, values):
-    x_values, y_values, z_values = values
+def plot_filters(smoothness, values):
+    x_values, y_values, _ = values
 
     Y = np.linspace(y_values.min(), y_values.max(), 100)
     X = np.linspace(x_values.min(), x_values.max(), 100)
 
-    points = [10, 50, 90]
+    ratio = X / Y
+    sigmas = np.stack([ratio, np.ones_like(ratio)]) * smoothness
+    points = [(p1, p2) for p1 in [10, 90] for p2 in [10, 90]]
 
-    fig, axs = plt.subplots(1, len(points), figsize=(10, 5))
-    for p, ax in zip(points, axs):
+    fig, axs = plt.subplots(1, len(points), figsize=(3 * len(points), 3))
 
-        point = [X[p], Y[p]]
+    for (p1, p2), ax in zip(points, axs):
+
+        point = [X[p1], Y[p2]]
         filter = lambda x, y: gaussian_filter(
             (x - point[0]), y - point[1], sigmas=sigmas
         ).sum()
 
         Z = np.array([[filter(x, y) for x in X] for y in Y])
-        sns.heatmap(Z, ax=ax)
+        sns.heatmap(Z, ax=ax, cbar=False)
+        ax.set_xticks([])
+        ax.set_yticks([])
 
 
 def movingaverage(interval, window_size):
@@ -78,20 +88,20 @@ def compute_and_plot_heatmap(
             z_values[idxs],
         )
 
-    if not log_scale:
-        X = np.linspace(x_values.min(), x_values.max(), resolution)
-        Y = np.linspace(
-            y_values.min(), y_values.max(), resolution
-        )  # 500 x 500 takes 10s
-    else:
-        X = np.linspace(x_values.min(), x_values.max(), resolution)
-        # X = np.geomspace(np.maximum(x_values.min(), eps), x_values.max(), resolution)
-        # Y = np.geomspace(np.maximum(y_values.min(), eps), y_values.max(), resolution)
-        Y = np.linspace(y_values.min(), y_values.max(), resolution)
-        # print(Y)
-        # print(Y)
+    X = np.linspace(x_values.min(), x_values.max(), resolution)
+    Y = np.linspace(y_values.min(), y_values.max(), resolution)
 
-    # print(X.shape, Y.shape)
+    """
+    # if not log_scale:
+    #       # 500 x 500 takes 10s
+    # else:
+    #     X = np.linspace(x_values.min(), x_values.max(), resolution)
+    #     # X = np.geomspace(np.maximum(x_values.min(), eps), x_values.max(), resolution)
+    #     # Y = np.geomspace(np.maximum(y_values.min(), eps), y_values.max(), resolution)
+    #     Y = np.linspace(y_values.min(), y_values.max(), resolution)
+    #     # print(Y)
+    #     # print(Y)
+    """
 
     Xm, Ym = np.meshgrid(X, Y)
 
@@ -99,17 +109,31 @@ def compute_and_plot_heatmap(
     # ratio = movingaverage(ratio, len(ratio) // 3)
     # sigmas = np.array([np.ones_like(ratio), ratio * 3]) * smoothness
 
-    ratio = (y_values / x_values).mean()
-    sigmas = np.array([1, 2 * ratio]) * smoothness
+    ratios = [(y_values / x_values).mean(), y_values.mean() / x_values.mean()]
+    # print(ratios)
+    ratio = ratios[1]
+    sigmas = np.array([1, ratio])
 
+    # ratio = x_values / y_values
+    # sigmas = np.stack([ratio, np.ones_like(ratio)])
+
+    try:
+        sigmas[0] *= smoothness[0]
+        sigmas[1] *= smoothness[1]
+    except (TypeError, IndexError) as e:
+        sigmas *= smoothness
+
+    # vect_avg = np.vectorize(
+    #     lambda x, y,: weighted_average(x, y, sigmas, values), signature=("(),()->()")
+    # )
     vect_avg = np.vectorize(
         lambda x, y: weighted_average(x, y, sigmas, values), signature=("(),()->()")
     )
+
     Z = vect_avg(Xm, Ym)
-    # print(Xm.shape, Z.shape, X.shape)
 
     if plot_f:
-        plot_filters(sigmas, values)
+        plot_filters(smoothness, values)
 
     if plot:
 
@@ -118,7 +142,7 @@ def compute_and_plot_heatmap(
         else:
             fig, ax = figax
 
-        pc = ax.pcolorfast(
+        pc = ax.pcolor(
             X,
             Y,
             Z,
@@ -146,7 +170,7 @@ def compute_and_plot_heatmap(
 
 
 def compute_and_plot_colormesh(
-    values, figax=None, method="nearest", log_scale=True, resolution=300, cbar=True
+    values, figax=None, method="nearest", log_scale=False, resolution=300, cbar=True
 ):
 
     x_values, y_values, z_values = values

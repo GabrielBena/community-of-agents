@@ -39,7 +39,7 @@ lines.linewidth : 3
 
 # LEGEND
 legend.frameon : False 
-legend.fontsize : 12
+legend.fontsize : 16
 
 # TICKS 
 
