@@ -252,7 +252,7 @@ if __name__ == "__main__":
         "task": "family",
         ### ------ Task ------
         "metrics_only": False,
-        "n_tests": 10 if not debug_run else 1,
+        "n_tests": 5 if not debug_run else 1,
         "debug_run": debug_run,
         "use_tqdm": 2,
         "data_regen": [False, False],  # dataset_config["data_type"] != "symbols"],

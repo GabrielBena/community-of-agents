@@ -112,7 +112,7 @@ def compute_all_metrics(trained_coms, loaders, config, device):
         config = wandb.config
 
     chosen_timesteps = config["metrics"]["chosen_timesteps"]
-    use_tqdm = config["use_tqdm"]
+    use_tqdm = config["use_tqdm"] if not config["hpc"] else False
 
     # community = trained_coms["Without Bottleneck"]
     community = trained_coms
