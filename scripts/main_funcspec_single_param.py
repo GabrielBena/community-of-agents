@@ -229,7 +229,7 @@ if __name__ == "__main__":
 
     training_config = {
         "decision": ["last", "all"],
-        "n_epochs": 50 if not debug_run else 1,
+        "n_epochs": 25 if not debug_run else 1,
         "inverse_task": False,
         "stopping_acc": 0.95,
         "early_stop": False,
@@ -291,7 +291,7 @@ if __name__ == "__main__":
         # Manually retreive parameter of sweep
 
         load = True
-        varying_params_sweep, load = get_config_manual_lock(sweep_path, run_id)
+        varying_params_sweep, load = get_config_manual_lock(sweep_path, run_id, finish_undone=True)
 
         if varying_params_sweep is None:
             print("sweep done")
