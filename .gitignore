@@ -2,6 +2,8 @@ wandb
 wandb_results
 sweeps/
 !/sweeps/latest/
+results
+imgs
 
 .history/*
 
@@ -150,3 +152,4 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+.gitignore

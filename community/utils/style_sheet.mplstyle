@@ -43,8 +43,8 @@ legend.fontsize : 16
 
 # TICKS 
 
-xtick.labelsize: 20
-ytick.labelsize: 20
+xtick.labelsize: 12
+ytick.labelsize: 12
 xtick.major.width : 2
 ytick.major.width : 2
 xtick.major.size : 5
