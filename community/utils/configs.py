@@ -14,7 +14,6 @@ def get_all_v_params(varying_params, excluded_params={}):
 
 
 def get_training_dict(config):
-
     training_dict = {
         "n_epochs": config["training"]["n_epochs"],
         "task": config["task"],
@@ -40,7 +39,6 @@ def get_training_dict(config):
 
 
 def find_and_change(config, param_name, param_value):
-
     for key, value in config.items():
         if type(value) is dict:
             find_and_change(value, param_name, param_value)
@@ -52,7 +50,6 @@ def find_and_change(config, param_name, param_value):
 
 
 def copy_and_change_config(config, varying_params):
-
     config = deepcopy(config)
     for n, v in varying_params.items():
         find_and_change(config, n, v)
@@ -87,7 +84,6 @@ def get_new_config(config, key_prefix="config"):
 
 
 def ensure_config_coherence(config, v_params):
-
     n_agents = config["model"]["n_agents"]
 
     if config["task"] == "shared_goals":
@@ -130,14 +126,12 @@ def ensure_config_coherence(config, v_params):
         )
     if "common_input" in v_params:
         if config["datasets"]["data_type"] != "symbols":
-
             config["datasets"]["input_size"] = 784 * (
                 1 + config["datasets"]["common_input"]
             )
             config["model"]["agents"]["n_in"] = config["datasets"]["input_size"]
 
     if config["model"]["readout"]["common_readout"]:
-
         config["training"]["decision"][1] = "all"
 
         """
@@ -175,3 +169,8 @@ def ensure_config_coherence(config, v_params):
             )
 
     config["model"]["n_in"] = config["datasets"]["input_size"]
+
+    if config["datasets"]["nb_steps"] == 2:
+        config["metrics"]["chosen_timesteps"] = ["0", "last"]
+    else:
+        config["metrics"]["chosen_timesteps"] = ["0", "mid-", "last"]

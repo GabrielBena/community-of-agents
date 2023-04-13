@@ -17,7 +17,7 @@ from community.data.datasets.generate import get_datasets_alphabet, get_datasets
 from community.data.tasks import get_task_target
 from community.funcspec.single_model_loop import train_and_compute_metrics
 from community.common.models.readout import configure_readouts
-from community.common.manual_sweeps import get_config_manual_lock
+from community.common.manual_sweeps import get_config_manual_lock, get_all_v_params
 import wandb
 
 from tqdm import tqdm
@@ -33,7 +33,6 @@ import argparse
 
 
 def get_data(config):
-
     if config["datasets"]["data_type"] == "symbols":
         loaders, datasets = get_datasets_symbols(
             config["datasets"],
@@ -58,7 +57,6 @@ def generate_id(length: int = 8) -> str:
 # warnings.filterwarnings('ignore')
 
 if __name__ == "__main__":
-
     parser = argparse.ArgumentParser(
         prog="Main Training",
         description="Train and compute metrics, run sweeps",
@@ -200,7 +198,7 @@ if __name__ == "__main__":
         "comms_dropout": 0.0,
         "sparsity": 0.1,
         "binarize": False,
-        "comms_start": "last",
+        "comms_start": "start",
         "comms_out_scale": 1,
     }
 
@@ -269,7 +267,6 @@ if __name__ == "__main__":
         pass
 
     if not manual_sweep:
-
         # WAndB tracking :
         wandb.init(project="funcspec_V2", entity="m2snn", config=default_config)
         varying_params_sweep = wandb.config["varying_params_sweep"]
@@ -279,7 +276,6 @@ if __name__ == "__main__":
         ensure_config_coherence(default_config, varying_params_sweep)
 
     else:
-
         os.environ["WANDB_MODE"] = "offline"
 
         if sweep_id is None:
@@ -291,7 +287,9 @@ if __name__ == "__main__":
         # Manually retreive parameter of sweep
 
         load = True
-        varying_params_sweep, load = get_config_manual_lock(sweep_path, run_id, finish_undone=True)
+        varying_params_sweep, load = get_config_manual_lock(
+            sweep_path, run_id, finish_undone=False
+        )
 
         if varying_params_sweep is None:
             print("sweep done")
@@ -314,7 +312,6 @@ if __name__ == "__main__":
     if wandb_log and not manual_sweep:
         save_path = wandb.run.dir + "/"
     else:
-
         dir_path = os.path.dirname(os.path.abspath(__file__))
         save_path = f"{dir_path}/../wandb_results/"
 
@@ -335,19 +332,26 @@ if __name__ == "__main__":
         [
             np.array([0]),
             np.unique(
-                (np.geomspace(1, n**2, 30, endpoint=True, dtype=int) / n**2).round(
+                (np.geomspace(1, n**2, 20, endpoint=True, dtype=int) / n**2).round(
                     4
                 )
             ),
         ]
     )
+    sparsities = np.unique(
+        (np.geomspace(1, n**2, 1) / n**2) if debug_run else sparsities
+    )
 
-    varying_params_local = [
-        {"sparsity": s}
-        for s in np.unique(
-            (np.geomspace(1, n**2, 1) / n**2) if debug_run else sparsities
+    varying_params_local = {"sparsity": sparsities}
+
+    if "nb_steps" in wandb.config["varying_params_sweep"]:
+        varying_params_local.update(
+            {"comms_start": ["start", "last"]}
+            if wandb.config["varying_params_sweep"]["nb_steps"] == 3
+            else {"comms_start": ["start"]}
         )
-    ]
+
+    varying_params_local = get_all_v_params(varying_params_local)
 
     # ------- Do Local Sweep ------
     pbar_0 = varying_params_local
@@ -357,7 +361,6 @@ if __name__ == "__main__":
     metric_results, metric_datas, training_results = {}, [], []
 
     for v, v_params_local in enumerate(pbar_0):
-
         v_params_all = v_params_local.copy()
         # Sweep param always overrides
         v_params_all.update(wandb.config["varying_params_sweep"])
@@ -370,7 +373,6 @@ if __name__ == "__main__":
             pbar_0.set_description(f"Varying Params : {v_params_all}")
 
         if wandb_log:
-
             wandb.config.update(
                 {"varying_params_local": v_params_local}, allow_val_change=True
             )
@@ -392,7 +394,6 @@ if __name__ == "__main__":
 
         # Repetitions per varying parameters
         for test in pbar_1:
-
             if config["data_regen"][1] and test != 0:
                 seed += 1
                 config["datasets"]["seed"] = seed
@@ -416,7 +417,6 @@ if __name__ == "__main__":
                 metric_results.setdefault(m_name, [])
                 metric_results[m_name].append(metric)
 
-            
         final_table = pd.concat([pd.DataFrame.from_dict(d) for d in metric_datas])
         for name, file, save_mode in zip(
             ["metric_table"],
@@ -424,8 +424,6 @@ if __name__ == "__main__":
             ["pickle"],
         ):
             mkdir_or_save(file, name, default_config["save_path"], save_mode)
-
-            
 
     final_table = pd.concat([pd.DataFrame.from_dict(d) for d in metric_datas])
     if wandb_log:
@@ -438,7 +436,6 @@ if __name__ == "__main__":
         pass
 
     if wandb_log:
-
         final_log = {}
 
         try:
@@ -480,5 +477,5 @@ if __name__ == "__main__":
         varying_params_sweep, load = get_config_manual_lock(
             sweep_path, run_id, mark_as_done=True
         )
-        #Rerun 
-        os.execv(sys.executable, ["python"] + sys.argv)
+        # Rerun
+        # os.execv(sys.executable, ["python"] + sys.argv)
