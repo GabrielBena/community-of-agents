@@ -131,6 +131,7 @@ def get_config_manual_lock(sweep_path, run_id, mark_as_done=False, finish_undone
                 
                 elif finish_undone and not config['done'] :
                     config['done'] = 'running'
+                    config['run_id'] = run_id
                     save_params(f"{sweep_path}/all_params", all_configs)
                     save_params(
                         f"{sweep_path}/all_params_json", all_configs, use_json=True
