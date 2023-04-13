@@ -9,7 +9,6 @@ from PIL import Image
 
 
 def estimate_covariance(cov_ratio, n_classes_per_digit, data_size=10000):
-
     targets = [
         np.random.randint(0, n_classes_per_digit, size=data_size) for _ in range(2)
     ]
@@ -54,7 +53,6 @@ class Custom_MNIST(MNIST):
         truncate: list or int = None,
         all_digits: bool = False,
     ) -> None:
-
         self.truncate = np.array(truncate) if truncate is not None else truncate
 
         super().__init__(root, train, transform, target_transform, download)
@@ -161,7 +159,6 @@ class Custom_EMNIST(EMNIST):
         download: bool = True,
         truncate: list = None,
     ) -> None:
-
         self.truncate = truncate
         super().__init__(
             root,
@@ -271,7 +268,6 @@ class DoubleMNIST(Dataset):
         self.data = self.create_data()
 
     def create_all_idxs(self):
-
         targets = self.mnist_dataset.targets
         sorted_idxs = np.argsort(targets)
 
@@ -320,9 +316,7 @@ class DoubleMNIST(Dataset):
         return new_idxs
 
     def __getitem__(self, index, manual_idx=False):
-
         if manual_idx:
-
             index_1 = self.new_idxs[index]
             index_2 = self.cov_idxs[index_1]
 
@@ -353,7 +347,6 @@ class DoubleMNIST(Dataset):
         return img
 
     def create_data(self):
-
         self.mnist_data = torch.stack([self.tf_img(d) for d in self.mnist_dataset.data])
 
         data = [
@@ -432,7 +425,6 @@ class DoubleDataset(Dataset):
         self.data = self.create_data()
 
     def create_all_idxs(self):
-
         targets = [p[d.targets] for d, p in zip(self.datasets, self.permutations)]
 
         sorted_idxs = np.argsort(targets[0])
@@ -482,9 +474,7 @@ class DoubleDataset(Dataset):
         return new_idxs
 
     def __getitem__(self, index, manual_idx=False):
-
         if manual_idx:
-
             index_1 = self.new_idxs[index]
             index_2 = self.cov_idxs[index_1]
 
@@ -500,7 +490,6 @@ class DoubleDataset(Dataset):
             digits = torch.cat([digit_1, digit_2], axis=0)
             targets = torch.tensor([target_1, target_2])
         else:
-
             digits, targets = [d[index] for d in self.data]
 
         return digits, targets
@@ -516,7 +505,6 @@ class DoubleDataset(Dataset):
         return img
 
     def create_data(self):
-
         self.img_data = [
             torch.stack([self.tf_img(d) for d in dataset.data])
             for dataset in self.datasets
@@ -543,7 +531,6 @@ class DoubleDataset(Dataset):
 
 class MultiDataset(Dataset):
     def __init__(self, datasets, shuffle=False, fix_asym=False):
-
         self.datasets = datasets
         self.small_dataset_idx = np.argmin([len(d) for d in self.datasets])
         self.small_dataset = datasets[self.small_dataset_idx]

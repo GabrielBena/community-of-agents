@@ -6,7 +6,6 @@ from scipy.interpolate import griddata as gd
 
 
 def gaussian_filter(x, y, sigmas):
-
     try:
         sigmas[0]
     except (TypeError, IndexError) as e:
@@ -24,7 +23,6 @@ def filter_nans(values):
 
 
 def weighted_average(x, y, sigmas, values):
-
     x_values, y_values, z_values = values
 
     return (
@@ -45,7 +43,6 @@ def plot_filters(smoothness, values):
     fig, axs = plt.subplots(1, len(points), figsize=(3 * len(points), 3))
 
     for (p1, p2), ax in zip(points, axs):
-
         point = [X[p1], Y[p2]]
         filter = lambda x, y: gaussian_filter(
             (x - point[0]), y - point[1], sigmas=sigmas
@@ -62,20 +59,35 @@ def movingaverage(interval, window_size):
     return np.convolve(interval, window, "same")
 
 
+def get_mesh(x_values, y_values, log_scale=[False, False], resolution=300, eps=1e-4):
+    grid_values = []
+
+    for value, scale in zip([x_values, y_values], log_scale):
+        if not scale:
+            grid_values.append(np.linspace(value.min(), value.max(), resolution))
+        else:
+            grid_values.append(
+                np.geomspace(np.maximum(value.min(), eps), value.max(), resolution)
+            )
+
+    grid_mesh = np.meshgrid(*grid_values)
+
+    return grid_values, grid_mesh
+
+
 def compute_and_plot_heatmap(
     values,
     figax=None,
     log_scale=False,
     plot_f=False,
     random=True,
-    minmax=(0, 1),
+    minmax=None,
     smoothness=7,
     resolution=100,
-    eps=1e-4,
+    log_min=1e-4,
     cbar=True,
     plot=True,
 ):
-
     x_values, y_values, z_values = filter_nans(values)
 
     if random:
@@ -88,22 +100,7 @@ def compute_and_plot_heatmap(
             z_values[idxs],
         )
 
-    X = np.linspace(x_values.min(), x_values.max(), resolution)
-    Y = np.linspace(y_values.min(), y_values.max(), resolution)
-
-    """
-    # if not log_scale:
-    #       # 500 x 500 takes 10s
-    # else:
-    #     X = np.linspace(x_values.min(), x_values.max(), resolution)
-    #     # X = np.geomspace(np.maximum(x_values.min(), eps), x_values.max(), resolution)
-    #     # Y = np.geomspace(np.maximum(y_values.min(), eps), y_values.max(), resolution)
-    #     Y = np.linspace(y_values.min(), y_values.max(), resolution)
-    #     # print(Y)
-    #     # print(Y)
-    """
-
-    Xm, Ym = np.meshgrid(X, Y)
+    (X, Y), (Xm, Ym) = get_mesh(x_values, y_values, log_scale, resolution, log_min)
 
     # ratio = y_values / x_values
     # ratio = movingaverage(ratio, len(ratio) // 3)
@@ -136,7 +133,6 @@ def compute_and_plot_heatmap(
         plot_filters(smoothness, values)
 
     if plot:
-
         if (figax) is None:
             fig, ax = plt.subplots(1, 1, figsize=(10, 5))
         else:
@@ -152,7 +148,6 @@ def compute_and_plot_heatmap(
             rasterized=True,
         )
         if log_scale:
-
             """"""
             # ax.set_xscale("log")
             ax.set_yscale("log")
@@ -170,48 +165,64 @@ def compute_and_plot_heatmap(
 
 
 def compute_and_plot_colormesh(
-    values, figax=None, method="nearest", log_scale=False, resolution=300, cbar=True
+    values,
+    figax=None,
+    method="nearest",
+    log_scale=[False, False],
+    resolution=300,
+    cbar=True,
+    minmax=None,
+    random=False,
+    imshow=False,
+    log_min=1e-4,
 ):
-
     x_values, y_values, z_values = values
 
-    eps = 1e-4
+    if random:
+        idxs = np.arange(len(x_values))
+        np.random.shuffle(idxs)
+        idxs = idxs[: len(idxs) // 10]
+        values = x_values, y_values, z_values = (
+            x_values[idxs],
+            y_values[idxs],
+            z_values[idxs],
+        )
 
-    if not log_scale:
-        X = np.linspace(x_values.min(), x_values.max(), resolution)
-        Y = np.linspace(
-            y_values.min(), y_values.max(), resolution
-        )  # 500 x 500 takes 10s
-    else:
-        X = np.geomspace(np.maximum(x_values.min(), eps), x_values.max(), resolution)
-        Y = np.geomspace(np.maximum(y_values.min(), eps), y_values.max(), resolution)
-        # print(Y)
-
-        # X = np.linspace(x_values.min(), x_values.max(), resolution)
-        # Y = np.linspace(
-        #    y_values.min(), y_values.max(), resolution
-        # )  # 500 x 500 takes 10s
-
-    X_mesh, Y_mesh = np.meshgrid(X, Y)
-
+    (X, Y), (X_mesh, Y_mesh) = get_mesh(
+        x_values, y_values, log_scale, resolution, log_min
+    )
     Z = gd((x_values, y_values), z_values, (X_mesh, Y_mesh), method=method)
-    if (figax) is None:
+
+    if figax is None:
         fig, ax = plt.subplots(1, 1, figsize=(10, 5))
     else:
         fig, ax = figax
 
-    fig, ax = figax
     # pcm = ax.pcolormesh(X_mesh, Y_mesh, Z, cmap="viridis")
-    pcm = ax.pcolor(X, Y, Z, cmap="viridis", rasterized=True)
+    if not imshow:
+        pcm = ax.pcolor(
+            X,
+            Y,
+            Z,
+            cmap="viridis",
+            rasterized=True,
+            vmin=minmax[0] if minmax is not None else None,
+            vmax=minmax[1] if minmax is not None else None,
+        )
+    else:
+        pcm = ax.imshow(Z[::-1], cmap="viridis")
     # ax.set_ylim(y_values.min(), y_values.max())
     # ax.set_xlim(x_values.min(), x_values.max())
     if cbar:
         cbar = fig.colorbar(pcm, ax=ax)
 
-    if log_scale:
-
+    if not imshow:
         """"""
-        # ax.set_xscale("log")
-        ax.set_yscale("log")
+        if log_scale[0]:
+            ax.set_xscale("log")
+        if log_scale[1]:
+            ax.set_yscale("log")
 
-    return X_mesh, Y_mesh, Z, (fig, ax), cbar
+    # ax.set_ylim(y_values.min(), y_values.max())
+
+    return (X, Y), (X_mesh, Y_mesh), Z, (fig, ax), cbar
