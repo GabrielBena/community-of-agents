@@ -227,7 +227,7 @@ if __name__ == "__main__":
 
     training_config = {
         "decision": ["last", "all"],
-        "n_epochs": 25 if not debug_run else 1,
+        "n_epochs": 30 if not debug_run else 1,
         "inverse_task": False,
         "stopping_acc": 0.95,
         "early_stop": False,
@@ -250,7 +250,7 @@ if __name__ == "__main__":
         "task": "family",
         ### ------ Task ------
         "metrics_only": False,
-        "n_tests": 5 if not debug_run else 1,
+        "n_tests": 10 if not debug_run else 1,
         "debug_run": debug_run,
         "use_tqdm": 2,
         "data_regen": [False, False],  # dataset_config["data_type"] != "symbols"],
@@ -288,7 +288,7 @@ if __name__ == "__main__":
 
         load = True
         varying_params_sweep, load = get_config_manual_lock(
-            sweep_path, run_id, finish_undone=False
+            sweep_path, run_id, finish_undone=True
         )
 
         if varying_params_sweep is None:
@@ -332,7 +332,7 @@ if __name__ == "__main__":
         [
             np.array([0]),
             np.unique(
-                (np.geomspace(1, n**2, 20, endpoint=True, dtype=int) / n**2).round(
+                (np.geomspace(1, n**2, 30, endpoint=True, dtype=int) / n**2).round(
                     4
                 )
             ),
@@ -478,4 +478,4 @@ if __name__ == "__main__":
             sweep_path, run_id, mark_as_done=True
         )
         # Rerun
-        # os.execv(sys.executable, ["python"] + sys.argv)
+        os.execv(sys.executable, ["python"] + sys.argv)

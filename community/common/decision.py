@@ -4,8 +4,22 @@ import torch.nn.functional as F
 
 # ------Decision Making Functions ------:
 
-
 def random_decision(outputs, p=0.5):
+    """Randomly choose between two possible outputs.
+
+    Parameters
+    ----------
+    outputs : torch.Tensor
+        The two outputs to choose between. The first dimension should be the
+        batch dimension and the second dimension should be the agent dimension.
+    p : float, optional
+        The probability of choosing the first output, by default 0.5
+
+    Returns
+    -------
+    torch.Tensor
+        The chosen output.
+    """
     batchs = outputs.shape[1]
     device = outputs.device
     deciding_agents = torch.rand(batchs).to(device) < p
@@ -18,14 +32,20 @@ def random_decision(outputs, p=0.5):
 
 def max_decision_2(outputs):
     n_agents = outputs.shape[0]
+
+    # Get the maximum absolute output for each agent
     max_out = lambda i: torch.max(torch.abs(outputs[i, ...]), axis=-1)
     max_outs, deciding_ags = torch.max(
         torch.stack([max_out(i)[0] for i in range(n_agents)]), axis=0
     )
+
+    # Create a mask with a 1 at the index of the agent with the maximum output
     mask = torch.einsum("bc, b -> bc", torch.ones_like(outputs[0]), deciding_ags).bool()
+
+    # Set the actions of the agents with the maximum output to 1
     outputs = torch.where(mask, outputs[1], outputs[0])
 
-    return outputs, deciding_ags
+    return outputs, deciding_ags 
 
 
 def max_decision(outputs):
