@@ -78,7 +78,7 @@ def get_mesh(x_values, y_values, log_scale=[False, False], resolution=300, eps=1
 def compute_and_plot_heatmap(
     values,
     figax=None,
-    log_scale=False,
+    log_scale=[False, False],
     plot_f=False,
     random=True,
     minmax=None,
@@ -147,9 +147,9 @@ def compute_and_plot_heatmap(
             vmax=minmax[1] if minmax is not None else None,
             rasterized=True,
         )
-        if log_scale:
-            """"""
-            # ax.set_xscale("log")
+        if log_scale[0]:
+            ax.set_xscale("log")
+        if log_scale[1]:
             ax.set_yscale("log")
 
         ax.set_ylim(y_values.min(), y_values.max())
