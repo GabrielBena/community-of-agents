@@ -175,6 +175,8 @@ def compute_and_plot_colormesh(
     random=False,
     imshow=False,
     log_min=1e-4,
+    exclude_sup=True,
+    cbar_loc="right",
 ):
     x_values, y_values, z_values = values
 
@@ -194,11 +196,13 @@ def compute_and_plot_colormesh(
     Z = gd((x_values, y_values), z_values, (X_mesh, Y_mesh), method=method)
 
     if figax is None:
-        fig, ax = plt.subplots(1, 1, figsize=(10, 5))
+        fig, ax = plt.subplots(1, 1, figsize=(3, 3))
     else:
         fig, ax = figax
 
     # pcm = ax.pcolormesh(X_mesh, Y_mesh, Z, cmap="viridis")
+    if exclude_sup:
+        Z[Y_mesh > X_mesh] = np.nan
     if not imshow:
         pcm = ax.pcolor(
             X,
@@ -214,7 +218,7 @@ def compute_and_plot_colormesh(
     # ax.set_ylim(y_values.min(), y_values.max())
     # ax.set_xlim(x_values.min(), x_values.max())
     if cbar:
-        cbar = fig.colorbar(pcm, ax=ax)
+        cbar = fig.colorbar(pcm, ax=ax, location=cbar_loc)
 
     if not imshow:
         """"""
