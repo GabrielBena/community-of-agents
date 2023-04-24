@@ -9,58 +9,36 @@ from PIL import Image
 
 
 def estimate_covariance(cov_ratio, n_classes_per_digit, data_size=10000):
-    """
-    Estimate the covariance between the first and second target when
-    the first target is sampled uniformly and the second target is
-    sampled from a distribution whose first n classes are as likely
-    as the first target and whose remaining classes are cov_ratio
-    times as likely as the first target.
-    """
-    # Generate targets.
-    first_targets = np.random.randint(0, n_classes_per_digit, size=data_size)
-    second_targets = np.random.randint(0, n_classes_per_digit, size=data_size)
-
-    # Sort the targets.
-    sorted_idxs = np.argsort(first_targets)
-
-    # Get the indices of the first n classes.
-    first_class_idxs = [
-        np.where(second_targets == t)[0] for t in range(n_classes_per_digit)
+    targets = [
+        np.random.randint(0, n_classes_per_digit, size=data_size) for _ in range(2)
     ]
 
-    # Get the indices of the remaining classes.
-    second_class_idxs = [
-        np.where(second_targets != t)[0] for t in range(n_classes_per_digit)
-    ]
+    sorted_idxs = np.argsort(targets[0])
 
-    # Combine the indices of the first and second classes.
-    idxs = [
-        np.concatenate((first_idx, second_idx))
-        for first_idx, second_idx in zip(first_class_idxs, second_class_idxs)
-    ]
+    t_idxs = [np.where(targets[1] == t)[0] for t in range(n_classes_per_digit)]
+    c_idxs = [np.where(targets[1] != t)[0] for t in range(n_classes_per_digit)]
 
-    # Generate the probabilities of sampling each class.
+    idxs = [np.concatenate((t_idx, c_idx)) for t_idx, c_idx in zip(t_idxs, c_idxs)]
+
     ps = np.stack(
         [
-            np.concatenate(
-                (np.ones_like(first_idx), cov_ratio * np.ones_like(second_idx))
-            )
-            for first_idx, second_idx in zip(first_class_idxs, second_class_idxs)
+            np.concatenate((np.ones_like(t_idx), cov_ratio * np.ones_like(c_idx)))
+            for t_idx, c_idx in zip(t_idxs, c_idxs)
         ],
         -1,
     ).astype(float)
     ps /= ps.sum(0)
 
-    # Sample classes.
-    second_targets = np.concatenate(
+    cov_idxs = np.concatenate(
         [
-            np.random.choice(idxs[t], size=len(first_idx), p=ps[:, t])
-            for t, first_idx in enumerate(first_class_idxs)
+            np.random.choice(idxs[t], size=len(t_idx), p=ps[:, t])
+            for t, t_idx in enumerate(t_idxs)
         ]
     )[np.argsort(sorted_idxs)]
 
-    # Calculate the covariance.
-    return np.corrcoef(first_targets, second_targets)[0, 1]
+    targets[1] = targets[1][cov_idxs]
+    targets = np.stack(targets)
+    return np.corrcoef(targets)[0, 1]
 
 
 class Custom_MNIST(MNIST):
