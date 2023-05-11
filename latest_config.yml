@@ -6,36 +6,36 @@ datasets:
   common_input: false
   cov_ratio: 1.0
   data_size:
-    - 6000
-    - 1000
   data_type: double_digits
+  default_data_sizes:
+    - 60000
+    - 10000
   fix_asym: false
   input_size: 784
   n_classes: 32
   n_classes_per_digit: 16
   n_digits: 2
-  nb_steps: 3
+  nb_steps: 4
   permute_dataset: true
-  seed: 18
+  seed: 6
   split_classes: true
   symbol_config:
     adjust_probas: false
     data_size:
-      - 12000
-      - 2000
+      - 60000
+      - 10000
     input_size: 60
     parallel: false
     random_transform: true
     static: true
     symbol_type: mod_5
   use_cuda: true
-debug_run: true
+debug_run: false
 hpc: false
 metrics:
   chosen_timesteps:
     - 0
-    - mid-
-    - last
+    - 3
 metrics_only: false
 model:
   agents:
@@ -52,7 +52,7 @@ model:
     binarize: false
     comms_dropout: 0.0
     comms_out_scale: 1
-    comms_start: start
+    comms_start: 1
     global_rewire: false
     sparsity: 0.1
     use_deepR: false
@@ -61,7 +61,7 @@ model:
     common_readout: true
     n_hid:
     readout_from:
-n_tests: 1
+n_tests: 10
 optimization:
   agents:
     gamma: 0.95
@@ -84,9 +84,10 @@ training:
   early_stop: false
   force_connections: false
   inverse_task: false
-  n_epochs: 1
+  n_epochs: 30
   stopping_acc: 0.95
 use_tqdm: 2
 varying_params_local: {}
-varying_params_sweep: {}
+varying_params_sweep:
+  nb_steps: 10
 wandb_log: false
