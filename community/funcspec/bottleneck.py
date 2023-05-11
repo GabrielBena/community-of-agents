@@ -92,7 +92,6 @@ def readout_retrain(
     f_config["model"]["readout"].update(readout_config)
 
     for training_timestep in pbar:
-
         single_losses = [[] for target in range(n_agents)]
         single_accs = [[] for target in range(n_agents)]
         # for target in range(2) :
@@ -149,7 +148,6 @@ def readout_retrain(
                     schedulers=schedulers,
                     config=training_dict,
                     trials=(True, True),
-                    joint_training=True,
                     use_tqdm=position if use_tqdm else False,
                     device=device,
                     show_all_acc=is_notebook(),
@@ -235,7 +233,6 @@ def compute_bottleneck_metrics(
     for i, p_con in enumerate(
         tqdm_f(p_cons[l:], position=0, desc="Model Sparsity : ", leave=None)
     ):
-
         metrics[p_con] = {}
         metrics[p_con]["losses"], metrics[p_con]["accs"] = [], []
         states = community_states[p_con]
@@ -243,7 +240,6 @@ def compute_bottleneck_metrics(
         for i, state in enumerate(
             tqdm_f(states, position=1, desc="Model Trials", leave=None)
         ):
-
             community.load_state_dict(state)
             metric = readout_retrain(
                 community,
@@ -275,7 +271,6 @@ def compute_bottleneck_metrics(
 
 
 def plot_bottleneck_results(bottleneck_metric):
-
     p_cons = np.array(list(bottleneck_metric.keys()))
     l = len(p_cons)
 

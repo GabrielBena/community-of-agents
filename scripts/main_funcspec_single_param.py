@@ -137,6 +137,7 @@ if __name__ == "__main__":
 
     dataset_config = {
         "batch_size": 512 if use_cuda else 256,
+        "default_data_sizes": data_sizes,
         "data_size": None if (not debug_run) else data_sizes // 10,
         "common_input": False,
         "use_cuda": use_cuda,
@@ -147,7 +148,7 @@ if __name__ == "__main__":
         "n_digits": n_digits,
         "n_classes": n_classes,
         "n_classes_per_digit": n_classes_per_digit,
-        "nb_steps": 3,
+        "nb_steps": 4,
         "split_classes": True,
         "cov_ratio": 1.0,
     }
@@ -198,7 +199,7 @@ if __name__ == "__main__":
         "comms_dropout": 0.0,
         "sparsity": 0.1,
         "binarize": False,
-        "comms_start": "start",
+        "comms_start": 1,
         "comms_out_scale": 1,
     }
 
@@ -243,8 +244,16 @@ if __name__ == "__main__":
             "connections": deepR_config,
         },
         "training": training_config,
-        "metrics": {"chosen_timesteps": ["0", "mid-", "last"]},
-        "varying_params_sweep": {},
+        "metrics": {
+            "chosen_timesteps": np.unique(
+                [
+                    0,
+                    int(model_config["connections"]["comms_start"]) - 1,
+                    dataset_config["nb_steps"] - 1,
+                ]
+            )
+        },
+        "varying_params_sweep": {"nb_steps": 10},
         "varying_params_local": {},
         ###------ Task ------
         "task": "family",
@@ -345,11 +354,15 @@ if __name__ == "__main__":
     varying_params_local = {"sparsity": sparsities}
 
     if "nb_steps" in wandb.config["varying_params_sweep"]:
-        varying_params_local.update(
-            {"comms_start": ["start", "last"]}
-            if wandb.config["varying_params_sweep"]["nb_steps"] == 3
-            else {"comms_start": ["start"]}
+        start_times = np.unique(
+            [
+                1,
+                wandb.config["varying_params_sweep"]["nb_steps"] // 2,
+                wandb.config["varying_params_sweep"]["nb_steps"] - 1,
+            ]
         )
+
+        varying_params_local.update({"comms_start": start_times})
 
     varying_params_local = get_all_v_params(varying_params_local)
 

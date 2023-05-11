@@ -33,7 +33,6 @@ class Community(nn.Module):
         readout_config,
         connections_config,
     ):
-
         super().__init__()
         self.is_community = True
 
@@ -78,7 +77,6 @@ class Community(nn.Module):
 
     # Initializes connections in_between agents with the given sparsity matrix
     def init_connections(self):
-
         self.tags = np.empty((self.n_agents, self.n_agents), dtype=object)
         self.connected = np.zeros((self.n_agents, self.n_agents))
         self.connections = nn.ModuleDict()
@@ -123,7 +121,6 @@ class Community(nn.Module):
 
     # Forward function of the community
     def forward(self, x, forced_comms=None, state_masks=None):
-
         # Split_data checks if the data is provided on a per-agent manner or in a one-to-all manner.
         # data can be a double list of len n_timesteps x n_agents or a tensor with second dimension n_agents
         split_data = (type(x) is torch.Tensor and len(x.shape) > 3) or type(x) is list
@@ -261,16 +258,17 @@ class Community(nn.Module):
 
     @property
     def min_t_comms(self):
-        if self.comms_start == "start":
-            min_t_comms = 1
-        elif self.comms_start == "mid":
-            min_t_comms = self.nb_steps // 2
-        elif self.comms_start == "last":
-            min_t_comms = self.nb_steps - 1
-        elif isinstance(self.comms_start, int):
-            min_t_comms = self.comms_start
-        else:
-            raise NotImplementedError
+        try : 
+            min_t_comms = int(self.comms_start)
+        except ValueError:
+            if self.comms_start == "start":
+                min_t_comms = 1
+            elif self.comms_start == "mid":
+                min_t_comms = self.nb_steps // 2
+            elif self.comms_start == "last":
+                min_t_comms = self.nb_steps - 1
+            else:
+                raise NotImplementedError
         return min_t_comms
 
 
@@ -300,7 +298,6 @@ class ConvCommunity(nn.Module):
         use_sparse_readout=False,
         use_attention=False,
     ):
-
         # If only one value provided, then it is duplicated for each layer
         if len(kernel_size) == 1:
             kernel_size = kernel_size * num_conv_layers
@@ -430,7 +427,6 @@ class ConvCommunity(nn.Module):
 
     # Initializes connections in_between agents with the given sparsity matrix
     def init_connections(self, sparse_connections=None):
-
         if sparse_connections is None:
             sparse_connections = self.sparse_connections
 
@@ -513,7 +509,6 @@ class ConvCommunity(nn.Module):
         # Split_data checks if the data is provided on a per-agent manner or in a one-to-all manner.
         # Split_data can be a double list of len n_timesteps x n_agents or a tensor with second dimension n_agents
         for n, x_t in enumerate(x):
-
             x_t = self.process_input(x_t)
 
             output = [None for ag in self.agents]

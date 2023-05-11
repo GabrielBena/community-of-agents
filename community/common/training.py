@@ -31,9 +31,7 @@ from deepR.models import step_connections
 
 
 def get_loss(output, t_target, both=False):
-
     if both:
-
         loss = torch.stack([get_loss(o, t_target) for o in output])
     # print(type(output), type(t_target))
     # print(output, t_target)
@@ -52,12 +50,10 @@ def get_loss(output, t_target, both=False):
 
 
 def get_acc(output, t_target, both=False):
-
     if both:
         acc = [get_acc(o, t_target) for o in output]
 
     else:
-
         n_tasks = len(t_target)
         n_out = len(output)
 
@@ -74,7 +70,7 @@ def get_acc(output, t_target, both=False):
                     acc = (correct.sum() / t_target.numel()).cpu().data.numpy()
 
             # task is list, get acc for all pairs
-            except (AttributeError) as e:
+            except AttributeError as e:
                 acc = [get_acc(o, t) for o, t in zip(output, t_target)]
 
             except (TypeError, RuntimeError) as e:
@@ -87,7 +83,6 @@ def get_acc(output, t_target, both=False):
 
 
 def get_loss2(output, t_target):
-
     n_target = nested_shape(t_target)
     n_decisions = nested_shape(output)
 
@@ -125,7 +120,6 @@ def get_loss2(output, t_target):
                 ]
             ).T
         except RuntimeError:
-
             res = [get_loss2(o, t) for o, t in zip(output, t_target)]
             loss, t_target = torch.stack([r[0] for r in res]).T, torch.stack(
                 [r[1] for r in res]
@@ -162,7 +156,6 @@ def train_community(
     config=None,
     n_epochs=None,
     trials=(True, True),
-    joint_training=False,
     use_tqdm=2,
     device=torch.device("cuda"),
     show_all_acc=True,
@@ -263,10 +256,8 @@ def train_community(
 
     for epoch in pbar:
         if training and epoch > 0:
-
             model.train()
             for batch_idx, (data, target) in enumerate(train_loader):
-
                 if type(data) is list:
                     data, target = [d.to(device) for d in data], target.to(device)
                 else:
@@ -305,14 +296,12 @@ def train_community(
                 output, deciding_ags = get_decision(output, *decision, target=t_target)
 
                 try:
-
                     if (
                         deciding_ags is not None
                         and train_loader.batch_size in deciding_ags.shape
                     ):
                         deciding_agents.append(deciding_ags.cpu().data.numpy())
                 except AttributeError:
-
                     deciding_ags = None
 
                 complete_loss = get_loss(output, t_target, both=decision[1] == "both")
@@ -492,7 +481,6 @@ def test_community(
     *_, fconns = model(data.to(device))
     with torch.no_grad():
         for data, target in test_loader:
-
             if type(data) is list:
                 data, target = [d.to(device) for d in data], target.to(device)
             else:
@@ -523,14 +511,12 @@ def test_community(
             output, out_dict = model(data, conns, ag_masks)
             output, deciding_ags = get_decision(output, *decision, target=t_target)
             try:
-
                 if (
                     deciding_ags is not None
                     and test_loader.batch_size in deciding_ags.shape
                 ):
                     deciding_agents.append(deciding_ags.cpu().data.numpy())
             except AttributeError:
-
                 deciding_ags = None
 
             complete_loss = get_loss(output, t_target, both=decision[1] == "both")
@@ -584,7 +570,6 @@ def test_community(
 def plot_confusion_mat(
     model, test_loader, config, n_classes, device=torch.device("cuda")
 ):
-
     accs = []
     targets, t_targets = [], []
 
@@ -596,7 +581,6 @@ def plot_confusion_mat(
     conv_com = type(model) is ConvCommunity
 
     for batch_idx, (data, target) in enumerate(test_loader):
-
         data, target = process_data(
             data,
             target,
@@ -707,7 +691,6 @@ def compute_trained_communities(
         )
 
         for test in pbar2:
-
             deepR_params_dict["gdnoise"], params_dict["lr"], deepR_params_dict["lr"] = (
                 gdnoises[i],
                 lrs_ag[i],

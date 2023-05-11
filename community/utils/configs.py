@@ -1,5 +1,6 @@
 from copy import deepcopy
 from itertools import product
+import numpy as np
 
 
 def get_all_v_params(varying_params, excluded_params={}):
@@ -170,7 +171,18 @@ def ensure_config_coherence(config, v_params):
 
     config["model"]["n_in"] = config["datasets"]["input_size"]
 
-    if config["datasets"]["nb_steps"] == 2:
-        config["metrics"]["chosen_timesteps"] = ["0", "last"]
-    else:
-        config["metrics"]["chosen_timesteps"] = ["0", "mid-", "last"]
+    config["metrics"]["chosen_timesteps"] = np.unique(
+        [
+            0,  # 1st timestep (always before communication)
+            int(config["model"]["connections"]["comms_start"])
+            - 1,  # 1st timestep before communication
+            config["datasets"]["nb_steps"] // 2,  # middle timestep
+            config["datasets"]["nb_steps"] - 1,  # last timestep
+        ]
+    )
+
+    if not config["debug_run"] and config["datasets"]["nb_steps"] > 2:
+        config["datasets"]["data_size"] = [
+            int(d // 2 + (d // 2) * (10 - config["datasets"]["nb_steps"]) / 8)
+            for d in config["datasets"]["default_data_sizes"]
+        ]
