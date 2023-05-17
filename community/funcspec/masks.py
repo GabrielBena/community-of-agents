@@ -13,7 +13,7 @@ import warnings
 
 warnings.filterwarnings("ignore")
 
-from community.common.training import train_community
+from community.common.training import train_community, get_decision
 from community.common.init import init_community
 from community.utils.others import is_notebook
 from community.utils.wandb_utils import get_wandb_artifact, mkdir_or_save
@@ -89,7 +89,7 @@ class Mask_Community(nn.Module):
         sparsity : % of the weights to select in mask
     """
 
-    def __init__(self, model, sparsity=0.05, include_ih=False, include_readout=False):
+    def __init__(self, model, sparsity=0.9, include_ih=False, include_readout=False):
         super().__init__()
 
         self.model = copy.deepcopy(model)
@@ -121,7 +121,6 @@ class Mask_Community(nn.Module):
         self.update_subnets()
 
     def get_model_params(self, model):
-
         model_params = {}
         for n, p in model.named_parameters():
             if "connections" not in n:
@@ -146,7 +145,6 @@ class Mask_Community(nn.Module):
         return self.__sparsity
 
     def to(self, device):
-
         self.update_subnets()
         return super().to(device)
 
@@ -167,10 +165,10 @@ class Mask_Community(nn.Module):
         )
         return sums / total  # , sums
 
-    def forward(self, x, conns=0.0):
+    def forward(self, x, conns=0.0, ag_masks=None):
         f_model = copy.deepcopy(self.model)
 
-        for (name, p) in self.get_model_params(f_model).items():
+        for name, p in self.get_model_params(f_model).items():
             try:
                 p *= self.subnets[get_new_name(name)]
             except RuntimeError:  # subnets on cpu
@@ -179,11 +177,31 @@ class Mask_Community(nn.Module):
             except KeyError:  # not using this parameter :
                 pass
 
-        return f_model(x)
+        return f_model(x, conns, ag_masks)
+
+
+class Multi_Mask(nn.Module):
+    """
+    Class containing multiple masks to be processed simultaneously, each with its own decision and task
+    """
+
+    def __init__(self, masks, decisions) -> None:
+        super().__init__()
+        self.masks = nn.ModuleList(masks)
+        self.decisions = decisions
+
+    def forward(self, x, conns=None, ag_masks=None):
+        all_outs = [mask(x, conns, ag_masks) for mask in self.masks]
+        outputs = [
+            get_decision(out[0], *decision)[0]
+            for out, decision in zip(all_outs, self.decisions)
+        ]
+        out_dicts = [out[1] for out in all_outs]
+
+        return outputs, out_dicts
 
 
 def get_proportions(masked_model):
-
     scores = list(masked_model.scores.values())
     d_scores = masked_model.scores
     k = masked_model.sparsity
@@ -317,7 +335,6 @@ def find_optimal_sparsity(
     n_classes=10,
     d_params=("last", "max"),
 ):
-
     optimizers = None, None
 
     if type(use_tqdm) is int:
@@ -327,7 +344,6 @@ def find_optimal_sparsity(
         position = 0
 
     def test_masked_com():
-
         training_dict = {
             "n_epochs": 1,
             "task": str(target_digit),
@@ -443,7 +459,6 @@ def train_and_get_mask_metric(
     multi_objectives = config["model"]["readout"]["n_readouts"] > 1
 
     for ts in pbar:
-
         prop_per_agent = []
         test_accuracies = []
         test_losses = []
@@ -455,7 +470,6 @@ def train_and_get_mask_metric(
         d_params[0] = ts
 
         for target_digit in ["0", "1"]:
-
             masked_community, test_loss, test_accs, best_state = train_mask(
                 community,
                 initial_sparsity,
@@ -475,7 +489,6 @@ def train_and_get_mask_metric(
             )
 
             if use_optimal_sparsity:
-
                 optimal_sparsity, test_accs = find_optimal_sparsity(
                     masked_community,
                     target_digit,
@@ -629,7 +642,6 @@ def compute_mask_metric(
     for i, p_con in enumerate(
         tqdm_f(p_cons[l:], position=0, desc="Community Sparsity : ", leave=None)
     ):
-
         prop_per_agent = {}
         test_accs = {}
         best_states = {}
@@ -637,7 +649,6 @@ def compute_mask_metric(
         states = community_states[p_con]
 
         for p_mask in tqdm_f(p_masks, position=1, desc="Mask Sparsity", leave=None):
-
             prop_per_agent[p_mask], test_accs[p_mask], best_states[p_mask] = [], [], []
 
             for i, state in enumerate(
@@ -691,7 +702,6 @@ def compute_mask_metric(
 def get_metrics_from_saved_masks(
     mask_file, masked_community=None, sparsities=[0.1, 0.05, 0.01], config=None
 ):
-
     """
     Computes the weight mask metrics for different k% of selected weights from saved masks states
     """
@@ -739,7 +749,6 @@ def get_metrics_from_saved_masks(
 
 
 def plot_mask_metric(mask_metric):
-
     p_cons = np.array(list(mask_metric["Accs"].keys()))
     l = len(p_cons)
 
@@ -760,7 +769,6 @@ def plot_mask_metric(mask_metric):
     for n in range(2):
         for t in range(1):
             for i, k in enumerate(sparsities):
-
                 linestyle = linestyles[i]
 
                 mean = np.array(
