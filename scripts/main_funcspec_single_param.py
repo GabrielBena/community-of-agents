@@ -253,7 +253,7 @@ if __name__ == "__main__":
                 ]
             )
         },
-        "varying_params_sweep": {"nb_steps": 10},
+        "varying_params_sweep": {},
         "varying_params_local": {},
         ###------ Task ------
         "task": "family",
