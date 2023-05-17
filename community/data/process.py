@@ -3,7 +3,7 @@ import numpy as np
 from .tasks import rotation_conflict_task, get_task_target
 
 
-def temporal_data(data, n_steps=2, conv_com=False):
+def temporal_data(data, n_steps=2, conv_com=False, noise_ratio=None):
     """
     Stack data in time for use with RNNs
     """
@@ -21,7 +21,29 @@ def temporal_data(data, n_steps=2, conv_com=False):
     if not is_list and len(data.shape) > 3 and not conv_com:
         data = data.transpose(1, 2)
 
+    if noise_ratio is not None:
+        data = torch.stack(
+            [
+                add_structured_noise(d.transpose(0, 1), noise_ratio=noise_ratio)[0]
+                for d in data
+            ]
+        ).transpose(1, 2)
+
     return data
+
+
+def add_structured_noise(data, n_samples=5, noise_ratio=0.9):
+    noised_idxs = np.stack(
+        [
+            np.random.choice(data.shape[0], size=n_samples, replace=False)
+            for _ in range(data.shape[0])
+        ]
+    )
+    noised_samples = data[noised_idxs] * (
+        torch.rand([n_samples] + list(data.shape[1:])) < (1 / n_samples)
+    )
+    noised_data = (1 - noise_ratio) * data + noise_ratio * noised_samples.mean(1)
+    return noised_data, noised_idxs, noised_samples
 
 
 def varying_temporal_data(
@@ -31,7 +53,6 @@ def varying_temporal_data(
     Stack data in time for use with RNNs
     """
     if not transpose_and_cat:
-
         flatten = not conv_com
         is_list = type(data) is list
         if flatten and not is_list:
@@ -87,8 +108,8 @@ def process_data(
     common_input=False,
     varying_temporal=False,
     conv_com=False,
+    noise_ratio=None,
 ):
-
     if symbols:
         if len(data.shape) == 5:
             data = data.permute(1, 2, 0, 3, 4).float()
@@ -108,7 +129,9 @@ def process_data(
         data = temporal_data(data, n_steps=n_steps, conv_com=conv_com)
     else:
         if not varying_temporal:
-            data = temporal_data(data, n_steps=n_steps, conv_com=conv_com)
+            data = temporal_data(
+                data, n_steps=n_steps, conv_com=conv_com, noise_ratio=noise_ratio
+            )
         else:
             data, target = varying_temporal_data(
                 data, target, n_steps=n_steps, conv_com=conv_com, transpose_and_cat=True

@@ -16,7 +16,13 @@ from ..utils.others import (
     check_grad,
     is_notebook,
 )
-from ..utils.nested import nested_shape, nested_round, nested_sup, nested_len
+from ..utils.nested import (
+    nested_shape,
+    nested_round,
+    nested_sup,
+    nested_len,
+    nested_mean,
+)
 from ..utils.wandb_utils import mkdir_or_save
 
 from ..utils.configs import get_training_dict
@@ -32,7 +38,7 @@ from deepR.models import step_connections
 
 def get_loss(output, t_target, both=False):
     if both:
-        loss = torch.stack([get_loss(o, t_target) for o in output])
+        loss = [get_loss(o, t_target) for o in output]
     # print(type(output), type(t_target))
     # print(output, t_target)
     else:
@@ -41,10 +47,15 @@ def get_loss(output, t_target, both=False):
             output = output.unsqueeze(0)
 
         except (TypeError, RuntimeError) as e:
-            loss = torch.stack([get_loss(o, t) for o, t in zip(output, t_target)])
+            loss = [get_loss(o, t) for o, t in zip(output, t_target)]
 
         # except ValueError:
         # loss = torch.stack([get_loss(o, t_target) for o in output])
+
+    try:
+        loss = torch.stack(loss)
+    except (RuntimeError, TypeError) as e:
+        pass
 
     return loss
 
@@ -199,6 +210,7 @@ def train_community(
     force_connections = config["force_connections"]
     common_input = config["common_input"]
     n_steps = config["nb_steps"]
+    noise_ratio = config["noise_ratio"]
 
     n_classes = config["n_classes"]
     n_classes_per_digit = config["n_classes_per_digit"]
@@ -214,7 +226,7 @@ def train_community(
         position = 0
 
     conv_com = type(model) is ConvCommunity
-    if model.is_community and train_connections:
+    if train_connections and model.is_community:
         thetas_list = [
             c.thetas[0] for c in model.connections.values() if c.is_deepR_connect
         ]
@@ -246,6 +258,7 @@ def train_community(
         n_steps=n_steps,
         common_input=common_input,
         task=task,
+        noise_ratio=noise_ratio,
     )
     *_, fconns = model(data.to(device))
 
@@ -274,6 +287,7 @@ def train_community(
                     symbols=symbols,
                     common_input=common_input,
                     n_steps=n_steps,
+                    noise_ratio=noise_ratio,
                 )
 
                 t_target = get_task_target(target, task, n_classes_per_digit)
@@ -293,7 +307,14 @@ def train_community(
                     conns = None
 
                 output, out_dict = model(data, conns, ag_masks)
-                output, deciding_ags = get_decision(output, *decision, target=t_target)
+                if decision is not None:
+                    output, deciding_ags = get_decision(
+                        output, *decision, target=t_target
+                    )
+                    both = decision[1] == "both"
+                else:
+                    deciding_ags = None
+                    both = False
 
                 try:
                     if (
@@ -304,9 +325,10 @@ def train_community(
                 except AttributeError:
                     deciding_ags = None
 
-                complete_loss = get_loss(output, t_target, both=decision[1] == "both")
-                loss = complete_loss.mean()
-                acc = get_acc(output, t_target, both=decision[1] == "both")
+                complete_loss = get_loss(output, t_target, both=both)
+                loss = nested_mean(complete_loss)
+
+                acc = get_acc(output, t_target, both=both)
 
                 if reg_loss:
                     reg = F.mse_loss(
@@ -397,8 +419,6 @@ def train_community(
             if loss < best_loss:
                 best_loss = loss
                 best_state = copy.deepcopy(model.state_dict())
-
-            if nested_sup(acc, best_acc):
                 best_acc = acc
 
             test_losses.append(loss)
@@ -458,6 +478,7 @@ def test_community(
 
     task = config["task"]
     decision = config["decision"]
+    noise_ratio = config["noise_ratio"]
 
     model.eval()
     conv_com = type(model) is ConvCommunity
@@ -477,6 +498,7 @@ def test_community(
         symbols=symbols,
         common_input=common_input,
         n_steps=n_steps,
+        noise_ratio=noise_ratio,
     )
     *_, fconns = model(data.to(device))
     with torch.no_grad():
@@ -494,6 +516,7 @@ def test_community(
                 symbols=symbols,
                 common_input=common_input,
                 n_steps=n_steps,
+                noise_ratio=noise_ratio,
             )
 
             t_target = get_task_target(target, task, n_classes_per_digit)
@@ -509,7 +532,13 @@ def test_community(
                 conns = None
 
             output, out_dict = model(data, conns, ag_masks)
-            output, deciding_ags = get_decision(output, *decision, target=t_target)
+            if decision is not None:
+                output, deciding_ags = get_decision(output, *decision, target=t_target)
+                both = decision[1] == "both"
+            else:
+                deciding_ags = None
+                both = False
+
             try:
                 if (
                     deciding_ags is not None
@@ -519,11 +548,11 @@ def test_community(
             except AttributeError:
                 deciding_ags = None
 
-            complete_loss = get_loss(output, t_target, both=decision[1] == "both")
-            loss = complete_loss.mean()
+            complete_loss = get_loss(output, t_target, both=both)
+            loss = nested_mean(complete_loss)
 
             test_loss += loss
-            test_acc = get_acc(output, t_target, both=decision[1] == "both")
+            test_acc = get_acc(output, t_target, both=both)
 
             """
             pred = output.argmax(
@@ -546,7 +575,6 @@ def test_community(
 
             correct += c    
             """
-
             acc += test_acc
 
     test_loss /= len(test_loader)
