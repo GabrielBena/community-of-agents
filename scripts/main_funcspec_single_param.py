@@ -341,7 +341,7 @@ if __name__ == "__main__":
         [
             np.array([0]),
             np.unique(
-                (np.geomspace(1, n**2, 30, endpoint=True, dtype=int) / n**2).round(
+                (np.geomspace(1, n**2, 20, endpoint=True, dtype=int) / n**2).round(
                     4
                 )
             ),
@@ -353,16 +353,16 @@ if __name__ == "__main__":
 
     varying_params_local = {"sparsity": sparsities}
 
-    if "nb_steps" in wandb.config["varying_params_sweep"]:
-        start_times = np.unique(
-            [
-                1,
-                wandb.config["varying_params_sweep"]["nb_steps"] // 2,
-                wandb.config["varying_params_sweep"]["nb_steps"] - 1,
-            ]
-        )
+    # if "nb_steps" in wandb.config["varying_params_sweep"]:
+    #     start_times = np.unique(
+    #         [
+    #             1,
+    #             wandb.config["varying_params_sweep"]["nb_steps"] // 2,
+    #             wandb.config["varying_params_sweep"]["nb_steps"] - 1,
+    #         ]
+    #     )
 
-        varying_params_local.update({"comms_start": start_times})
+    #     varying_params_local.update({"comms_start": start_times})
 
     varying_params_local = get_all_v_params(varying_params_local)
 

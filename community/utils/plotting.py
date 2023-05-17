@@ -9,14 +9,14 @@ import shutil, os
 # ------ Plotting utils ------
 
 
-def legend_without_duplicate_labels(ax):
+def legend_without_duplicate_labels(ax, loc=0):
     handles, labels = ax.get_legend_handles_labels()
     unique = [
         (h, l)
         for i, (h, l) in enumerate(zip(handles[::-1], labels[::-1]))
         if l not in labels[::-1][:i]
     ]
-    ax.legend(*zip(*unique))
+    ax.legend(*zip(*unique), loc=loc)
 
 
 def set_style():

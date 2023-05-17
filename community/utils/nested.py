@@ -1,4 +1,5 @@
 import numpy as np
+import torch
 
 
 def nested_shape(output):
@@ -29,8 +30,14 @@ def nested_sup(acc, best_acc):
     try:
         sup = acc > best_acc
         return sup.all()
-
     except ValueError:
         return np.array([nested_sup(a, best_acc) for a in acc]).all()
-    except AttributeError:
+    except (AttributeError, TypeError) as e:
         return sup
+
+
+def nested_mean(losses):
+    try:
+        return torch.mean(losses)
+    except TypeError:
+        return torch.stack([nested_mean(l) for l in losses]).mean()
