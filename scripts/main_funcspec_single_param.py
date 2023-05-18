@@ -151,6 +151,7 @@ if __name__ == "__main__":
         "nb_steps": 4,
         "split_classes": True,
         "cov_ratio": 1.0,
+        "noise_ratio" : None
     }
 
     symbol_config = {
@@ -297,7 +298,7 @@ if __name__ == "__main__":
 
         load = True
         varying_params_sweep, load = get_config_manual_lock(
-            sweep_path, run_id, finish_undone=True
+            sweep_path, run_id, finish_undone=False
         )
 
         if varying_params_sweep is None:

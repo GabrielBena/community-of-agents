@@ -159,6 +159,7 @@ def get_pearson_metrics(
     symbols = config["datasets"]["data_type"] == "symbols"
     nb_steps = config["datasets"]["nb_steps"]
     common_input = config["datasets"]["common_input"]
+    noise_ratio = config["datasets"]["noise_ratio"]
 
     if type(use_tqdm) is int:
         position = use_tqdm
@@ -186,6 +187,7 @@ def get_pearson_metrics(
             symbols=symbols,
             n_steps=nb_steps,
             common_input=common_input,
+            noise_ratio=noise_ratio,
         )
         datas = datas.to(device)
 

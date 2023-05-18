@@ -70,6 +70,7 @@ def readout_retrain(
     symbols = config["datasets"]["data_type"] == "symbols"
     nb_steps = config["datasets"]["nb_steps"]
     common_input = config["datasets"]["common_input"]
+    noise_ratio = config["datasets"]["noise_ratio"]
 
     f_config = copy.deepcopy(config)
 
@@ -137,6 +138,7 @@ def readout_retrain(
             "n_classes_per_digit": n_classes,
             "common_input": common_input,
             "nb_steps": nb_steps,
+            'noise_ratio' : noise_ratio,
         }
 
         train_outs.append(
