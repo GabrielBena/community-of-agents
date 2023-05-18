@@ -82,7 +82,7 @@ if __name__ == "__main__":
         "--debug",
         help="Do a debug run with limited data and iterations",
         action="store_true",
-        default=False,
+        default=True,
     )
 
     parser.add_argument(
@@ -148,7 +148,7 @@ if __name__ == "__main__":
         "n_digits": n_digits,
         "n_classes": n_classes,
         "n_classes_per_digit": n_classes_per_digit,
-        "nb_steps": 4,
+        "nb_steps": 5,
         "split_classes": True,
         "cov_ratio": 1.0,
         "noise_ratio" : None
@@ -183,6 +183,7 @@ if __name__ == "__main__":
         "lr": 1e-3,
         "gamma": 0.95,
         "reg_readout": None,
+        "weight_decay": 1e-3,
     }
 
     deepR_config = {
