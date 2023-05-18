@@ -18,15 +18,8 @@ from copy import deepcopy
 
 
 def init_and_train(config, loaders, device):
-
     use_wandb = wandb.run is not None
     wandb_log = use_wandb and config["wandb_log"]
-
-    agents_params_dict = config["model"]["agents"]
-    connections_params_dict = config["model"]["connections"]
-
-    deepR_params_dict = config["optimization"]["connections"]
-    params_dict = config["optimization"]["agents"]
 
     use_tqdm = config["use_tqdm"] if not config["hpc"] else False
 
@@ -55,10 +48,13 @@ def init_and_train(config, loaders, device):
 
     community = init_community(config["model"], device)
 
-    optimizers, schedulers = init_optimizers(community, params_dict, deepR_params_dict)
+    optimizers, schedulers = init_optimizers(
+        community,
+        config["optimization"]["agents"],
+        config["optimization"]["connections"],
+    )
 
     if not config["metrics_only"]:
-
         training_dict = get_training_dict(config)
         train_out = train_community(
             community,
@@ -83,7 +79,6 @@ def init_and_train(config, loaders, device):
             "Mean Decision",  # + "_bottleneck" * use_bottleneck,
         ]
         for metric, metric_name in zip([best_test_acc, mean_d_ags], metric_names):
-
             try:
                 for m, sub_metric in enumerate(metric):
                     if wandb_log:
@@ -107,7 +102,6 @@ def init_and_train(config, loaders, device):
 
 
 def compute_all_metrics(trained_coms, loaders, config, device):
-
     if config is None:
         config = wandb.config
 
@@ -171,14 +165,12 @@ def compute_all_metrics(trained_coms, loaders, config, device):
 
     # ------ Ablations ------
     for retrained_community in retrained_nets:
-
         retrained_community.readout_config["readout_from"] = None
         retrained_community.readout = retrained_community.readout[-1]
 
     ablated_accs = []
 
     for ts, retrained_community in zip(chosen_timesteps, retrained_nets):
-
         ablation_config = get_training_dict(deepcopy(config))
         ablation_config["task"] = "both"
         ablation_config["decision"][1] = "all"
@@ -223,7 +215,6 @@ def compute_all_metrics(trained_coms, loaders, config, device):
 
 
 def create_metric_table(metrics, config, best_acc):
-
     if config is None:
         config = wandb.config
 
@@ -239,7 +230,6 @@ def create_metric_table(metrics, config, best_acc):
     metric_data = {}
 
     for step, ts in enumerate(metric_ts):
-
         metric_data.setdefault("Step", [])
         metric_data["Step"].append(ts)
 
@@ -251,7 +241,6 @@ def create_metric_table(metrics, config, best_acc):
             metric_data[v_param_name].append(v_param)
 
         for metric_name, metric in metrics.items():
-
             try:
                 step_single_metrics = metric[step]
 
@@ -261,7 +250,6 @@ def create_metric_table(metrics, config, best_acc):
                     ag_single_metrics = step_single_metrics
 
                 if len(ag_single_metrics.shape) == 2:
-
                     metric_data.setdefault(metric_name + "_det", [])
                     metric_data.setdefault(metric_name + "_det_col_norm", [])
 
@@ -276,7 +264,6 @@ def create_metric_table(metrics, config, best_acc):
 
                     if False:
                         for norm in [1, 2, "fro", "nuc"]:
-
                             metric_data.setdefault(metric_name + f"_norm_{norm}", [])
                             metric_data[metric_name + f"_norm_{norm}"].append(
                                 LA.norm(step_single_metrics, norm)
@@ -291,7 +278,6 @@ def create_metric_table(metrics, config, best_acc):
                         )
 
                         for ag, ag_single_metric in enumerate(ag_single_metrics):
-
                             assert len(ag_single_metric.shape) == 1
                             metric_data.setdefault(
                                 metric_name + f"_{ag}_local_diff", []
@@ -303,7 +289,6 @@ def create_metric_table(metrics, config, best_acc):
                 if metric_name == "retraining":
                     common_single_metric = step_single_metrics[-1]
                     if len(common_single_metric.shape) == 1:
-
                         metric_data.setdefault(metric_name + "_all_local_diff", [])
                         metric_data[metric_name + "_all_local_diff"].append(
                             diff_metric(common_single_metric)
@@ -316,7 +301,6 @@ def create_metric_table(metrics, config, best_acc):
 
 
 def train_and_compute_metrics(config, loaders, device):
-
     # ------ Train ------
 
     trained_coms, train_outs = init_and_train(config, loaders, device)

@@ -75,19 +75,27 @@ def init_optimizers(community, params_dict, deepR_params_dict=None):
         deepR_params_dict : Sparse connections learning parameters
     """
     reg_readout = params_dict["reg_readout"]
+    weight_decay = params_dict["weight_decay"]
+    lr = params_dict["lr"]
+
     if not reg_readout:
-        optimizer = torch.optim.Adam(community.parameters(), lr=1e-3)
+        optimizer = torch.optim.Adam(community.parameters(), lr=lr)
+    elif weight_decay:
+        optimizer = torch.optim.AdamW(
+            community.parameters(), lr=lr, weight_decay=weight_decay
+        )
     else:
         optimizer = torch.optim.AdamW(
             [p for n, p in community.named_parameters() if "readout" not in n],
-            lr=1e-3,
+            lr=lr,
+            weight_decay=weight_decay,
         )
         optimizer.add_param_group(
             {
                 "params": [
                     p for n, p in community.named_parameters() if "readout" in n
                 ],
-                "lr": 1e-3,
+                "lr": lr,
                 "weight_decay": reg_readout,
             }
         )
