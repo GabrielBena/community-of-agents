@@ -71,6 +71,7 @@ def readout_retrain(
     nb_steps = config["datasets"]["nb_steps"]
     common_input = config["datasets"]["common_input"]
     noise_ratio = config["datasets"]["noise_ratio"]
+    random_start = config["datasets"]["random_start"]
 
     f_config = copy.deepcopy(config)
 
@@ -109,9 +110,9 @@ def readout_retrain(
                 p.requires_grad = train_all_param
 
         lr_ag, gamma = 1e-3, 0.9
-        params_dict = {"lr": lr_ag, "gamma": gamma, "reg_readout": None}
+        optim_dict = config["optimization"]["agents"].copy()
 
-        optimizers, schedulers = init_optimizers(f_community, params_dict)
+        optimizers, schedulers = init_optimizers(f_community, optim_dict)
 
         try:
             min_acc = community.best_acc * 0.95
@@ -138,7 +139,8 @@ def readout_retrain(
             "n_classes_per_digit": n_classes,
             "common_input": common_input,
             "nb_steps": nb_steps,
-            'noise_ratio' : noise_ratio,
+            "noise_ratio": noise_ratio,
+            "random_start": random_start,
         }
 
         train_outs.append(

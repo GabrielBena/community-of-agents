@@ -35,6 +35,7 @@ def get_training_dict(config):
         "nb_steps": config["datasets"]["nb_steps"],
         "hpc": config["hpc"],
         "noise_ratio": config["datasets"]["noise_ratio"],
+        "random_start": config["datasets"]["random_start"],
     }
 
     return training_dict

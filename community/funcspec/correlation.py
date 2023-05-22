@@ -200,6 +200,8 @@ def get_pearson_metrics(
                     chosen_steps.append(community.min_t_comms - 1)
                 elif t == "mid+":
                     chosen_steps.append(community.min_t_comms)
+                elif t == 'mid':
+                    chosen_steps.append(nb_steps // 2)
                 elif t == "last":
                     chosen_steps.append(-1)
                 else:

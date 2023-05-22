@@ -3,11 +3,10 @@ import numpy as np
 from .tasks import rotation_conflict_task, get_task_target
 
 
-def temporal_data(data, n_steps=2, conv_com=False, noise_ratio=None):
+def temporal_data(data, n_steps=2, flatten=True, noise_ratio=None, random_start=False):
     """
     Stack data in time for use with RNNs
     """
-    flatten = not conv_com
     is_list = type(data) is list
     if flatten and not is_list:
         if data.shape[1] == 1:
@@ -18,18 +17,15 @@ def temporal_data(data, n_steps=2, conv_com=False, noise_ratio=None):
     data = [data for _ in range(n_steps)]
     if not is_list:
         data = torch.stack(data)
-    if not is_list and len(data.shape) > 3 and not conv_com:
+    if not is_list and len(data.shape) > 3 and flatten:
         data = data.transpose(1, 2)
 
     if noise_ratio is not None:
-        data = torch.stack(
-            [
-                add_structured_noise(d.transpose(0, 1), noise_ratio=noise_ratio)[0]
-                for d in data
-            ]
-        ).transpose(1, 2)
+        data, start_times = add_temporal_noise(
+            data, n_samples=5, noise_ratio=noise_ratio, random_start=random_start
+        )
 
-    return data
+    return data, start_times
 
 
 def add_structured_noise(data, n_samples=5, noise_ratio=0.9):
@@ -44,6 +40,50 @@ def add_structured_noise(data, n_samples=5, noise_ratio=0.9):
     )
     noised_data = (1 - noise_ratio) * data + noise_ratio * noised_samples.mean(1)
     return noised_data, noised_idxs, noised_samples
+
+
+def add_temporal_noise(
+    data, n_samples=5, noise_ratio=0.9, random_start=False, common_input=False
+):
+    # data should be shape n_steps x (n_agents) x n_sample x n_features
+
+    data = data.transpose(1, 2)  # n_steps x n_samples x (n_agents) x n_features
+    noise_data = torch.stack(
+        [add_structured_noise(d, n_samples, noise_ratio)[0] for d in data]
+    ).transpose(1, 2)
+    nb_steps = data.shape[0]
+
+    if random_start:
+        if common_input:
+            start_times = torch.randint(1, data.shape[0] - 1, (data.shape[1],))
+            mask = (
+                torch.arange(nb_steps)[:, None]
+                >= start_times[
+                    None,
+                    :,
+                ]
+            )
+        else:
+            start_times = torch.randint(
+                1, data.shape[0] - 1, (data.shape[1], data.shape[2])
+            )
+            mask = (
+                torch.arange(nb_steps)[:, None, None]
+                >= start_times[
+                    None,
+                    :,
+                ]
+            )
+
+        mask = mask[..., None].transpose(1, 2)
+        pure_noise = torch.stack(
+            [add_structured_noise(d, n_samples, 1.0)[0] for d in data]
+        ).transpose(1, 2)
+        noise_data = mask * noise_data + (~mask) * pure_noise
+
+        return noise_data, start_times
+    else:
+        return noise_data, None
 
 
 def varying_temporal_data(
@@ -102,13 +142,13 @@ def flatten_double_data(data):
 def process_data(
     data,
     target,
-    task,
+    task="none",
     symbols=False,
     n_steps=2,
     common_input=False,
-    varying_temporal=False,
-    conv_com=False,
+    flatten=True,
     noise_ratio=None,
+    random_start=False,
 ):
     if symbols:
         if len(data.shape) == 5:
@@ -126,19 +166,18 @@ def process_data(
         except ValueError:
             n_angles = 4
         data, target, _ = rotation_conflict_task(data, target, n_angles)
-        data = temporal_data(data, n_steps=n_steps, conv_com=conv_com)
+        data = temporal_data(data, n_steps=n_steps, flatten=flatten)
+
     else:
-        if not varying_temporal:
-            data = temporal_data(
-                data, n_steps=n_steps, conv_com=conv_com, noise_ratio=noise_ratio
-            )
-        else:
-            data, target = varying_temporal_data(
-                data, target, n_steps=n_steps, conv_com=conv_com, transpose_and_cat=True
-            )
+        data, start_times = temporal_data(
+            data,
+            n_steps=n_steps,
+            flatten=flatten,
+            noise_ratio=noise_ratio,
+            random_start=random_start,
+        )
         if common_input:
-            # print(data.shape)
             data = data.transpose(1, 2)
             data = data.reshape(data.shape[0], data.shape[1], -1)
 
-    return data, target
+    return data, target, start_times

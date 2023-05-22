@@ -211,6 +211,7 @@ def train_community(
     common_input = config["common_input"]
     n_steps = config["nb_steps"]
     noise_ratio = config["noise_ratio"]
+    random_start = config["random_start"]
 
     n_classes = config["n_classes"]
     n_classes_per_digit = config["n_classes_per_digit"]
@@ -225,7 +226,7 @@ def train_community(
     elif use_tqdm:
         position = 0
 
-    conv_com = type(model) is ConvCommunity
+    flatten = not (type(model) is ConvCommunity)
     if train_connections and model.is_community:
         thetas_list = [
             c.thetas[0] for c in model.connections.values() if c.is_deepR_connect
@@ -259,6 +260,7 @@ def train_community(
         common_input=common_input,
         task=task,
         noise_ratio=noise_ratio,
+        random_start=random_start,
     )
     *_, fconns = model(data.to(device))
 
@@ -283,11 +285,12 @@ def train_community(
                     data,
                     target,
                     task,
-                    conv_com=conv_com,
+                    flatten=flatten,
                     symbols=symbols,
                     common_input=common_input,
                     n_steps=n_steps,
                     noise_ratio=noise_ratio,
+                    random_start=random_start,
                 )
 
                 t_target = get_task_target(target, task, n_classes_per_digit)
@@ -479,9 +482,10 @@ def test_community(
     task = config["task"]
     decision = config["decision"]
     noise_ratio = config["noise_ratio"]
+    random_start = config["random_start"]
 
     model.eval()
-    conv_com = type(model) is ConvCommunity
+    flatten = not (type(model) is ConvCommunity)
     test_loss = 0
     correct = 0
     acc = 0
@@ -494,11 +498,12 @@ def test_community(
         data,
         target,
         task=task,
-        conv_com=conv_com,
+        flatten=flatten,
         symbols=symbols,
         common_input=common_input,
         n_steps=n_steps,
         noise_ratio=noise_ratio,
+        random_start=random_start,
     )
     *_, fconns = model(data.to(device))
     with torch.no_grad():
@@ -512,11 +517,12 @@ def test_community(
                 data,
                 target,
                 task=task,
-                conv_com=conv_com,
+                flatten=flatten,
                 symbols=symbols,
                 common_input=common_input,
                 n_steps=n_steps,
                 noise_ratio=noise_ratio,
+                random_start=random_start,
             )
 
             t_target = get_task_target(target, task, n_classes_per_digit)
@@ -606,14 +612,14 @@ def plot_confusion_mat(
     decision = config["decision"]
     common_input = config["common_input"]
     n_steps = config["nb_steps"]
-    conv_com = type(model) is ConvCommunity
+    flatten = not (type(model) is ConvCommunity)
 
     for batch_idx, (data, target) in enumerate(test_loader):
         data, target = process_data(
             data,
             target,
             task=task,
-            conv_com=conv_com,
+            flatten=flatten,
             symbols=symbols,
             common_input=common_input,
             n_steps=n_steps,
