@@ -343,7 +343,7 @@ if __name__ == "__main__":
         [
             np.array([0]),
             np.unique(
-                (np.geomspace(1, n**2, 20, endpoint=True, dtype=int) / n**2).round(
+                (np.geomspace(1, n**2, 30, endpoint=True, dtype=int) / n**2).round(
                     4
                 )
             ),

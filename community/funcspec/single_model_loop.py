@@ -229,73 +229,119 @@ def create_metric_table(metrics, config, best_acc):
     metric_ts = config["metrics"]["chosen_timesteps"]
     metric_data = {}
 
-    for step, ts in enumerate(metric_ts):
-        metric_data.setdefault("Step", [])
-        metric_data["Step"].append(ts)
+    if True:
 
-        metric_data.setdefault("best_acc", [])
-        metric_data["best_acc"].append(best_acc)
+        for step, ts in enumerate(metric_ts):
+            metric_data.setdefault("Step", [])
+            metric_data["Step"].append(ts)
 
-        for v_param_name, v_param in varying_params_all.items():
-            metric_data.setdefault(v_param_name, [])
-            metric_data[v_param_name].append(v_param)
+            metric_data.setdefault("best_acc", [])
+            metric_data["best_acc"].append(best_acc)
 
-        for metric_name, metric in metrics.items():
-            try:
-                step_single_metrics = metric[step]
+            for v_param_name, v_param in varying_params_all.items():
+                metric_data.setdefault(v_param_name, [])
+                metric_data[v_param_name].append(v_param)
 
-                if metric_name == "retraining":
-                    ag_single_metrics = step_single_metrics[:-1]
-                else:
-                    ag_single_metrics = step_single_metrics
+            for metric_name, metric in metrics.items():
 
-                if len(ag_single_metrics.shape) == 2:
-                    metric_data.setdefault(metric_name + "_det", [])
-                    metric_data.setdefault(metric_name + "_det_col_norm", [])
+                try:
+                    step_single_metrics = metric[step]
 
-                    metric_data[metric_name + "_det"].append(
-                        np.abs(LA.det(ag_single_metrics))
-                    )
+                    if metric_name == "retraining":
+                        ag_single_metrics = step_single_metrics[:-1]
+                    else:
+                        ag_single_metrics = step_single_metrics
 
-                    metric_data[metric_name + "_det_col_norm"].append(
-                        np.abs(LA.det(ag_single_metrics))
-                        / ag_single_metrics.sum(0).prod()
-                    )
+                    if len(ag_single_metrics.shape) == 2:
+                        metric_data.setdefault(metric_name + "_det", [])
+                        metric_data.setdefault(metric_name + "_det_col_norm", [])
 
-                    if False:
-                        for norm in [1, 2, "fro", "nuc"]:
-                            metric_data.setdefault(metric_name + f"_norm_{norm}", [])
-                            metric_data[metric_name + f"_norm_{norm}"].append(
-                                LA.norm(step_single_metrics, norm)
-                            )
-
-                    if ag_single_metrics.shape[0] == 2:
-                        community_diff_metric = global_diff_metric(ag_single_metrics)
-
-                        metric_data.setdefault(metric_name + "_global_diff", [])
-                        metric_data[metric_name + "_global_diff"].append(
-                            community_diff_metric
+                        metric_data[metric_name + "_det"].append(
+                            np.abs(LA.det(ag_single_metrics))
                         )
 
-                        for ag, ag_single_metric in enumerate(ag_single_metrics):
-                            assert len(ag_single_metric.shape) == 1
-                            metric_data.setdefault(
-                                metric_name + f"_{ag}_local_diff", []
-                            )
-                            metric_data[metric_name + f"_{ag}_local_diff"].append(
-                                diff_metric(ag_single_metric)
-                            )
-
-                if metric_name == "retraining":
-                    common_single_metric = step_single_metrics[-1]
-                    if len(common_single_metric.shape) == 1:
-                        metric_data.setdefault(metric_name + "_all_local_diff", [])
-                        metric_data[metric_name + "_all_local_diff"].append(
-                            diff_metric(common_single_metric)
+                        metric_data[metric_name + "_det_col_norm"].append(
+                            np.abs(LA.det(ag_single_metrics))
+                            / ag_single_metrics.sum(0).prod()
                         )
 
-            except TypeError:
-                continue
+                        if False:
+                            for norm in [1, 2, "fro", "nuc"]:
+                                metric_data.setdefault(
+                                    metric_name + f"_norm_{norm}", []
+                                )
+                                metric_data[metric_name + f"_norm_{norm}"].append(
+                                    LA.norm(step_single_metrics, norm)
+                                )
+
+                        if ag_single_metrics.shape[0] == 2:
+                            community_diff_metric = global_diff_metric(
+                                ag_single_metrics
+                            )
+
+                            metric_data.setdefault(metric_name + "_global_diff", [])
+                            metric_data[metric_name + "_global_diff"].append(
+                                community_diff_metric
+                            )
+
+                            for ag, ag_single_metric in enumerate(ag_single_metrics):
+                                assert len(ag_single_metric.shape) == 1
+                                metric_data.setdefault(
+                                    metric_name + f"_{ag}_local_diff", []
+                                )
+                                metric_data[metric_name + f"_{ag}_local_diff"].append(
+                                    diff_metric(ag_single_metric)
+                                )
+
+                                for digit, digit_single_metric in enumerate(
+                                    ag_single_metric
+                                ):
+
+                                    metric_data.setdefault(
+                                        metric_name + f"_ag_{ag}_digit_{digit}",
+                                        [],
+                                    )
+                                    metric_data[
+                                        metric_name + f"_ag_{ag}_digit_{digit}"
+                                    ].append(digit_single_metric)
+
+                    if metric_name == "retraining":
+                        common_single_metric = step_single_metrics[-1]
+                        if len(common_single_metric.shape) == 1:
+                            metric_data.setdefault(metric_name + "_all_local_diff", [])
+                            metric_data[metric_name + "_all_local_diff"].append(
+                                diff_metric(common_single_metric)
+                            )
+                            for digit, digit_single_metric in enumerate(
+                                ag_single_metric
+                            ):
+
+                                metric_data.setdefault(
+                                    metric_name + f"_common_digit_{digit}",
+                                    [],
+                                )
+
+                                metric_data[
+                                    metric_name + f"_common_digit_{digit}"
+                                ].append(digit_single_metric)
+
+                except TypeError:
+                    continue
+
+    else:
+        single_digit_metric = {
+            name: {
+                ts: {
+                    ag: {
+                        digit: metric[step][ag][digit]
+                        for digit in range(len(metric[ag]))
+                    }
+                    for ag in range(len(metric))
+                }
+                for step, ts in enumerate(metric_ts)
+            }
+            for name, metric in metrics.items()
+        }
 
     return metric_data
 

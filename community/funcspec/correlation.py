@@ -180,7 +180,7 @@ def get_pearson_metrics(
 
     for (datas, label), _ in zip(pbar, range(100)):
 
-        datas, _ = process_data(
+        datas, *_ = process_data(
             datas,
             label,
             task="none",
@@ -206,7 +206,7 @@ def get_pearson_metrics(
                     chosen_steps.append(-1)
                 else:
                     raise ValueError(
-                        f"timestep {t} at which to compute correleation not recognized"
+                        f"timestep {t} at which to compute correlation not recognized"
                     )
 
         perm = lambda s: randperm_no_fixed(s.shape[0])
@@ -218,6 +218,8 @@ def get_pearson_metrics(
                 for s_ag in [base_states[t] for t in chosen_steps]
             ]
         )  # n_timesteps x n_agents
+
+        base_correlations.append(base_corrs)
 
         for target_digit in range(2):
 
@@ -274,8 +276,6 @@ def get_pearson_metrics(
                 corrs
             )  # n_batches x n_timesteps x n_agents x n_classes
 
-        base_correlations.append(base_corrs)
-
     try:
         correlations = np.stack(
             [np.stack(c, 2) for c in correlations], 1
@@ -292,6 +292,7 @@ def get_pearson_metrics(
             "mean_corrs": mean_corrs,
             "relative_corrs": relative_corrs,
             "base_corrs": base_corrs,
+            "all_corrs" : correlations,
         }
     except ValueError:
 

@@ -60,9 +60,9 @@ def get_loss(output, t_target, both=False):
     return loss
 
 
-def get_acc(output, t_target, both=False):
+def get_acc(output, t_target, both=False, keep_all=False):
     if both:
-        acc = [get_acc(o, t_target) for o in output]
+        acc = [get_acc(o, t_target, keep_all=keep_all) for o in output]
 
     else:
         n_tasks = len(t_target)
@@ -76,19 +76,27 @@ def get_acc(output, t_target, both=False):
 
                 correct = pred.eq(t_target.view_as(pred))
                 if len(pred.shape) > 2:
-                    acc = [get_acc(o, t) for o, t in zip(output, t_target)]
+                    acc = [
+                        get_acc(o, t, keep_all=keep_all)
+                        for o, t in zip(output, t_target)
+                    ]
                 else:
-                    acc = (correct.sum() / t_target.numel()).cpu().data.numpy()
+                    if not keep_all:
+                        acc = (correct.sum() / t_target.numel()).cpu().data.numpy()
+                    else:
+                        return correct.squeeze().cpu().data.numpy()
 
             # task is list, get acc for all pairs
             except AttributeError as e:
-                acc = [get_acc(o, t) for o, t in zip(output, t_target)]
+                acc = [
+                    get_acc(o, t, keep_all=keep_all) for o, t in zip(output, t_target)
+                ]
 
             except (TypeError, RuntimeError) as e:
-                acc = [get_acc(o, t_target) for o in output]
+                acc = [get_acc(o, t_target, keep_all=keep_all) for o in output]
 
         else:
-            acc = [get_acc(o, t_target) for o in output]
+            acc = [get_acc(o, t_target, keep_all=keep_all) for o in output]
 
     return np.array(acc)
 
@@ -252,7 +260,7 @@ def train_community(
 
     # dummy fwd for shapes
     data, target = next(iter(train_loader))
-    data, target = process_data(
+    data, target, _ = process_data(
         data,
         target,
         symbols=symbols,
@@ -281,7 +289,7 @@ def train_community(
                 # Forward pass
 
                 # Task Selection
-                data, target = process_data(
+                data, target, _ = process_data(
                     data,
                     target,
                     task,
@@ -494,7 +502,7 @@ def test_community(
         torch.manual_seed(seed)
 
     data, target = next(iter(test_loader))
-    data, target = process_data(
+    data, target, _ = process_data(
         data,
         target,
         task=task,
@@ -513,7 +521,7 @@ def test_community(
             else:
                 data, target = data.to(device), target.to(device)
 
-            data, t_target = process_data(
+            data, t_target, _ = process_data(
                 data,
                 target,
                 task=task,
@@ -615,7 +623,7 @@ def plot_confusion_mat(
     flatten = not (type(model) is ConvCommunity)
 
     for batch_idx, (data, target) in enumerate(test_loader):
-        data, target = process_data(
+        data, target, _ = process_data(
             data,
             target,
             task=task,

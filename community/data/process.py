@@ -24,6 +24,8 @@ def temporal_data(data, n_steps=2, flatten=True, noise_ratio=None, random_start=
         data, start_times = add_temporal_noise(
             data, n_samples=5, noise_ratio=noise_ratio, random_start=random_start
         )
+    else:
+        start_times = None
 
     return data, start_times
 
@@ -150,6 +152,7 @@ def process_data(
     noise_ratio=None,
     random_start=False,
 ):
+    start_times = None
     if symbols:
         if len(data.shape) == 5:
             data = data.permute(1, 2, 0, 3, 4).float()
