@@ -151,7 +151,8 @@ if __name__ == "__main__":
         "nb_steps": 5,
         "split_classes": True,
         "cov_ratio": 1.0,
-        "noise_ratio" : None
+        "noise_ratio": None,
+        "random_start": False,
     }
 
     symbol_config = {

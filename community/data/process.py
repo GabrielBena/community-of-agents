@@ -38,7 +38,7 @@ def add_structured_noise(data, n_samples=5, noise_ratio=0.9):
         ]
     )
     noised_samples = data[noised_idxs] * (
-        torch.rand([n_samples] + list(data.shape[1:])) < (1 / n_samples)
+        torch.rand([n_samples] + list(data.shape[1:])).to(data.device) < (1 / n_samples)
     )
     noised_data = (1 - noise_ratio) * data + noise_ratio * noised_samples.mean(1)
     return noised_data, noised_idxs, noised_samples

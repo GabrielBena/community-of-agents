@@ -133,7 +133,6 @@ def compute_all_metrics(trained_coms, loaders, config, device):
     )
 
     """
-
     # ------ Correlations ------
     correlations_results = get_pearson_metrics(
         community,
@@ -143,7 +142,7 @@ def compute_all_metrics(trained_coms, loaders, config, device):
         use_tqdm=use_tqdm,
         chosen_timesteps=chosen_timesteps,
     )
-    mean_corrs, relative_corrs, base_corrs = list(
+    mean_corrs, relative_corrs, base_corrs, all_corrs = list(
         correlations_results.values()
     )  # n_timesteps x n_agents x n_targets
 
@@ -230,7 +229,6 @@ def create_metric_table(metrics, config, best_acc):
     metric_data = {}
 
     if True:
-
         for step, ts in enumerate(metric_ts):
             metric_data.setdefault("Step", [])
             metric_data["Step"].append(ts)
@@ -243,7 +241,6 @@ def create_metric_table(metrics, config, best_acc):
                 metric_data[v_param_name].append(v_param)
 
             for metric_name, metric in metrics.items():
-
                 try:
                     step_single_metrics = metric[step]
 
@@ -296,7 +293,6 @@ def create_metric_table(metrics, config, best_acc):
                                 for digit, digit_single_metric in enumerate(
                                     ag_single_metric
                                 ):
-
                                     metric_data.setdefault(
                                         metric_name + f"_ag_{ag}_digit_{digit}",
                                         [],
@@ -315,7 +311,6 @@ def create_metric_table(metrics, config, best_acc):
                             for digit, digit_single_metric in enumerate(
                                 ag_single_metric
                             ):
-
                                 metric_data.setdefault(
                                     metric_name + f"_common_digit_{digit}",
                                     [],
