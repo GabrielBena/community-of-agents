@@ -82,7 +82,7 @@ if __name__ == "__main__":
         "--debug",
         help="Do a debug run with limited data and iterations",
         action="store_true",
-        default=True,
+        default=False,
     )
 
     parser.add_argument(
@@ -208,7 +208,7 @@ if __name__ == "__main__":
 
     agents_config = {
         "n_in": dataset_config["input_size"],
-        "n_hidden": 20,
+        "n_hidden": 25,
         "n_bot": None,
         "n_layers": 1,
         "train_in_out": (True, True),
@@ -252,11 +252,12 @@ if __name__ == "__main__":
                 [
                     0,
                     int(model_config["connections"]["comms_start"]) - 1,
+                    int(model_config["connections"]["comms_start"]),
                     dataset_config["nb_steps"] - 1,
                 ]
             )
         },
-        "varying_params_sweep": {},
+        "varying_params_sweep": {"nb_steps": [5]},
         "varying_params_local": {},
         ###------ Task ------
         "task": "family",
@@ -355,17 +356,18 @@ if __name__ == "__main__":
     )
 
     varying_params_local = {"sparsity": sparsities}
+    # varying_params_local.update({"noise_ratio": [0.0, 0.5, 0.9]})
 
-    # if "nb_steps" in wandb.config["varying_params_sweep"]:
-    #     start_times = np.unique(
-    #         [
-    #             1,
-    #             wandb.config["varying_params_sweep"]["nb_steps"] // 2,
-    #             wandb.config["varying_params_sweep"]["nb_steps"] - 1,
-    #         ]
-    #     )
+    if "nb_steps" in wandb.config["varying_params_sweep"]:
+        start_times = np.unique(
+            [
+                1,
+                wandb.config["varying_params_sweep"]["nb_steps"] // 2,
+                wandb.config["varying_params_sweep"]["nb_steps"] - 1,
+            ]
+        )
 
-    #     varying_params_local.update({"comms_start": start_times})
+        varying_params_local.update({"comms_start": start_times})
 
     varying_params_local = get_all_v_params(varying_params_local)
 
