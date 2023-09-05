@@ -24,7 +24,6 @@ from yaml.loader import SafeLoader
 
 
 def masked_inference(excluded, community, data, t_target, decision):
-
     excluded = np.array(excluded, dtype=int)
 
     common_readout = community.readout is not None
@@ -88,7 +87,6 @@ def masked_inference(excluded, community, data, t_target, decision):
 
 
 def get_data(task, loaders, n_classes_per_digit, symbols, common_input):
-
     data, target = [], []
     for (d, t), _ in zip(loaders[1], range(4)):
         data.append(d)
@@ -96,7 +94,7 @@ def get_data(task, loaders, n_classes_per_digit, symbols, common_input):
 
     data, target = torch.cat(data), torch.cat(target)
     # data, target = datasets[1].data[0][:512], datasets[1].data[1][:512]
-    data, target = process_data(
+    data, target, _ = process_data(
         data, target, task, symbols=symbols, common_input=common_input
     )
     t_target = get_task_target(target, task, n_classes_per_digit)
@@ -112,7 +110,6 @@ def compute_shapley_values(
     config,
     parallel=False,
 ):
-
     permutation_space = msa.make_permutation_space(
         elements=nodes, n_permutations=n_permutations
     )
@@ -133,7 +130,6 @@ def compute_shapley_values(
     all_accs = []
 
     for task in ["0", "1"]:
-
         if common_readout:
             decision = ["last", task]
         else:
@@ -158,7 +154,6 @@ def compute_shapley_values(
         print(f"Task {task} : Performance without ablations : {masked_inf([])}")
 
         if parallel:
-
             try:
                 all_accs.append(
                     pool.map(
@@ -171,7 +166,7 @@ def compute_shapley_values(
             finally:
                 pool.terminate()
                 pool.join()
-        
+
         else:
             all_accs.append(
                 list(
@@ -196,7 +191,6 @@ def compute_shapley_values(
 
 
 if __name__ == "__main__":
-
     with open("latest_config.yml", "r") as config_file:
         config = yaml.load(config_file, SafeLoader)
 
@@ -252,7 +246,6 @@ if __name__ == "__main__":
         data_config, batch_size, use_cuda, plot=True
     )
     try:
-
         saved_results = torch.load("saves/results")
         train_results = saved_results[str(config)]
         community.load_state_dict(train_results["best_state"])

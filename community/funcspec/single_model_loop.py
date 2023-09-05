@@ -151,7 +151,7 @@ def compute_all_metrics(trained_coms, loaders, config, device):
         community,
         loaders,
         config,
-        n_epochs=2,
+        n_epochs=5,
         device=device,
         use_tqdm=use_tqdm,
         chosen_timesteps=chosen_timesteps,
@@ -159,8 +159,8 @@ def compute_all_metrics(trained_coms, loaders, config, device):
         common_input=config["datasets"]["common_input"],
     )
     # n_timesteps x (n_agents + 1) x n_targets
-    retraining_accs = retraining_results[0]["accs"]
-    retrained_nets = retraining_results[1]
+    retraining_accs = retraining_results["accs"]
+    retrained_nets = retraining_results["nets"]
 
     # ------ Ablations ------
     for retrained_community in retrained_nets:
@@ -199,13 +199,16 @@ def compute_all_metrics(trained_coms, loaders, config, device):
     # ------ Log ------
     # metrics = [correlations_metric, masks_metric, bottleneck_metric]
     # metric_names = ['Correlation', 'Masks', 'Bottleneck']
-    all_results = [correlations_results, retraining_results, ablation_results]
 
-    metric_names = ["retraining", "correlations", "ablations"]
-    metrics = [retraining_accs, mean_corrs, ablated_accs_ratio]
+    all_results = [retraining_results, correlations_results, ablation_results]
+    metrics = [retraining_accs, mean_corrs, base_corrs, ablated_accs]
+    metric_names = ["retraining", "correlations", "base_correlations", "ablations"]
 
     metric_results = {
         metric_name: metric for metric, metric_name in zip(metrics, metric_names)
+    }
+    all_results = {
+        metric_name: metric for metric, metric_name in zip(all_results, metric_names)
     }
 
     metric_data = create_metric_table(metric_results, config, community.best_acc)
@@ -230,16 +233,6 @@ def create_metric_table(metrics, config, best_acc):
 
     if True:
         for step, ts in enumerate(metric_ts):
-            metric_data.setdefault("Step", [])
-            metric_data["Step"].append(ts)
-
-            metric_data.setdefault("best_acc", [])
-            metric_data["best_acc"].append(best_acc)
-
-            for v_param_name, v_param in varying_params_all.items():
-                metric_data.setdefault(v_param_name, [])
-                metric_data[v_param_name].append(v_param)
-
             for metric_name, metric in metrics.items():
                 try:
                     step_single_metrics = metric[step]
@@ -249,76 +242,115 @@ def create_metric_table(metrics, config, best_acc):
                     else:
                         ag_single_metrics = step_single_metrics
 
-                    if len(ag_single_metrics.shape) == 2:
-                        metric_data.setdefault(metric_name + "_det", [])
-                        metric_data.setdefault(metric_name + "_det_col_norm", [])
+                    if False:
+                        if len(ag_single_metrics.shape) == 2:
+                            metric_data.setdefault(metric_name + "_det", [])
+                            metric_data.setdefault(metric_name + "_det_col_norm", [])
 
-                        metric_data[metric_name + "_det"].append(
-                            np.abs(LA.det(ag_single_metrics))
-                        )
-
-                        metric_data[metric_name + "_det_col_norm"].append(
-                            np.abs(LA.det(ag_single_metrics))
-                            / ag_single_metrics.sum(0).prod()
-                        )
-
-                        if False:
-                            for norm in [1, 2, "fro", "nuc"]:
-                                metric_data.setdefault(
-                                    metric_name + f"_norm_{norm}", []
-                                )
-                                metric_data[metric_name + f"_norm_{norm}"].append(
-                                    LA.norm(step_single_metrics, norm)
-                                )
-
-                        if ag_single_metrics.shape[0] == 2:
-                            community_diff_metric = global_diff_metric(
-                                ag_single_metrics
+                            metric_data[metric_name + "_det"].append(
+                                np.abs(LA.det(ag_single_metrics))
                             )
 
-                            metric_data.setdefault(metric_name + "_global_diff", [])
-                            metric_data[metric_name + "_global_diff"].append(
-                                community_diff_metric
+                            metric_data[metric_name + "_det_col_norm"].append(
+                                np.abs(LA.det(ag_single_metrics))
+                                / ag_single_metrics.sum(0).prod()
                             )
 
-                            for ag, ag_single_metric in enumerate(ag_single_metrics):
-                                assert len(ag_single_metric.shape) == 1
-                                metric_data.setdefault(
-                                    metric_name + f"_{ag}_local_diff", []
-                                )
-                                metric_data[metric_name + f"_{ag}_local_diff"].append(
-                                    diff_metric(ag_single_metric)
-                                )
-
-                                for digit, digit_single_metric in enumerate(
-                                    ag_single_metric
-                                ):
+                            if False:
+                                for norm in [1, 2, "fro", "nuc"]:
                                     metric_data.setdefault(
-                                        metric_name + f"_ag_{ag}_digit_{digit}",
-                                        [],
+                                        metric_name + f"_norm_{norm}", []
+                                    )
+                                    metric_data[metric_name + f"_norm_{norm}"].append(
+                                        LA.norm(step_single_metrics, norm)
+                                    )
+
+                            if ag_single_metrics.shape[0] == 2:
+                                community_diff_metric = global_diff_metric(
+                                    ag_single_metrics
+                                )
+
+                                metric_data.setdefault(metric_name + "_global_diff", [])
+                                metric_data[metric_name + "_global_diff"].append(
+                                    community_diff_metric
+                                )
+
+                                for ag, ag_single_metric in enumerate(
+                                    ag_single_metrics
+                                ):
+                                    assert len(ag_single_metric.shape) == 1
+                                    metric_data.setdefault(
+                                        metric_name + f"_{ag}_local_diff", []
                                     )
                                     metric_data[
-                                        metric_name + f"_ag_{ag}_digit_{digit}"
-                                    ].append(digit_single_metric)
+                                        metric_name + f"_{ag}_local_diff"
+                                    ].append(diff_metric(ag_single_metric))
+
+                                    for digit, digit_single_metric in enumerate(
+                                        ag_single_metric
+                                    ):
+                                        metric_data.setdefault(
+                                            metric_name + f"_ag_{ag}_digit_{digit}",
+                                            [],
+                                        )
+                                        metric_data[
+                                            metric_name + f"_ag_{ag}_digit_{digit}"
+                                        ].append(digit_single_metric)
+
+                    else:
+                        for ag, target_single_metric in enumerate(ag_single_metrics):
+                            for target, single_metric in enumerate(
+                                target_single_metric
+                            ):
+                                metric_data.setdefault("step", [])
+                                metric_data["step"].append(ts)
+
+                                metric_data.setdefault("best_acc", [])
+                                metric_data["best_acc"].append(best_acc)
+
+                                metric_data.setdefault("ag", [])
+                                metric_data["ag"].append(ag)
+
+                                metric_data.setdefault("target", [])
+                                metric_data["target"].append(target)
+
+                                metric_data.setdefault("metric_name", [])
+                                metric_data["metric_name"].append(metric_name)
+
+                                metric_data.setdefault("metric_value", [])
+                                metric_data["metric_value"].append(single_metric)
+
+                                for v_param_name, v_param in varying_params_all.items():
+                                    metric_data.setdefault(v_param_name, [])
+                                    metric_data[v_param_name].append(v_param)
 
                     if metric_name == "retraining":
                         common_single_metric = step_single_metrics[-1]
                         if len(common_single_metric.shape) == 1:
-                            metric_data.setdefault(metric_name + "_all_local_diff", [])
-                            metric_data[metric_name + "_all_local_diff"].append(
-                                diff_metric(common_single_metric)
-                            )
-                            for digit, digit_single_metric in enumerate(
-                                ag_single_metric
+                            for target, single_metric in enumerate(
+                                common_single_metric
                             ):
-                                metric_data.setdefault(
-                                    metric_name + f"_common_digit_{digit}",
-                                    [],
-                                )
+                                metric_data.setdefault("step", [])
+                                metric_data["step"].append(ts)
 
-                                metric_data[
-                                    metric_name + f"_common_digit_{digit}"
-                                ].append(digit_single_metric)
+                                metric_data.setdefault("best_acc", [])
+                                metric_data["best_acc"].append(best_acc)
+
+                                metric_data.setdefault("ag", [])
+                                metric_data["ag"].append("all")
+
+                                metric_data.setdefault("target", [])
+                                metric_data["target"].append(target)
+
+                                metric_data.setdefault("metric_name", [])
+                                metric_data["metric_name"].append(metric_name)
+
+                                metric_data.setdefault("metric_value", [])
+                                metric_data["metric_value"].append(single_metric)
+
+                                for v_param_name, v_param in varying_params_all.items():
+                                    metric_data.setdefault(v_param_name, [])
+                                    metric_data[v_param_name].append(v_param)
 
                 except TypeError:
                     continue

@@ -109,9 +109,7 @@ def readout_retrain(
             else:
                 p.requires_grad = train_all_param
 
-        lr_ag, gamma = 1e-3, 0.9
         optim_dict = config["optimization"]["agents"].copy()
-
         optimizers, schedulers = init_optimizers(f_community, optim_dict)
 
         try:
@@ -178,10 +176,10 @@ def readout_retrain(
 
     retrained_nets = [train_out[1] for train_out in train_outs]
 
-    return (
-        {"accs": test_accs},  # timesteps x (n_agents + 1) x n_targets
-        retrained_nets,
-    )
+    return {
+        "accs": test_accs,  # timesteps x (n_agents + 1) x n_targets
+        "nets": retrained_nets,
+    }
 
 
 def compute_bottleneck_metrics(

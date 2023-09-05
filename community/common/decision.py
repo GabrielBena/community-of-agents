@@ -4,6 +4,7 @@ import torch.nn.functional as F
 
 # ------Decision Making Functions ------:
 
+
 def random_decision(outputs, p=0.5):
     """Randomly choose between two possible outputs.
 
@@ -45,13 +46,11 @@ def max_decision_2(outputs):
     # Set the actions of the agents with the maximum output to 1
     outputs = torch.where(mask, outputs[1], outputs[0])
 
-    return outputs, deciding_ags 
+    return outputs, deciding_ags
 
 
 def max_decision(outputs):
-
     if isinstance(outputs, torch.Tensor):
-
         device = outputs.device
         n_agents = outputs.shape[0]
         max_out = lambda i: torch.max(outputs[i, ...], axis=-1)
@@ -84,7 +83,6 @@ def max_decision_3(outputs):
 
 
 def get_decision(outputs, temporal_decision="last", agent_decision="0", target=None):
-
     outputs = get_temporal_decision(outputs, temporal_decision)
 
     try:
@@ -105,7 +103,6 @@ def get_temporal_decision(outputs, temporal_decision):
         deciding_ts = int(temporal_decision)
         outputs = outputs[deciding_ts]
     except ValueError:
-
         if temporal_decision == "last":
             outputs = outputs[-1]
         elif temporal_decision == "sum":
@@ -126,7 +123,6 @@ def get_temporal_decision(outputs, temporal_decision):
 
 
 def get_agent_decision(outputs, agent_decision, target=None):
-
     try:
         deciding_ags = int(agent_decision)
         outputs = outputs[deciding_ags]
@@ -136,7 +132,6 @@ def get_agent_decision(outputs, agent_decision, target=None):
             deciding_ags = 1
 
     except ValueError:
-
         if agent_decision == "max":
             outputs, deciding_ags = max_decision(outputs)
 

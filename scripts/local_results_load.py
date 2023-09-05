@@ -10,7 +10,6 @@ from pathlib import Path
 
 
 def get_pandas_from_json(run, sweep_local_path, name="metric_table"):
-
     save = f"{sweep_local_path}/{run}/{name}"
 
     with open(save, "r") as j:
@@ -24,7 +23,6 @@ def get_pandas_from_json(run, sweep_local_path, name="metric_table"):
 
 
 def get_pandas_from_csv(run, sweep_local_path, name="metric_table"):
-
     save = f"{sweep_local_path}/{run}/{name}"
     data = pd.read_csv(save)
     names = [run] * len(data)
@@ -34,7 +32,6 @@ def get_pandas_from_csv(run, sweep_local_path, name="metric_table"):
 
 
 def get_pandas_from_pickle(run, sweep_local_path, name="metric_table"):
-
     save = f"{sweep_local_path}/{run}/{name}"
     data = pd.read_pickle(save)
     names = [run] * len(data)
@@ -50,23 +47,32 @@ def get_all_data_and_save(
     reload=False,
     name="metric_table",
     format="pickle",
+    run_id=None,
 ):
-
+    assert not (sweep_id is None and run_id is None)
     pool = mp.Pool(mp.cpu_count())
 
+    final_path = f"sweeps/{sweep_id}/" if sweep_id is not None else f"runs/{run_id}/"
+
     try:
-        sweep_local_path = (
-            f"/mnt/storage/gb21/community/wandb_results/sweeps/{sweep_id}/"
-        )
-        runs = os.listdir(sweep_local_path)
+        sweep_local_path = f"/mnt/storage/gb21/community/wandb_results/{final_path}"
+        os.listdir(sweep_local_path)
     except FileNotFoundError:
         sweep_local_path = (
-            f"/home/gb21/Code/ANNs/community-of-agents/wandb_results/sweeps/{sweep_id}/"
+            f"/home/gb21/Code/ANNs/community-of-agents/wandb_results/{final_path}"
         )
+        os.listdir(sweep_local_path)
+
+    if sweep_id:
+        runs = os.listdir(sweep_local_path)
+    elif run_id:
+        runs = [run_id]
+        sweep_local_path = sweep_local_path.replace(f"{run_id}/", "")
 
     if max_size is None:
         max_size = len(runs)
-    save_name = save_path + f"/{name}_{sweep_id}"
+
+    save_name = save_path + f"/{name}_{final_path.split('/')[-1]}"
 
     if not reload:
         try:
@@ -107,7 +113,6 @@ def get_all_data_and_save(
 
 
 if __name__ == "__main__":
-
     parser = argparse.ArgumentParser(
         description="Get data from Wandb Sweep and concatenate."
     )
@@ -116,6 +121,13 @@ if __name__ == "__main__":
         "--sweep_id",
         default=None,
         help="path of sweep to use",
+    )
+
+    parser.add_argument(
+        "-rid",
+        "--run_id",
+        default=None,
+        help="path of run to use",
     )
 
     parser.add_argument(
@@ -147,7 +159,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
     print(vars(args))
 
-    if args.sweep_id is None:
+    if args.sweep_id is None and args.run_id is None:
         dir_path = os.path.dirname(os.path.abspath(__file__))
         with open(f"{dir_path}/manual_sweeps/latest") as fp:
             sweep_id = json.load(fp)
@@ -160,10 +172,13 @@ if __name__ == "__main__":
         print(total_data.head())
         print(total_data.shape)
 
-    path = Path(args.save_path + f'/{args.sweep_id.split("/")[-1]}/')
+    if args.sweep_id:
+        path = Path(args.save_path + f'/{args.sweep_id.split("/")[-1]}/')
+    elif args.run_id:
+        path = Path(args.save_path + f"runs/{args.run_id}/")
     path.mkdir(exist_ok=True, parents=True)
 
-    save_name = args.save_path + f'/{args.sweep_id.split("/")[-1]}/{args.name}'
+    save_name = f"{path}/{args.name}"
 
     try:
         total_data.to_pickle(save_name)

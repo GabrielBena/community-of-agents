@@ -258,7 +258,7 @@ class Community(nn.Module):
 
     @property
     def min_t_comms(self):
-        try : 
+        try:
             min_t_comms = int(self.comms_start)
         except ValueError:
             if self.comms_start == "start":
@@ -269,7 +269,7 @@ class Community(nn.Module):
                 min_t_comms = self.nb_steps - 1
             else:
                 raise NotImplementedError
-        return min_t_comms
+        return min(min_t_comms, self.nb_steps - 1)
 
 
 class ConvCommunity(nn.Module):

@@ -141,14 +141,14 @@ if __name__ == "__main__":
         "data_size": None if (not debug_run) else data_sizes // 10,
         "common_input": False,
         "use_cuda": use_cuda,
-        "fix_asym": False,
+        "fix_asym": True,
         "permute_dataset": True,
         "seed": seed,
         "data_type": "symbols" if use_symbols else "double_digits",
         "n_digits": n_digits,
         "n_classes": n_classes,
         "n_classes_per_digit": n_classes_per_digit,
-        "nb_steps": 5,
+        "nb_steps": 2,
         "split_classes": True,
         "cov_ratio": 1.0,
         "noise_ratio": None,
@@ -184,7 +184,7 @@ if __name__ == "__main__":
         "lr": 1e-3,
         "gamma": 0.95,
         "reg_readout": None,
-        "weight_decay": 1e-3,
+        "weight_decay": 1e-4,
     }
 
     deepR_config = {
@@ -209,7 +209,7 @@ if __name__ == "__main__":
     agents_config = {
         "n_in": dataset_config["input_size"],
         "n_hidden": 25,
-        "n_bot": None,
+        "n_bot": 5,
         "n_layers": 1,
         "train_in_out": (True, True),
         "cell_type": str(nn.RNN),
@@ -217,7 +217,7 @@ if __name__ == "__main__":
     }
 
     readout_config = {
-        "common_readout": True,
+        "common_readout": False,
         "n_hid": None,
         "readout_from": None,
     }
@@ -231,7 +231,7 @@ if __name__ == "__main__":
 
     training_config = {
         "decision": ["last", "all"],
-        "n_epochs": 30 if not debug_run else 1,
+        "n_epochs": 35 if not debug_run else 1,
         "inverse_task": False,
         "stopping_acc": 0.95,
         "early_stop": False,
@@ -257,10 +257,10 @@ if __name__ == "__main__":
                 ]
             )
         },
-        "varying_params_sweep": {"nb_steps": [5]},
+        "varying_params_sweep": {},
         "varying_params_local": {},
         ###------ Task ------
-        "task": "family",
+        "task": "parity-digits-both",
         ### ------ Task ------
         "metrics_only": False,
         "n_tests": 10 if not debug_run else 1,
@@ -341,6 +341,7 @@ if __name__ == "__main__":
 
     # ------ Local Varying Params ------
     n = default_config["model"]["agents"]["n_hidden"]
+
     sparsities = np.concatenate(
         [
             np.array([0]),
@@ -366,7 +367,6 @@ if __name__ == "__main__":
                 wandb.config["varying_params_sweep"]["nb_steps"] - 1,
             ]
         )
-
         varying_params_local.update({"comms_start": start_times})
 
     varying_params_local = get_all_v_params(varying_params_local)
