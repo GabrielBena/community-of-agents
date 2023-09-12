@@ -20,13 +20,13 @@
 # AXES 
 axes.spines.right : False 
 axes.spines.top : False 
-axes.labelsize : 18 
-axes.titlesize : 12
+axes.labelsize : 15 
+axes.titlesize : 15
 axes.linewidth : 2
 
 
 # FONT
-font.size : 12
+font.size : 15
 
 # FIG 
 figure.figsize : 5, 5 
@@ -39,12 +39,12 @@ lines.linewidth : 3
 
 # LEGEND
 legend.frameon : False 
-legend.fontsize : 12
+legend.fontsize : 15
 
 # TICKS 
 
-xtick.labelsize: 12
-ytick.labelsize: 12
+xtick.labelsize: 15
+ytick.labelsize: 15
 xtick.major.width : 2
 ytick.major.width : 2
 xtick.major.size : 5

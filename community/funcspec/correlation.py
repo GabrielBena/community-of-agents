@@ -187,9 +187,10 @@ def get_pearson_metrics(
         pbar_0 = tqdm_f(
             pbar_0, position=position, desc="Correlation Metric", leave=None
         )
-        pbar_1 = tqdm_f(
-            pbar_1, position=position + 1, desc="Correlation Metric Trials", leave=None
-        )
+
+        # pbar_1 = tqdm_f(
+        #     pbar_1, position=position + 1, desc="Correlation Metric Trials", leave=None
+        # )
 
     correlations = [[] for _ in range(2)]
     base_correlations = []

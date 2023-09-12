@@ -77,7 +77,7 @@ def add_temporal_noise(
                 ]
             )
 
-        mask = mask[..., None].transpose(1, 2)
+        mask = mask[..., None].transpose(1, 2).to(data.device)
         pure_noise = torch.stack(
             [add_structured_noise(d, n_samples, 1.0)[0] for d in data]
         ).transpose(1, 2)

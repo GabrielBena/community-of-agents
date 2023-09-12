@@ -217,7 +217,7 @@ if __name__ == "__main__":
     }
 
     readout_config = {
-        "common_readout": False,
+        "common_readout": True,
         "n_hid": None,
         "readout_from": None,
     }
@@ -359,7 +359,13 @@ if __name__ == "__main__":
     varying_params_local = {"sparsity": sparsities}
     # varying_params_local.update({"noise_ratio": [0.0, 0.5, 0.9]})
 
-    if "nb_steps" in wandb.config["varying_params_sweep"]:
+    if (
+        "nb_steps" in wandb.config["varying_params_sweep"]
+        and "random_start" in wandb.config["varying_params_sweep"]
+        and not wandb.config["varying_params_sweep"]["random_start"]
+        and "noise_ratio" in wandb.config["varying_params_sweep"]
+        and wandb.config["varying_params_sweep"]["noise_ratio"] is None
+    ):
         start_times = np.unique(
             [
                 1,
@@ -388,7 +394,7 @@ if __name__ == "__main__":
         config["varying_params_local"] = v_params_all
 
         if config["use_tqdm"]:
-            pbar_0.set_description(f"Varying Params : {v_params_all}")
+            pbar_0.set_description(f"Varying Params : {v_params_local}")
 
         if wandb_log:
             wandb.config.update(

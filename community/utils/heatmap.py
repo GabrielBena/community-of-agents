@@ -204,7 +204,7 @@ def compute_and_plot_colormesh(
     if exclude_sup:
         Z[Y_mesh > X_mesh] = np.nan
     if not imshow:
-        pcm = ax.pcolor(
+        pcm = ax.pcolormesh(
             X,
             Y,
             Z,
@@ -212,6 +212,8 @@ def compute_and_plot_colormesh(
             rasterized=True,
             vmin=minmax[0] if minmax is not None else None,
             vmax=minmax[1] if minmax is not None else None,
+            # antialiaseds=True,
+            shading="gouraud",
         )
     else:
         pcm = ax.imshow(Z[::-1], cmap="viridis")
@@ -224,8 +226,10 @@ def compute_and_plot_colormesh(
         """"""
         if log_scale[0]:
             ax.set_xscale("log")
+            # ax.set_xticks([])
         if log_scale[1]:
             ax.set_yscale("log")
+            # ax.set_yticks([])
 
     # ax.set_ylim(y_values.min(), y_values.max())
 

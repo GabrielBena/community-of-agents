@@ -183,7 +183,7 @@ def ensure_config_coherence(config, v_params):
         ]
     )
 
-    if not config["debug_run"] and config["datasets"]["nb_steps"] > 2:
+    if not config["debug_run"] and config["datasets"]["nb_steps"] > 5:
         config["datasets"]["data_size"] = [
             int(d // 2 + (d // 2) * (10 - config["datasets"]["nb_steps"]) / 8)
             for d in config["datasets"]["default_data_sizes"]
