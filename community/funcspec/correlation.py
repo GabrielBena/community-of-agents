@@ -130,9 +130,7 @@ def pearsonr_numpy(x, y):
 
 # v_pearsonr = vmap(pearsonr)
 v_pearsonr = np.vectorize(pearsonr, signature="(n1),(n2)->(),()")
-v_cka = np.vectorize(CKA().kernel_CKA, signature="(n1),(n2)->()")
 # v_pearsonr = np.vectorize(pearsonr_numpy, )
-
 
 def randperm_no_fixed(n):
     perm = torch.randperm(n)
@@ -338,6 +336,7 @@ def get_pearson_metrics(
             "mean_corrs": 0,
             "relative_corrs": 0,
             "base_corrs": 0,
+            'all_corrs': 0,
         }
 
 

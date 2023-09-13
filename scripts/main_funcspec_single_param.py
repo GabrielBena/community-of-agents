@@ -502,4 +502,4 @@ if __name__ == "__main__":
             sweep_path, run_id, mark_as_done=True
         )
         # Rerun
-        os.execv(sys.executable, ["python"] + sys.argv)
+        #os.execv(sys.executable, ["python"] + sys.argv)
