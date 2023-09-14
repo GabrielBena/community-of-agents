@@ -86,9 +86,9 @@ if __name__ == "__main__":
     )
 
     parser.add_argument(
-        "-v",
-        "--varying_params_sweep",
-        default={},
+        "-id",
+        "--sweep_id",
+        default=None,
         help="Varying params passed by wandb agent for sweep",
         type=dict,
     )
@@ -106,7 +106,6 @@ if __name__ == "__main__":
 
     f_path = os.path.realpath(__file__)
     dir_path = os.path.split(f_path)[0]
-    sweep_id = None
 
     wandb_log = args.wandb_log
     manual_sweep = args.manual_sweep
@@ -263,12 +262,12 @@ if __name__ == "__main__":
         "task": "parity-digits-both",
         ### ------ Task ------
         "metrics_only": False,
-        "n_tests": 10 if not debug_run else 1,
+        "n_tests": 3 if not debug_run else 1,
         "debug_run": debug_run,
         "use_tqdm": 2,
         "data_regen": [False, False],  # dataset_config["data_type"] != "symbols"],
         "wandb_log": wandb_log,
-        "sweep_id": None,
+        "sweep_id": args.sweep_id,
         "hpc": hpc,
     }
 
@@ -291,7 +290,7 @@ if __name__ == "__main__":
     else:
         os.environ["WANDB_MODE"] = "offline"
 
-        if sweep_id is None:
+        if args.sweep_id is None:
             with open(f"{dir_path}/manual_sweeps/latest") as fp:
                 sweep_id = json.load(fp)
 
