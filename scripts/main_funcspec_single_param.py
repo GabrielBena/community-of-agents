@@ -90,7 +90,7 @@ if __name__ == "__main__":
         "--sweep_id",
         default=None,
         help="Varying params passed by wandb agent for sweep",
-        type=dict,
+        type=str,
     )
 
     parser.add_argument(
@@ -293,6 +293,8 @@ if __name__ == "__main__":
         if args.sweep_id is None:
             with open(f"{dir_path}/manual_sweeps/latest") as fp:
                 sweep_id = json.load(fp)
+        else:
+            sweep_id = args.sweep_id
 
         sweep_path = f"{dir_path}/manual_sweeps/sweeps/{sweep_id}"
         run_id = generate_id()
