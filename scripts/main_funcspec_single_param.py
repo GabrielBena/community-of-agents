@@ -356,6 +356,7 @@ if __name__ == "__main__":
     )
 
     varying_params_local = {"sparsity": sparsities}
+
     # varying_params_local.update({"noise_ratio": [0.0, 0.5, 0.9]})
 
     if (
@@ -364,6 +365,7 @@ if __name__ == "__main__":
         and not wandb.config["varying_params_sweep"]["random_start"]
         and "noise_ratio" in wandb.config["varying_params_sweep"]
         and wandb.config["varying_params_sweep"]["noise_ratio"] is None
+        and False
     ):
         start_times = np.unique(
             [
@@ -501,4 +503,4 @@ if __name__ == "__main__":
             sweep_path, run_id, mark_as_done=True
         )
         # Rerun
-        #os.execv(sys.executable, ["python"] + sys.argv)
+        # os.execv(sys.executable, ["python"] + sys.argv)
